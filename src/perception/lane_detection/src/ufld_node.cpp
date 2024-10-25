@@ -23,6 +23,14 @@ class UFLDNode : public rclcpp::Node {
         config.numRow = this->get_parameter("num_row").as_int();
         config.numCol = this->get_parameter("num_col").as_int();
 
+        RCLCPP_INFO(this->get_logger(), "Initializing UFLD node");
+        RCLCPP_INFO(this->get_logger(), "Engine path: %s", enginePath.c_str());
+        RCLCPP_INFO(this->get_logger(), "Cut height: %d", config.cutHeight);
+        RCLCPP_INFO(this->get_logger(), "Input width: %d", config.inputWidth);
+        RCLCPP_INFO(this->get_logger(), "Input height: %d", config.inputHeight);
+        RCLCPP_INFO(this->get_logger(), "Number of rows: %d", config.numRow);
+        RCLCPP_INFO(this->get_logger(), "Number of columns: %d", config.numCol);
+
         // Initialize row and column anchors
         initializeAnchors(config);
 

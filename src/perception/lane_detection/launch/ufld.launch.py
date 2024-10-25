@@ -2,7 +2,7 @@ from launch import LaunchDescription
 from launch_ros.actions import Node
 from launch.substitutions import LaunchConfiguration
 from launch.actions import DeclareLaunchArgument
-from ament_index_cpp.packages import get_package_share_directory
+from ament_index_python.packages import get_package_share_directory
 import os
 
 def generate_launch_description():
@@ -24,8 +24,10 @@ def generate_launch_description():
             parameters=[{
                 'engine_path': engine_path,
                 'cut_height': 320,
-                'input_width': 800,
-                'input_height': 320,
+                # 'input_width': 800,
+                # 'input_height': 320,
+                'input_width': 1920,
+                'input_height': 1080,
                 'num_row': 72,
                 'num_col': 81
             }],
