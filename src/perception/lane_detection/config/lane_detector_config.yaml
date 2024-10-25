@@ -1,0 +1,6 @@
+lane_detector_node:
+  ros__parameters:
+    sub_camera_topic: /camera/color/image_raw
+    
+    
+    
