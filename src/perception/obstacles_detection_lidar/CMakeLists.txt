@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(perception)
+project(obstacles_detection_lidar)
 
 # Default to C99
 if(NOT CMAKE_C_STANDARD)
@@ -47,7 +47,7 @@ include_directories(
 )
 
 # Create your node executable
-add_executable(perception_node src/perception.cpp)
+add_executable(obstacles_detection_lidar_node src/obstacles_detection_lidar.cpp)
 
 # Add PCL definitions and link directories
 add_definitions(${PCL_DEFINITIONS})
@@ -56,7 +56,7 @@ link_directories(${PCL_LIBRARY_DIRS})
 
 
 # Specify libraries to link against
-target_link_libraries(perception_node
+target_link_libraries(obstacles_detection_lidar_node
   ${rclcpp_LIBRARIES}
   ${sensor_msgs_LIBRARIES}
   ${PCL_LIBRARIES}
@@ -65,7 +65,7 @@ target_link_libraries(perception_node
 )
 
 # Ensure the generated headers are included in the build
-target_include_directories(perception_node PUBLIC
+target_include_directories(obstacles_detection_lidar_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/rosidl_generator_cpp>
   $<INSTALL_INTERFACE:include>
 )
@@ -78,7 +78,7 @@ endif()
 
 # Install executable
 install(TARGETS
-  perception_node
+  obstacles_detection_lidar_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -86,7 +86,7 @@ install(DIRECTORY config
 launch DESTINATION share/${PROJECT_NAME})
 
 # Export dependencies and package
-ament_target_dependencies(perception_node
+ament_target_dependencies(obstacles_detection_lidar_node
   rosidl_typesupport_fastrtps_cpp
   rclcpp
   sensor_msgs

@@ -21,9 +21,9 @@
 
 #define DEBUG_PUBLISH_POINT_CLOUD 1
 
-class PerceptionNode : public rclcpp::Node {
+class ObstaclesDetectionLidarNode : public rclcpp::Node {
   public:
-    PerceptionNode();
+    ObstaclesDetectionLidarNode();
 
   private:
     void InitParameters();

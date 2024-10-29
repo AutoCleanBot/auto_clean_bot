@@ -4,26 +4,29 @@
 #include <pcl/common/centroid.h>
 #include <pcl/common/common.h> // Ensure you have this header included
 // #include <pcl/segmentation/dbscan.h>
+#include <obstacles_detection_lidar/obstacles_detection_lidar.h>
 #include <pcl/features/normal_3d.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/segmentation/region_growing.h>
 #include <pcl/visualization/pcl_visualizer.h>
-#include <perception/perception.h>
 // #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
-PerceptionNode::PerceptionNode() : Node("perception_node") {
+ObstaclesDetectionLidarNode::ObstaclesDetectionLidarNode() : Node("perception_node") {
     // 加载yaml配置参数
     InitParameters();
     if (is_use_front_lidar_)
         front_lidar_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-            front_lidar_topic_, 10, std::bind(&PerceptionNode::PointClould2Callback, this, std::placeholders::_1));
+            front_lidar_topic_, 10,
+            std::bind(&ObstaclesDetectionLidarNode::PointClould2Callback, this, std::placeholders::_1));
     // TODO:针对于左向和右向的激光雷达，需要设计不同的处理函数
     if (is_use_left_lidar_)
         left_lidar_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-            left_lidar_topic_, 10, std::bind(&PerceptionNode::PointClould2Callback, this, std::placeholders::_1));
+            left_lidar_topic_, 10,
+            std::bind(&ObstaclesDetectionLidarNode::PointClould2Callback, this, std::placeholders::_1));
     if (is_use_right_lidar_)
         right_lidar_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-            right_lidar_topic_, 10, std::bind(&PerceptionNode::PointClould2Callback, this, std::placeholders::_1));
+            right_lidar_topic_, 10,
+            std::bind(&ObstaclesDetectionLidarNode::PointClould2Callback, this, std::placeholders::_1));
 
     obstacle_pub_ = this->create_publisher<bot_msg::msg::Obstacles>("/perception/obstacles", 10);
     marker_pub_ = this->create_publisher<visualization_msgs::msg::Marker>("/perception/marker", 10);
@@ -43,7 +46,7 @@ PerceptionNode::PerceptionNode() : Node("perception_node") {
 }
 
 // TODO：静态变换的发布器，放置到专门的包中
-void PerceptionNode::InitStaticTransformBroadcaster() {
+void ObstaclesDetectionLidarNode::InitStaticTransformBroadcaster() {
     // 设置默认值并声明参数
     this->declare_parameter<double>("lidar_base_x", 0.0);
     this->declare_parameter<double>("lidar_base_y", 0.0);
@@ -117,7 +120,7 @@ void PerceptionNode::InitStaticTransformBroadcaster() {
     RCLCPP_INFO(this->get_logger(), "Published static transforms for radar and lidar");
 }
 
-void PerceptionNode::InitParameters() {
+void ObstaclesDetectionLidarNode::InitParameters() {
     // 设置默认值并声明参数
     this->declare_parameter<double>("max_height", 1.5);
     this->declare_parameter<double>("min_height", 0.2);
@@ -147,6 +150,13 @@ void PerceptionNode::InitParameters() {
     this->declare_parameter<std::string>("frame_id", "base_link");
 
     // 获取参数值
+
+    if (this->get_parameter("max_height", max_height_)) {
+        RCLCPP_INFO(this->get_logger(), "use configed max_height: %f", this->get_parameter("max_height").as_double());
+    } else {
+        RCLCPP_INFO(this->get_logger(), " use default max_height: %f", 1.5);
+    }
+
     max_height_ = this->get_parameter("max_height").as_double();
     min_height_ = this->get_parameter("min_height").as_double();
     vehicle_height_ = this->get_parameter("vehicle_height").as_double();
@@ -213,7 +223,7 @@ void PerceptionNode::InitParameters() {
  *
  * @param cloud 点云数据
  */
-void PerceptionNode::RemoveInvalidPoints(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud) {
+void ObstaclesDetectionLidarNode::RemoveInvalidPoints(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud) {
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
     std::vector<int> indices;
@@ -228,16 +238,17 @@ void PerceptionNode::RemoveInvalidPoints(pcl::PointCloud<pcl::PointXYZ>::Ptr clo
     *cloud = *cloud_filtered;
 }
 
-void PerceptionNode::FillAndPublishObstacleMarker(const bot_msg::msg::Obstacles &obstacle_array_msg,
-                                                  int obstacles_type) {
+void ObstaclesDetectionLidarNode::FillAndPublishObstacleMarker(const bot_msg::msg::Obstacles &obstacle_array_msg,
+                                                               int obstacles_type) {
     for (const auto &obstacle : obstacle_array_msg.obstacles) {
         auto &&marker = MakeObstacleMarker(obstacle, obstacles_type);
         marker_pub_->publish(marker);
     }
 }
 
-visualization_msgs::msg::Marker PerceptionNode::MakeObstacleMarker(int x, int y, int z, int width, int length,
-                                                                   int height, int obstacles_type) {
+visualization_msgs::msg::Marker ObstaclesDetectionLidarNode::MakeObstacleMarker(int x, int y, int z, int width,
+                                                                                int length, int height,
+                                                                                int obstacles_type) {
     static int marker_id = 0;
     auto marker = visualization_msgs::msg::Marker();
     marker.header.frame_id = frame_id_;
@@ -324,8 +335,8 @@ visualization_msgs::msg::Marker PerceptionNode::MakeObstacleMarker(int x, int y,
     return marker;
 }
 
-visualization_msgs::msg::Marker PerceptionNode::MakeObstacleMarker(const bot_msg::msg::ObstacleInfo &obstacle,
-                                                                   int obstacles_type) {
+visualization_msgs::msg::Marker
+ObstaclesDetectionLidarNode::MakeObstacleMarker(const bot_msg::msg::ObstacleInfo &obstacle, int obstacles_type) {
     static int marker_id = 0;
     auto marker = visualization_msgs::msg::Marker();
     marker.header.frame_id = frame_id_;
@@ -418,7 +429,8 @@ visualization_msgs::msg::Marker PerceptionNode::MakeObstacleMarker(const bot_msg
  * @param cloud
  * @param title
  */
-void PerceptionNode::VisualizePointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud, const std::string &title) {
+void ObstaclesDetectionLidarNode::VisualizePointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud,
+                                                      const std::string &title) {
     pcl::visualization::CloudViewer viewer(title); // 为每个步骤创建一个新的 CloudViewer 实例
     viewer.showCloud(cloud);
 
@@ -434,8 +446,8 @@ void PerceptionNode::VisualizePointCloud(const pcl::PointCloud<pcl::PointXYZ>::P
  * @param title
  * @param stage
  */
-void PerceptionNode::VisualizePointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud, const std::string &title,
-                                         int stage) {
+void ObstaclesDetectionLidarNode::VisualizePointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud,
+                                                      const std::string &title, int stage) {
     // 使用静态指针使得所有阶段的点云都显示在同一个窗口中
     static pcl::visualization::PCLVisualizer::Ptr viewer(new pcl::visualization::PCLVisualizer(title));
     viewer->setBackgroundColor(0.1, 0.1, 0.1); // 设置背景颜色
@@ -487,8 +499,9 @@ void PerceptionNode::VisualizePointCloud(const pcl::PointCloud<pcl::PointXYZ>::P
 }
 
 // 发布点云的辅助函数
-void PerceptionNode::PublishPointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud,
-                                       const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr &publisher) {
+void ObstaclesDetectionLidarNode::PublishPointCloud(
+    const pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud,
+    const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr &publisher) {
     sensor_msgs::msg::PointCloud2 output_cloud;
     pcl::toROSMsg(*cloud, output_cloud);
     output_cloud.header.stamp = this->get_clock()->now();
@@ -496,7 +509,7 @@ void PerceptionNode::PublishPointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr
     publisher->publish(output_cloud);
 }
 
-void PerceptionNode::PointClould2Callback(const sensor_msgs::msg::PointCloud2::SharedPtr pnt_cloud) {
+void ObstaclesDetectionLidarNode::PointClould2Callback(const sensor_msgs::msg::PointCloud2::SharedPtr pnt_cloud) {
 
     auto node_timestamp = this->get_clock()->now();
     RCLCPP_INFO(this->get_logger(), "time stamp , %.2f", node_timestamp.seconds());
@@ -761,7 +774,7 @@ void PerceptionNode::PointClould2Callback(const sensor_msgs::msg::PointCloud2::S
 // 节点注册
 int main(int argc, char *argv[]) {
     rclcpp::init(argc, argv);
-    auto node = std::make_shared<PerceptionNode>();
+    auto node = std::make_shared<ObstaclesDetectionLidarNode>();
     RCLCPP_INFO(node->get_logger(), "Perception node started");
     rclcpp::spin(node);
     rclcpp::shutdown();

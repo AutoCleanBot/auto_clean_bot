@@ -1,0 +1,2 @@
+source install/setup.bash
+ros2 launch obstacles_detection_lidar obstacles_detection_lidar.launch.py

@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="3">
-  <name>perception</name>
+  <name>obstacles_detection_lidar</name>
   <version>0.0.0</version>
   <description>TODO: Package description</description>
   <maintainer email="nvidia@todo.todo">nvidia</maintainer>

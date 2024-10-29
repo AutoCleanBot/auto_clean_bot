@@ -1,4 +1,4 @@
-perception_node:
+obstacles_detection_lidar_node:
   ros__parameters:
     # 传感器以及车辆参数
     max_height: 3.0
