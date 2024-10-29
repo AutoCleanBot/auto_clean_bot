@@ -34,4 +34,4 @@ build_windows/
 bags/
 
 # big files or directories that you don't want to commit
-.engine
+*.engine
