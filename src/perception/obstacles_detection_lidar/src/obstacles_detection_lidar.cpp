@@ -151,12 +151,6 @@ void ObstaclesDetectionLidarNode::InitParameters() {
 
     // 获取参数值
 
-    if (this->get_parameter("max_height", max_height_)) {
-        RCLCPP_INFO(this->get_logger(), "use configed max_height: %f", this->get_parameter("max_height").as_double());
-    } else {
-        RCLCPP_INFO(this->get_logger(), " use default max_height: %f", 1.5);
-    }
-
     max_height_ = this->get_parameter("max_height").as_double();
     min_height_ = this->get_parameter("min_height").as_double();
     vehicle_height_ = this->get_parameter("vehicle_height").as_double();
