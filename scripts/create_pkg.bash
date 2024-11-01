@@ -15,3 +15,4 @@ cd "$create_path" || { echo "路径不存在，退出."; exit 1; }
 
 # 创建指定的包
 ros2 pkg create "$package_name" --build-type ament_cmake
+
