@@ -1,8 +1,9 @@
 #include "rtk/rtk.h"
+#include <chrono>
+#include <cstdio>
 #include <string>
 namespace rtk {
-
-RTKNode::RTKNode() {
+RTKNode::RTKNode() : Node("rtk_node") {
     // constructor
     InitParams();
     bool ret = DeviceInit();
@@ -15,19 +16,45 @@ RTKNode::RTKNode() {
     }
 }
 
+/**
+ * @brief parse the RTK info string
+ *
+ * @param info_str
+ */
+void RTKNode::ParseRTKInfo(const std::string &info_str) {
+    char reserved[20];
+    Giavp giavp;
+    sscanf(info_str.c_str(),
+           "$GIAVP,%d,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%d,%d,%d,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf*%s",
+           &giavp.week, &giavp.time_sec, &giavp.heading_deg, &giavp.pitch_deg, &giavp.roll_deg, &giavp.latitude_deg,
+           &giavp.longitude_deg, &giavp.altitude_m, &giavp.ve_m_s, &giavp.vn_m_s, &giavp.vd_m_s, &giavp.nvsv1,
+           &giavp.nvsv2, &giavp.status, &giavp.speed_status, &giavp.vehicle_speed_m_s, &giavp.acc_x_m_s2,
+           &giavp.acc_y_m_s2, &giavp.acc_z_m_s2, &giavp.gyro_x_deg_s, &giavp.gyro_y_deg_s, &giavp.gyro_z_deg_s,
+           reserved);
+    // TODO: set localization info
+    return;
+}
+
 void RTKNode::InfoReadLoop() {
     std::string data;
+    std::string gstart = "$GIAVP"; // 开头
+    std::string gend = "\r\n";
     while (running_) {
-        if (serial_port_.available() > 0) {
+        if (serial_port_.available() > 0) { // 当缓冲区有数据时
             data += serial_port_.readline();
-            RCLCPP_INFO(this->get_logger(), "Received data: %s", data.c_str());
-            std::string gstart = "$GIAVP"; // 开头
-            std::string gend = "\r\n";
-            int i = 0, start = -1, end = -1;
-            double lat, lon, hgt, vel, yaw, pitch;
-            // TODO: 解析数据
+            // RCLCPP_INFO(this->get_logger(), "Received data: %s", data.c_str());
+            auto start_pos = data.find(gstart);
+            auto end_pos = data.find(gend);
+            if (start_pos != std::string::npos && end_pos != std::string::npos) {
+                std::string info_str = data.substr(start_pos, end_pos - start_pos + gend.length());
+                RCLCPP_INFO(this->get_logger(), "Received a full packet: %s", info_str.c_str());
+                ParseRTKInfo(info_str);
+                data.erase(0, end_pos + gend.length());
+            } else {
+                RCLCPP_WARN(this->get_logger(), "Incomplete packet received: %s", data.c_str());
+            }
         } else {
-            this_thread::sleep_for(chrono::milliseconds(1));
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     }
 }
@@ -82,3 +109,13 @@ bool RTKNode::DeviceInit() {
     return true;
 }
 } // namespace rtk
+
+// 节点注册
+int main(int argc, char *argv[]) {
+    rclcpp::init(argc, argv);
+    auto node = std::make_shared<rtk::RTKNode>();
+    RCLCPP_INFO(node->get_logger(), "rtk node started");
+    rclcpp::spin(node);
+    rclcpp::shutdown();
+    return 0;
+}
