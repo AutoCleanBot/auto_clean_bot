@@ -15,12 +15,13 @@ def generate_launch_description():
     
     # 将所有参数放在一个字典中
     rtk_params = {
-        'device_name' : '/dev/ttyTHS4',
+        'device_name' : '/dev/ttyUART_232_A',
         'baud_rate' : 460800,
-        'timeout_ms' : 50,
+        'timeout_ms' : 10,
         'topic_name' : 'rtk_fix',
         'frame_id' : 'rtk_link',
         'publish_rate' : 50.0,  # 频率为10Hz
+        'enable_debug_log': False,
     }
     
     # 配置节点，并将参数字典直接传递给参数字段

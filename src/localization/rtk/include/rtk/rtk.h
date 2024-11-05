@@ -9,34 +9,30 @@
 
 namespace rtk {
 
-struct Giavp {                // GIAVP data structure
-    int week;                 // GPS week number
-    double time_sec;          // GPS time (seconds of week)
-    double heading_deg;       // heading (degrees)
-    double pitch_deg;         // pitch (degrees)
-    double roll_deg;          // roll (degrees)
-    double latitude_deg;      // latitude (degrees)
-    double longitude_deg;     // longitude (degrees)
-    double altitude_m;        // altitude (meters)
-    double ve_m_s;            // velocity east (meters/second)
-    double vn_m_s;            // velocity north (meters/second)
-    double vu_m_s;            // velocity down (meters/second)
-    int nvsv1;                // GPS satellite number
-    int nvsv2;                // GPS satellite number
-    int status;               // rtk status
-    double speed_status;      // vehicle speed status
-    double vehicle_speed_m_s; // vehicle speed (meters/second)
-    double acc_x_m_s2;        // acceleration x (meters/second^2)
-    double acc_y_m_s2;        // acceleration y (meters/second^2)
-    double acc_z_m_s2;        // acceleration z (meters/second^2)
-    double gyro_x_deg_s;      // gyro x (degrees/second)
-    double gyro_y_deg_s;      // gyro y (degrees/second)
-    double gyro_z_deg_s;      // gyro z (degrees/second)
-    Giavp()
-        : week(0), time_sec(0), heading_deg(0), pitch_deg(0), roll_deg(0), latitude_deg(0), longitude_deg(0),
-          altitude_m(0), ve_m_s(0), vn_m_s(0), vu_m_s(0), nvsv1(0), nvsv2(0), status(0), speed_status(0),
-          vehicle_speed_m_s(0), acc_x_m_s2(0), acc_y_m_s2(0), acc_z_m_s2(0), gyro_x_deg_s(0), gyro_y_deg_s(0),
-          gyro_z_deg_s(0) {}
+struct Giavp {
+    int week;
+    double time_sec;
+    double heading_deg;
+    double pitch_deg;
+    double roll_deg;
+    double latitude_deg;
+    double longitude_deg;
+    double altitude_m;
+    double ve_m_s;
+    double vn_m_s;
+    double vu_m_s;
+    double baseline;
+    int nvsv1;
+    int nvsv2;
+    int status;
+    double speed_status;
+    double vehicle_speed_m_s;
+    double acc_x_m_s2;
+    double acc_y_m_s2;
+    double acc_z_m_s2;
+    double gyro_x_deg_s;
+    double gyro_y_deg_s;
+    double gyro_z_deg_s;
 };
 
 class RTKNode : public rclcpp::Node {
@@ -72,5 +68,6 @@ class RTKNode : public rclcpp::Node {
     double base_latitude_deg_;                 // base point latitude (degrees)
     double base_longitude_deg_;                // base point longitude (degrees)
     double base_altitude_m_;                   // base point altitude (meters)
+    bool enable_debug_log_;                    // enable debug log
 };
 } // namespace rtk

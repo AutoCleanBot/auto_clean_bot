@@ -89,15 +89,27 @@ void RTKNode::WGS84toENU(const Giavp &giavp) {
  * @param info_str
  */
 void RTKNode::ParseRTKInfo(const std::string &info_str) {
-    char reserved[20];
+
     Giavp giavp;
-    sscanf(info_str.c_str(),
-           "$GIAVP,%d,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%d,%d,%d,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf*%s",
-           &giavp.week, &giavp.time_sec, &giavp.heading_deg, &giavp.pitch_deg, &giavp.roll_deg, &giavp.latitude_deg,
-           &giavp.longitude_deg, &giavp.altitude_m, &giavp.ve_m_s, &giavp.vn_m_s, &giavp.vu_m_s, &giavp.nvsv1,
-           &giavp.nvsv2, &giavp.status, &giavp.speed_status, &giavp.vehicle_speed_m_s, &giavp.acc_x_m_s2,
-           &giavp.acc_y_m_s2, &giavp.acc_z_m_s2, &giavp.gyro_x_deg_s, &giavp.gyro_y_deg_s, &giavp.gyro_z_deg_s,
-           reserved);
+    unsigned int checksum; // 用于保存校验和值
+    int parsed_fields = sscanf(
+        info_str.c_str(),
+        "$GIAVP,%d,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%d,%d,%d,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf", &giavp.week,
+        &giavp.time_sec, &giavp.heading_deg, &giavp.pitch_deg, &giavp.roll_deg, &giavp.latitude_deg,
+        &giavp.longitude_deg, &giavp.altitude_m, &giavp.ve_m_s, &giavp.vn_m_s, &giavp.vu_m_s, &giavp.baseline,
+        &giavp.nvsv1, &giavp.nvsv2, &giavp.status, &giavp.speed_status, &giavp.vehicle_speed_m_s, &giavp.acc_x_m_s2,
+        &giavp.acc_y_m_s2, &giavp.acc_z_m_s2, &giavp.gyro_x_deg_s, &giavp.gyro_y_deg_s, &giavp.gyro_z_deg_s);
+    if (enable_debug_log_) {
+        RCLCPP_INFO(this->get_logger(), "Received a full packet: %s", info_str.c_str());
+        RCLCPP_INFO(this->get_logger(),
+                    "Received RTK info: "
+                    "$GIAVP,%d,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%d,%d,%d,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf",
+                    giavp.week, giavp.time_sec, giavp.heading_deg, giavp.pitch_deg, giavp.roll_deg, giavp.latitude_deg,
+                    giavp.longitude_deg, giavp.altitude_m, giavp.ve_m_s, giavp.vn_m_s, giavp.vu_m_s, giavp.baseline,
+                    giavp.nvsv1, giavp.nvsv2, giavp.status, giavp.speed_status, giavp.vehicle_speed_m_s,
+                    giavp.acc_x_m_s2, giavp.acc_y_m_s2, giavp.acc_z_m_s2, giavp.gyro_x_deg_s, giavp.gyro_y_deg_s,
+                    giavp.gyro_z_deg_s);
+    }
     // simply publish the parsed RTK info
     rtk_msg_.header.stamp = this->get_clock()->now();
     rtk_msg_.header.frame_id = this->frame_id_;
@@ -144,7 +156,6 @@ void RTKNode::InfoReadLoop() {
             auto end_pos = data.find(gend);
             if (start_pos != std::string::npos && end_pos != std::string::npos) {
                 std::string info_str = data.substr(start_pos, end_pos - start_pos + gend.length());
-                RCLCPP_INFO(this->get_logger(), "Received a full packet: %s", info_str.c_str());
                 ParseRTKInfo(info_str);
                 data.erase(0, end_pos + gend.length());
             } else {
@@ -168,6 +179,7 @@ void RTKNode::InitParams() {
     this->declare_parameter<std::string>("topic_name", "rtk_fix");
     this->declare_parameter<std::string>("frame_id", "rtk_frame");
     this->declare_parameter<double>("publish_rate", 10.0);
+    this->declare_parameter<bool>("enable_debug_log", false);
 
     // set the parameters
     this->get_parameter("device_name", this->device_name_);
@@ -176,6 +188,7 @@ void RTKNode::InitParams() {
     this->get_parameter("topic_name", this->topic_name_);
     this->get_parameter("frame_id", this->frame_id_);
     this->get_parameter("publish_rate", this->publish_rate_);
+    this->get_parameter("enable_debug_log", this->enable_debug_log_);
 
     // print the parameters
     RCLCPP_INFO(this->get_logger(), "Device name: %s", this->device_name_.c_str());

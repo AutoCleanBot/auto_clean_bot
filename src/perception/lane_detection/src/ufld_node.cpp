@@ -13,9 +13,13 @@ class UFLDNode : public rclcpp::Node {
         this->declare_parameter("input_height", 320);
         this->declare_parameter("num_row", 72);
         this->declare_parameter("num_col", 81);
+        this->declare_parameter("subscribe_topic_name", "image_raw");
+        this->declare_parameter("publish_topic_name", "lane_detection");
 
         // Get parameters
         auto enginePath = this->get_parameter("engine_path").as_string();
+        subscribeTopicName_ = this->get_parameter("subscribe_topic_name").as_string();
+        publishTopicName_ = this->get_parameter("publish_topic_name").as_string();
         ufld_ros::UFLDDetector::Config config;
         config.cutHeight = this->get_parameter("cut_height").as_int();
         config.inputWidth = this->get_parameter("input_width").as_int();
@@ -30,16 +34,17 @@ class UFLDNode : public rclcpp::Node {
         RCLCPP_INFO(this->get_logger(), "Input height: %d", config.inputHeight);
         RCLCPP_INFO(this->get_logger(), "Number of rows: %d", config.numRow);
         RCLCPP_INFO(this->get_logger(), "Number of columns: %d", config.numCol);
+        RCLCPP_INFO(this->get_logger(), "Subscribe topic name: %s", subscribeTopicName_.c_str());
+        RCLCPP_INFO(this->get_logger(), "Publish topic name: %s", publishTopicName_.c_str());
 
         // Initialize row and column anchors
         initializeAnchors(config);
-
         // Create detector
         detector_ = std::make_unique<ufld_ros::UFLDDetector>(enginePath, config);
         // Create subscriber and publisher
         subscription_ = this->create_subscription<sensor_msgs::msg::Image>(
-            "image_raw", 10, std::bind(&UFLDNode::imageCallback, this, std::placeholders::_1));
-        publisher_ = this->create_publisher<sensor_msgs::msg::Image>("lane_detection", 10);
+            subscribeTopicName_, 10, std::bind(&UFLDNode::imageCallback, this, std::placeholders::_1));
+        publisher_ = this->create_publisher<sensor_msgs::msg::Image>(publishTopicName_, 10);
 
         RCLCPP_INFO(this->get_logger(), "UFLD node initialized");
     }
@@ -74,6 +79,8 @@ class UFLDNode : public rclcpp::Node {
     std::unique_ptr<ufld_ros::UFLDDetector> detector_;
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr subscription_;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr publisher_;
+    std::string subscribeTopicName_;
+    std::string publishTopicName_;
 };
 
 int main(int argc, char *argv[]) {
