@@ -17,7 +17,10 @@ def generate_launch_description():
     rtk_params = {
         'device_name' : '/dev/ttyTHS4',
         'baud_rate' : 460800,
-        'timeout_ms' : 50
+        'timeout_ms' : 50,
+        'topic_name' : 'rtk_fix',
+        'frame_id' : 'rtk_link',
+        'publish_rate' : 50.0,  # 频率为10Hz
     }
     
     # 配置节点，并将参数字典直接传递给参数字段

@@ -21,7 +21,7 @@ Client SDK is supported by
 Please press *[here](/docs/DEPENDENCY.md)* to see detail about third dependency libraries
 
 # Clone
-XXXXXXXXXXX
+
 
 # Quick Compile
 ## for Linux and MacOS
