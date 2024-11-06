@@ -30,7 +30,7 @@ def generate_launch_description():
                 'input_height': 1080,
                 'num_row': 72,
                 'num_col': 81,
-                'subscribe_topic_name':'/camera/image_raw',
+                'subscribe_topic_name':'/miivii_gmsl/image0',
                 'publish_topic_name': '/lane_detection/image'
             }],
             remappings=[

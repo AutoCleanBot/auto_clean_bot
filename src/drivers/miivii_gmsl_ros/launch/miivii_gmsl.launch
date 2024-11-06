@@ -3,7 +3,7 @@
     <!-- 所有相机频率 -->
     <param name="sync_freq" value="30"/>
     <!-- 所有相机发布频率 -->
-    <param name="publish_rate" value="20"/>
+    <param name="publish_rate" value="20.0"/>
     <param name="sync_camera_number" value="8"/>
     <!-- 相机的topicname为 miivii_gmsl/camera_info0 ~ miivii_gmsl/camera_info7 -->
     <!-- 相机0 -->
