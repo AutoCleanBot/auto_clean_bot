@@ -18,7 +18,7 @@ def generate_launch_description():
         'device_name' : '/dev/ttyUART_232_A',
         'baud_rate' : 460800,
         'timeout_ms' : 10,
-        'topic_name' : 'rtk_fix',
+        'topic_name' : 'localization/rtk_info',
         'frame_id' : 'rtk_link',
         'publish_rate' : 50.0,  # 频率为10Hz
         'enable_debug_log': False,

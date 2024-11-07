@@ -1,18 +1,22 @@
 #include "control/control_node.h"
+#include <cmath>
+
+double inline deg2rad(double deg) { return deg * M_PI / 180.0; }
 
 namespace control {
 ControlNode::ControlNode() : Node("control_node") {
     // Initialize subscribers and publishers
     InitParams();
-    this->adc_traj_sub_ = this->create_subscription<ADCTrajectory>(
-        this->adc_traj_topic_name_, 10, std::bind(&ControlNode::ADCTrajCallback, this, std::placeholders::_1));
-    this->localization_info_sub_ = this->create_subscription<LocalizationInfo>(
+    this->sub_adc_trajectory_ = this->create_subscription<bot_msg::msg::ADCTrajectory>(
+        this->adc_traj_topic_name_, 10, std::bind(&ControlNode::ADCTrajectoryCallback, this, std::placeholders::_1));
+    this->sub_localization_info_ = this->create_subscription<bot_msg::msg::LocalizationInfo>(
         this->localization_info_topic_name_, 10,
         std::bind(&ControlNode::LocalizationInfoCallback, this, std::placeholders::_1));
-    this->control_cmd_pub_ = this->create_publisher<ControlCommand>(this->control_cmd_topic_name_, 10);
+    this->pub_control_cmd_ = this->create_publisher<bot_msg::msg::ControlCmd>(this->control_cmd_topic_name_, 10);
 
-    double control_cycle_time = 1000.0 / this->publish_rate_;
-    this->timer_ = this->create_wall_timer(control_cycle_time, std::bind(&ControlNode::TimerCallback, this));
+    int control_cycle_time = static_cast<int>(1000.0 / this->publish_rate_); // 毫秒
+    this->timer_ = this->create_wall_timer(std::chrono::milliseconds(control_cycle_time),
+                                           std::bind(&ControlNode::TimerCallback, this));
 }
 
 void ControlNode::LateralController() {
@@ -40,11 +44,11 @@ void ControlNode::LateralController() {
 
     // 2. 找到轨迹上的预瞄点
     int preview_idx = closest_idx + 1;
+    double preview_dist = tolerance_distance_ + preview_time_ * cur_spd;
     if (preview_idx >= adc_trajectory_msg_->points.size()) {
         preview_idx = closest_idx;
         RCLCPP_ERROR(this->get_logger(), "Preview index is out of range");
     } else {
-        double preview_dist = tolerance_distance_ + preview_time_ * cur_spd;
         double dist = std::sqrt(std::pow(cur_north - adc_trajectory_msg_->points[preview_idx].north, 2) +
                                 std::pow(cur_east - adc_trajectory_msg_->points[preview_idx].east, 2));
         while (dist < preview_dist) {
@@ -62,9 +66,10 @@ void ControlNode::LateralController() {
     // 3. 计算横向控制命令
     double target_north = adc_trajectory_msg_->points[preview_idx].north;
     double target_east = adc_trajectory_msg_->points[preview_idx].east;
-    double target_yaw = adc_trajectory_msg_->points[preview_idx].pose.orientation.z; // 目标航向角
+    double target_yaw = adc_trajectory_msg_->points[preview_idx].yaw; // 目标航向角
 
     // 3.1 计算航向误差和方位角误差
+
     double heading_error = deg2rad(target_yaw - cur_yaw);                                          // 航向误差
     double angular_error = std::atan2(target_east - cur_east, target_north - cur_north) - cur_yaw; // 方位角误差
 
@@ -117,7 +122,50 @@ void ControlNode::LateralController() {
     control_cmd_msg_.steer_angle = steer_angle;
 }
 
-void ControlNode::LongitudinalController() {}
+void ControlNode::LongitudinalController() {
+    double cur_north = localization_info_msg_->north;
+    double cur_east = localization_info_msg_->east;
+    double cur_up = localization_info_msg_->up;
+    double cur_spd = localization_info_msg_->vel_speed;
+    double cur_yaw = localization_info_msg_->yaw;
+
+    // 1. 找到当前车辆位置到轨迹上的最近点
+    double min_dist = 1000000.0;
+    int closest_idx = -1;
+    for (int i = 0; i < adc_trajectory_msg_->points.size(); i++) {
+        double dist = std::sqrt(std::pow(cur_north - adc_trajectory_msg_->points[i].north, 2) +
+                                std::pow(cur_east - adc_trajectory_msg_->points[i].east, 2));
+        if (dist < min_dist) {
+            min_dist = dist;
+            closest_idx = i;
+        }
+    }
+    if (closest_idx == -1) {
+        RCLCPP_ERROR(this->get_logger(), "Closest index is -1");
+        return;
+    }
+
+    // 由于只是速度控制，因此只需要计算速度误差即可
+    // 暂时不需要PID控制，直接赋值给控制命令
+    // 2. 计算纵向控制命令
+    double control_cycle_time = 1.0 / this->publish_rate_; // 控制周期,单位为秒
+    double target_speed = adc_trajectory_msg_->points[closest_idx].vel_speed;
+    double speed_error = target_speed - cur_spd;
+    double acceleration = std::min(max_linear_velocity_ - cur_spd, acceleration_limit_);
+    double deceleration = std::min(cur_spd - min_linear_velocity_, deceleration_limit_);
+    double speed_cmd =
+        cur_spd + acceleration * control_cycle_time + deceleration * control_cycle_time * control_cycle_time / 2.0;
+    speed_cmd = std::max(std::min(speed_cmd, max_linear_velocity_), min_linear_velocity_);
+
+    // 输出调试信息
+    RCLCPP_INFO(this->get_logger(), "Speed Error: %.2f meters/second", speed_error);
+    RCLCPP_INFO(this->get_logger(), "Acceleration: %.2f meters/second^2", acceleration);
+    RCLCPP_INFO(this->get_logger(), "Deceleration: %.2f meters/second^2", deceleration);
+    RCLCPP_INFO(this->get_logger(), "Speed Cmd: %.2f meters/second", speed_cmd);
+
+    // 3. 赋值给控制命令
+    control_cmd_msg_.speed = speed_cmd;
+}
 
 void ControlNode::ADCTrajectoryCallback(const bot_msg::msg::ADCTrajectory::SharedPtr msg) {
     adc_trajectory_msg_ = msg;
@@ -145,27 +193,35 @@ void ControlNode::TimerCallback() {
  */
 void ControlNode::InitParams() {
     this->declare_parameter<double>("publish_rate", 0.0);
-    this->declare_parameter<double>("max_linear_velocity", 0.0);
-    this->declare_parameter<double>("max_steering_angle", 0.0);
     this->declare_parameter<double>("preview_time", 0.0);
     this->declare_parameter<double>("tolerance_distance", 0.0);
+    this->declare_parameter<double>("max_steering_angle", 0.0);
+    this->declare_parameter<double>("wheelbase", 0.0);
+    this->declare_parameter<double>("max_linear_velocity", 0.0);
+    this->declare_parameter<double>("min_linear_velocity", 0.0);
+    this->declare_parameter<double>("acceleration_limit", 0.0);
+    this->declare_parameter<double>("deceleration_limit", 0.0);
+
     this->declare_parameter<std::string>("adc_traj_topic_name", "/planing/adc_traj");
     this->declare_parameter<std::string>("control_cmd_topic_name", "/control/control_cmd");
     this->declare_parameter<std::string>("localization_info_topic_name", "/control/local_info");
-    this->declare_parameter<double>("wheelbase", 0.0);
     // Get parameters
-    this->control_cycle_time_ = this->get_parameter("publish_rate").get_value<double>();
-    this->max_linear_velocity_ = this->get_parameter("max_linear_velocity").get_value<double>();
-    this->max_steering_angle_ = this->get_parameter("max_steering_angle").get_value<double>();
+    this->publish_rate_ = this->get_parameter("publish_rate").get_value<double>();
     this->preview_time_ = this->get_parameter("preview_time").get_value<double>();
+    this->max_steering_angle_ = this->get_parameter("max_steering_angle").get_value<double>();
     this->tolerance_distance_ = this->get_parameter("tolerance_distance").get_value<double>();
+    this->wheelbase_ = this->get_parameter("wheelbase").get_value<double>();
+    this->max_linear_velocity_ = this->get_parameter("max_linear_velocity").get_value<double>();
+    this->min_linear_velocity_ = this->get_parameter("min_linear_velocity").get_value<double>();
+    this->acceleration_limit_ = this->get_parameter("acceleration_limit").get_value<double>();
+    this->deceleration_limit_ = this->get_parameter("deceleration_limit").get_value<double>();
     this->adc_traj_topic_name_ = this->get_parameter("adc_traj_topic_name").get_value<std::string>();
     this->control_cmd_topic_name_ = this->get_parameter("control_cmd_topic_name").get_value<std::string>();
     this->localization_info_topic_name_ = this->get_parameter("localization_info_topic_name").get_value<std::string>();
-    this->wheelbase_ = this->get_parameter("wheelbase").get_value<double>();
     // Print parameters
     RCLCPP_INFO(this->get_logger(), "Publish rate: %f", this->publish_rate_);
     RCLCPP_INFO(this->get_logger(), "Max linear velocity: %f", this->max_linear_velocity_);
+    RCLCPP_INFO(this->get_logger(), "Min linear velocity: %f", this->min_linear_velocity_);
     RCLCPP_INFO(this->get_logger(), "Max steering angle: %f", this->max_steering_angle_);
     RCLCPP_INFO(this->get_logger(), "ADC traj topic name: %s", this->adc_traj_topic_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "Control cmd topic name: %s", this->control_cmd_topic_name_.c_str());
@@ -173,5 +229,17 @@ void ControlNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "Preview time: %f", this->preview_time_);
     RCLCPP_INFO(this->get_logger(), "Tolerance distance: %f", this->tolerance_distance_);
     RCLCPP_INFO(this->get_logger(), "Wheelbase: %f", this->wheelbase_);
+    RCLCPP_INFO(this->get_logger(), "Acceleration limit: %f", this->acceleration_limit_);
+    RCLCPP_INFO(this->get_logger(), "Deceleration limit: %f", this->deceleration_limit_);
+    return;
 }
 } // namespace control
+// 节点注册
+int main(int argc, char *argv[]) {
+    rclcpp::init(argc, argv);
+    auto node = std::make_shared<control::ControlNode>();
+    RCLCPP_INFO(node->get_logger(), "rtk node started");
+    rclcpp::spin(node);
+    rclcpp::shutdown();
+    return 0;
+}

@@ -19,7 +19,7 @@ class ControlNode : public rclcpp::Node {
   private:
     // subscribers and publishers
     rclcpp::TimerBase::SharedPtr timer_;
-    rclcpp::Subscribtion<bot_msg::msg::ADCTrajectory>::SharedPtr sub_adc_trajectory_;
+    rclcpp::Subscription<bot_msg::msg::ADCTrajectory>::SharedPtr sub_adc_trajectory_;
     rclcpp::Subscription<bot_msg::msg::LocalizationInfo>::SharedPtr sub_localization_info_;
     rclcpp::Publisher<bot_msg::msg::ControlCmd>::SharedPtr pub_control_cmd_;
 
@@ -29,13 +29,16 @@ class ControlNode : public rclcpp::Node {
     bot_msg::msg::ControlCmd control_cmd_msg_;
 
     // parameters
-    double publish_rate_;        // in milliseconds
-    double preview_time_;        // in seconds
-    double tolerance_distance_;  // in meters, for preview point
-    double max_linear_velocity_; // in m/s
-    double max_steering_angle_;  // in degrees
-    double wheelbase_;           // 轴距
+    double publish_rate_;       // in milliseconds
+    double preview_time_;       // in seconds
+    double tolerance_distance_; // in meters, for preview point
+    double max_steering_angle_; // in degrees
+    double wheelbase_;          // 轴距
 
+    double max_linear_velocity_; // in m/s
+    double min_linear_velocity_; // in m/s
+    double acceleration_limit_;  // in m/s^2
+    double deceleration_limit_;  // in m/s^2
     // config variables
     std::string adc_traj_topic_name_;
     std::string localization_info_topic_name_;
