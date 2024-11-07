@@ -182,9 +182,15 @@ void ControlNode::LocalizationInfoCallback(const bot_msg::msg::LocalizationInfo:
  *
  */
 void ControlNode::TimerCallback() {
-    if (adc_trajectory_msg_ == nullptr && localization_info_msg_ == nullptr) {
-        return;
-    }
+    // 1. 计算控制命令
+    LateralController();
+    LongitudinalController();
+
+    // 2. 发布控制命令
+    control_cmd_msg_.header.stamp = this->get_clock()->now().to_msg();
+    control_cmd_msg_.header.frame_id = "base_link";
+    this->pub_control_cmd_->publish(control_cmd_msg_);
+    return;
 }
 
 /**
