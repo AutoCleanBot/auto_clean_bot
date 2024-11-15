@@ -8,6 +8,7 @@
 #include <sys/socket.h>          // for socket
 #include <string>                // for std::string
 #include <thread>                // for std::thread
+#include <mutex>                 // for std::mutex
 #include "canprotocol.hpp"       // for canProtocol
 
 #include "bot_msg/msg/chassis_info.hpp"
@@ -29,7 +30,7 @@ public:
     // 
     VehicleDriveStatus getChassisInfo();
 
-private:
+public:
     void canReceive();   // can接收
     void canSend_10ms();   // can发送 周期为10ms
     void canSend_100ms();   // can发送 周期为100ms
@@ -47,7 +48,12 @@ private:
     struct can_frame frame_recv;
     struct can_frame frame_send;   
     std::thread *pThread_recv;
-    std::thread *pThread_send_10ms;                
+    std::thread *pThread_send_10ms;   
+    std::thread *pThread_send_100ms;    
+
+    int count; 
+
+    std::mutex sendMutex; // 添加互斥锁        
 };                                        
 
 

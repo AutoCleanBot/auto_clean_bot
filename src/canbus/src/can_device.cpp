@@ -42,7 +42,8 @@ CanDevice::CanDevice()
     pThread_send_10ms = new std::thread(&CanDevice::canSend_10ms,this);
     pThread_send_10ms->detach();
 
-    canSend_100ms();
+    pThread_send_100ms = new std::thread(&CanDevice::canSend_100ms,this);
+    pThread_send_100ms->detach();
 }
 
 CanDevice::~CanDevice()
@@ -59,6 +60,12 @@ CanDevice::~CanDevice()
     }
     delete pThread_send_10ms;
     pThread_send_10ms = nullptr;
+
+    if(pThread_send_100ms->joinable()){
+        pThread_send_100ms->join();
+    }
+    delete pThread_send_100ms;
+    pThread_send_100ms = nullptr;
 
     exit(EXIT_SUCCESS);
 }
@@ -84,8 +91,8 @@ void CanDevice::canReceive()
         }
         /* 打印数据 */
         for (int i = 0; i < frame_recv.can_dlc; i++)
-            std::cout << std::hex << std::setw(2) << std::setfill('0') << frame_recv.data[i];
-        std::cout << std::endl;
+            printf("%02x ", frame_recv.data[i]);
+        printf("\n");
 
         /* 校验是否接收到错误帧 */
         if (frame_recv.can_id & CAN_ERR_FLAG)
@@ -128,16 +135,17 @@ void CanDevice::canReceive()
 void CanDevice::canSend_10ms()
 {
     /* 发送数据 */ 
-    while(true){       
+    while(true){    
+        sendMutex.lock(); // 锁定
         frame_send.can_id = ENUM_CONTROL_BRAKE_DRIVE_STEERING; // 制动、行驶控制、转向控制
         vehicleDriveControl.gear = 0x01;  
-        vehicleDriveControl.rotateSpeed = 0x0203;       
+        vehicleDriveControl.rotateSpeed = 0x0203;      
         memcpy(&frame_send.data, &vehicleDriveControl, frame_send.can_dlc);
         int ret = write(socket_id, &frame_send, sizeof(frame_send)); // 发送数据
         if (ret == -1) {
             perror("write vehicleDriveControl error");
         }
-        // 延时10毫秒  
+        sendMutex.unlock(); // 锁定互斥锁
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     
@@ -147,14 +155,14 @@ void CanDevice::canSend_100ms()
 {
     /* 发送数据 */ 
     while(true){
+        sendMutex.lock(); // 锁定
         frame_send.can_id = ENUM_CONTROL_VEHICLE_SIGNAL_UPLOAD; // 车辆信号控制、上装作业控制
         memcpy(&frame_send.data, &vehicleSignalControl, frame_send.can_dlc);
         int ret = write(socket_id, &frame_send, sizeof(frame_send)); // 发送数据   
         if (ret == -1) {
             perror("write vehicleSignalControl error");
         }
-        // 延时100毫秒  
+        sendMutex.unlock(); // 解锁
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
-    
+    }    
 }
