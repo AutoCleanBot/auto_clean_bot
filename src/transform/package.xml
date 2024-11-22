@@ -4,10 +4,14 @@
   <name>transform</name>
   <version>0.0.0</version>
   <description>TODO: Package description</description>
-  <maintainer email="liemr@todo.todo">liemr</maintainer>
+  <maintainer email="1012637096@qq.com">wangpengf</maintainer>
   <license>TODO: License declaration</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+  <depend>bot_msg</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
