@@ -22,7 +22,8 @@ set(CMAKE_BUILD_TYPE "Release")
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(bot_msg REQUIRED)
-find_package(serial REQUIRED)
+find_package(geometry_msgs REQUIRED)
+# find_package(serial REQUIRED)
 find_package(rclcpp REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
@@ -31,11 +32,10 @@ find_package(rclcpp REQUIRED)
 include_directories(include)
 
 
-add_executable(rtk_node src/rtk.cpp)
+add_executable(rtk_node src/rtk.cpp src/gps_serial.cpp)
 # Specify libraries to link against
 target_link_libraries(rtk_node
   ${rclcpp_LIBRARIES}
-  ${serial_LIBRARIES}
 )
 
 # Install executable
@@ -50,6 +50,8 @@ launch DESTINATION share/${PROJECT_NAME})
 # Export dependencies and package
 ament_target_dependencies(rtk_node
   bot_msg
+  rclcpp
+  geometry_msgs
 )
 
 

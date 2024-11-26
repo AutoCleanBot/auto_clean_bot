@@ -1,9 +1,10 @@
 #pragma once
 
 #include <bot_msg/msg/localization_info.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
 #include <memory>
 #include <rclcpp/rclcpp.hpp>
-#include <serial/serial.h> // for serial port communication
+// #include <serial/serial.h> // for serial port communication
 #include <string>
 #include <thread>
 
@@ -51,6 +52,7 @@ class RTKNode : public rclcpp::Node {
 
     // ROS2 publishers and subscribers
     rclcpp::Publisher<bot_msg::msg::LocalizationInfo>::SharedPtr pub_localization_info_;
+    rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pub_gnss_pose_info_;
     bot_msg::msg::LocalizationInfo rtk_msg_; // localization info message
     // ROS2 parameters
     std::string device_name_;
@@ -60,7 +62,7 @@ class RTKNode : public rclcpp::Node {
     std::string topic_name_; // topic name for publishing localization info
     double publish_rate_;    // publish rate for localization info
     // serial port communication
-    serial::Serial serial_port_; // serial port object
+    int sockfd_;
 
     bool running_;                             // running flag for read loop
     std::shared_ptr<std::thread> read_thread_; // read loop thread

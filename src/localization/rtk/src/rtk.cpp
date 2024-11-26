@@ -1,4 +1,6 @@
 #include "rtk/rtk.h"
+#include "geometry_msgs/msg/pose_stamped.hpp"
+#include "rtk/gps_serial.h"
 #include <chrono>
 #include <cstdio>
 #include <string>
@@ -21,7 +23,7 @@ RTKNode::RTKNode() : Node("rtk_node") {
     timer_ =
         this->create_wall_timer(std::chrono::milliseconds(time_interval), std::bind(&RTKNode::TimerCallback, this));
     pub_localization_info_ = this->create_publisher<bot_msg::msg::LocalizationInfo>(topic_name_, 50);
-    pub_gnss_pose_info_ = this->create_publisher<geometry_msgs::PoseStamped>();
+    pub_gnss_pose_info_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(topic_name_, 100);
 }
 
 void RTKNode::TimerCallback() {
@@ -90,7 +92,6 @@ void RTKNode::WGS84toENU(const Giavp &giavp) {
  * @param info_str
  */
 void RTKNode::ParseRTKInfo(const std::string &info_str) {
-
     Giavp giavp;
     unsigned int checksum; // 用于保存校验和值
     int parsed_fields = sscanf(
@@ -131,6 +132,7 @@ void RTKNode::ParseRTKInfo(const std::string &info_str) {
     rtk_msg_.gyro_x = giavp.gyro_x_deg_s;
     rtk_msg_.gyro_y = giavp.gyro_y_deg_s;
     rtk_msg_.gyro_z = giavp.gyro_z_deg_s;
+
     // set the base point
     if (!base_point_set_ && giavp.status >= 1) {
         base_point_set_ = true;
@@ -150,20 +152,18 @@ void RTKNode::InfoReadLoop() {
     std::string gstart = "$GIAVP"; // 开头
     std::string gend = "\r\n";
     while (running_) {
-        if (serial_port_.available() > 0) { // 当缓冲区有数据时
-            data += serial_port_.readline();
-            // RCLCPP_INFO(this->get_logger(), "Received data: %s", data.c_str());
-            auto start_pos = data.find(gstart);
-            auto end_pos = data.find(gend);
-            if (start_pos != std::string::npos && end_pos != std::string::npos) {
-                std::string info_str = data.substr(start_pos, end_pos - start_pos + gend.length());
-                ParseRTKInfo(info_str);
-                data.erase(0, end_pos + gend.length());
-            } else {
-                RCLCPP_WARN(this->get_logger(), "Incomplete packet received: %s", data.c_str());
-            }
+        char buf[512] = {0};
+        read(sockfd_, buf, sizeof(buf));
+        data += buf;
+        // RCLCPP_INFO(this->get_logger(), "Received data: %s", data.c_str());
+        auto start_pos = data.find(gstart);
+        auto end_pos = data.find(gend);
+        if (start_pos != std::string::npos && end_pos != std::string::npos) {
+            std::string info_str = data.substr(start_pos, end_pos - start_pos + gend.length());
+            ParseRTKInfo(info_str);
+            data.erase(0, end_pos + gend.length());
         } else {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            RCLCPP_WARN(this->get_logger(), "Incomplete packet received: %s", data.c_str());
         }
     }
 }
@@ -208,25 +208,21 @@ void RTKNode::InitParams() {
  */
 bool RTKNode::DeviceInit() {
     // initialize device here
-    try {
-        // 串口设置
-        serial_port_.setPort(device_name_);
-        serial_port_.setBaudrate(baud_rate_);
-        // 设置超时时间
-        serial::Timeout to = serial::Timeout::simpleTimeout(timeout_ms_);
-        serial_port_.setTimeout(to);
-        serial_port_.open();
-    } catch (serial::IOException &e) {
-        RCLCPP_ERROR(this->get_logger(), "Unable to open serial port: %s", e.what());
+
+    // 串口设置
+    // serial_port_.setPort(device_name_);
+    sockfd_ = Serial::TTYOpen(device_name_.c_str());
+    if (sockfd_ < 0) {
+        sockfd_ = -1;
+        RCLCPP_ERROR(this->get_logger(), "tty_open failed.");
         return false;
     }
-    if (serial_port_.isOpen()) {
-        RCLCPP_INFO(this->get_logger(), "Serial port opened successfully");
-        return true;
-    } else {
-        RCLCPP_ERROR(this->get_logger(), "Failed to open serial port");
+    if (Serial::TTYSetOpt(sockfd_, baud_rate_, 8, 1, 'n') != 0) {
+        sockfd_ = -1;
+        RCLCPP_ERROR(this->get_logger(), "tty_setopt error.");
         return false;
     }
+
     return true;
 }
 
