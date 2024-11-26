@@ -21,6 +21,7 @@ RTKNode::RTKNode() : Node("rtk_node") {
     timer_ =
         this->create_wall_timer(std::chrono::milliseconds(time_interval), std::bind(&RTKNode::TimerCallback, this));
     pub_localization_info_ = this->create_publisher<bot_msg::msg::LocalizationInfo>(topic_name_, 50);
+    pub_gnss_pose_info_ = this->create_publisher<geometry_msgs::PoseStamped>();
 }
 
 void RTKNode::TimerCallback() {
