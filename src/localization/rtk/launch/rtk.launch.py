@@ -20,7 +20,7 @@ def generate_launch_description():
         'timeout_ms' : 10,
         'topic_name' : 'localization/rtk_info',
         'frame_id' : 'rtk_link',
-        'publish_rate' : 50.0,  # 频率为10Hz
+        'publish_rate' : 50.0,  # 频率为50Hz
         'enable_debug_log': False,
     }
     
