@@ -23,7 +23,6 @@ RTKNode::RTKNode() : Node("rtk_node") {
     timer_ =
         this->create_wall_timer(std::chrono::milliseconds(time_interval), std::bind(&RTKNode::TimerCallback, this));
     pub_localization_info_ = this->create_publisher<bot_msg::msg::LocalizationInfo>(topic_name_, 50);
-    pub_gnss_pose_info_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(topic_name_, 100);
 }
 
 void RTKNode::TimerCallback() {
@@ -93,7 +92,6 @@ void RTKNode::WGS84toENU(const Giavp &giavp) {
  */
 void RTKNode::ParseRTKInfo(const std::string &info_str) {
     Giavp giavp;
-    unsigned int checksum; // 用于保存校验和值
     int parsed_fields = sscanf(
         info_str.c_str(),
         "$GIAVP,%d,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%d,%d,%d,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf", &giavp.week,
@@ -101,6 +99,8 @@ void RTKNode::ParseRTKInfo(const std::string &info_str) {
         &giavp.longitude_deg, &giavp.altitude_m, &giavp.ve_m_s, &giavp.vn_m_s, &giavp.vu_m_s, &giavp.baseline,
         &giavp.nvsv1, &giavp.nvsv2, &giavp.status, &giavp.speed_status, &giavp.vehicle_speed_m_s, &giavp.acc_x_m_s2,
         &giavp.acc_y_m_s2, &giavp.acc_z_m_s2, &giavp.gyro_x_deg_s, &giavp.gyro_y_deg_s, &giavp.gyro_z_deg_s);
+    if (parsed_fields != 26)
+        RCLCPP_WARN(this->get_logger(), "Failed to parse RTK info: %s", info_str.c_str());
     if (enable_debug_log_) {
         RCLCPP_INFO(this->get_logger(), "Received a full packet: %s", info_str.c_str());
         RCLCPP_INFO(this->get_logger(),
@@ -126,7 +126,7 @@ void RTKNode::ParseRTKInfo(const std::string &info_str) {
     rtk_msg_.yaw = giavp.heading_deg;
     rtk_msg_.rtk_status = giavp.status;
     rtk_msg_.vel_speed = sqrt(giavp.vn_m_s * giavp.vn_m_s + giavp.ve_m_s * giavp.ve_m_s);
-    rtk_msg_.acc_x = giavp.acc_x_m_s2;
+    rtk_msg_.acc_x = giavp.acc_x_m_s2; // x 轴加速度
     rtk_msg_.acc_y = giavp.acc_y_m_s2;
     rtk_msg_.acc_z = giavp.acc_z_m_s2;
     rtk_msg_.gyro_x = giavp.gyro_x_deg_s;
@@ -142,8 +142,34 @@ void RTKNode::ParseRTKInfo(const std::string &info_str) {
         RCLCPP_INFO(this->get_logger(), "Base point set: %lf, %lf, %lf", base_latitude_deg_, base_longitude_deg_,
                     base_altitude_m_);
     }
+
+    // fill the IMU msg
+    imu_msg_.header.stamp = this->get_clock()->now();
+    imu_msg_.header.frame_id = "imu";
+    imu_msg_.linear_acceleration.x = giavp.acc_x_m_s2;
+    imu_msg_.linear_acceleration.y = giavp.acc_y_m_s2;
+    imu_msg_.linear_acceleration.z = giavp.acc_z_m_s2;
+    imu_msg_.angular_velocity.x = giavp.gyro_x_deg_s;
+    imu_msg_.angular_velocity.y = giavp.gyro_y_deg_s;
+    imu_msg_.angular_velocity.z = giavp.gyro_z_deg_s;
+    tf2::Quaternion q = tf2::CreateQuaternionFromRPY(giavp.roll_deg * M_PI / 180.0, giavp.pitch_deg * M_PI / 180.0,
+                                                     giavp.heading_deg * M_PI / 180.0);
+    imu_msg_.orientation.x = q.x();
+    imu_msg_.orientation.y = q.y();
+    imu_msg_.orientation.z = q.z();
+
     // convert GPS coordinates to ENU coordinates
-    WGS84toENU(giavp);
+    if (base_point_set_) {
+        WGS84toENU(giavp);
+        // fill the gnss msg
+        gnss_pose_enu_msg_.header.stamp = this->get_clock()->now();
+        gnss_pose_enu_msg_.header.frame_id = "world";
+        gnss_pose_enu_msg_.position.x = rtk_msg_.east;
+        gnss_pose_enu_msg_.position.y = rtk_msg_.north;
+        gnss_pose_enu_msg_.position.z = rtk_msg_.up;
+        gnss_pose_enu_msg_.pose.orientation = tf2::createQuaternionFromRPY(
+            giavp.roll_deg * M_PI / 180.0, giavp.pitch_deg * M_PI / 180.0, giavp.heading_deg * M_PI / 180.0);
+    }
     return;
 }
 
@@ -153,7 +179,9 @@ void RTKNode::InfoReadLoop() {
     std::string gend = "\r\n";
     while (running_) {
         char buf[512] = {0};
-        read(sockfd_, buf, sizeof(buf));
+        int ret = read(sockfd_, buf, sizeof(buf));
+        if (ret < 0)
+            RCLCPP_WARN(this->get_logger(), "Read error: %s", strerror(errno));
         data += buf;
         // RCLCPP_INFO(this->get_logger(), "Received data: %s", data.c_str());
         auto start_pos = data.find(gstart);

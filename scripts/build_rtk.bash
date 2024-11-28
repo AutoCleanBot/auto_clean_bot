@@ -1,1 +1,1 @@
-colcon build --packages-select rtk --cmake-clean-cache
+colcon build --packages-select rtk --symlink-install --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON 

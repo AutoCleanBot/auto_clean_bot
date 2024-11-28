@@ -23,6 +23,7 @@ set(CMAKE_BUILD_TYPE "Release")
 find_package(ament_cmake REQUIRED)
 find_package(bot_msg REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 # find_package(serial REQUIRED)
 find_package(rclcpp REQUIRED)
 # uncomment the following section in order to fill in
@@ -52,6 +53,7 @@ ament_target_dependencies(rtk_node
   bot_msg
   rclcpp
   geometry_msgs
+  sensor_msgs
 )
 
 

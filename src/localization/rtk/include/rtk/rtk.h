@@ -4,12 +4,12 @@
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <memory>
 #include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/imu.hpp>
 // #include <serial/serial.h> // for serial port communication
 #include <string>
 #include <thread>
 
 namespace rtk {
-
 struct Giavp {
     int week;
     double time_sec;
@@ -52,8 +52,12 @@ class RTKNode : public rclcpp::Node {
 
     // ROS2 publishers and subscribers
     rclcpp::Publisher<bot_msg::msg::LocalizationInfo>::SharedPtr pub_localization_info_;
-    rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pub_gnss_pose_info_;
+    rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pub_gnss_pose_enu_;
+    rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr pub_imu_;
+
     bot_msg::msg::LocalizationInfo rtk_msg_; // localization info message
+    sensor_msgs::msg::Imu imu_msg_;
+    geometry_msgs::msg::PoseStamped gnss_pose_enu_msg_;
     // ROS2 parameters
     std::string device_name_;
     int baud_rate_;          // baud rate for serial communication
