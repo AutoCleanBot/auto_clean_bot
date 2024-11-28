@@ -14,7 +14,7 @@ IndentCaseLabels: false
 AccessModifierOffset: -4
 
 # 每行字符的限制，0表示没有限制
-ColumnLimit: 80
+ColumnLimit: 60
 
 # 对齐连续的尾随的注释
 AlignTrailingComments: true
