@@ -18,9 +18,19 @@ def generate_launch_description():
         'device_name' : '/dev/ttyUART_232_A',
         'baud_rate' : 460800,
         'timeout_ms' : 10,
-        'topic_name' : 'localization/rtk_info',
-        'frame_id' : 'rtk_link',
-        'publish_rate' : 50.0,  # 频率为50Hz
+        'base_longtitude':117.38,  #基点经度
+        'base_latitude': 31.96,  #基点纬度
+        'base_altitude': 0.0,  #基点高度
+        
+        'local_topic_name' : 'localization/rtk_info',
+        'local_frame_id' : 'rtk_link',
+        'local_publish_rate' : 10.0,  # 频率为10Hz
+        'imu_topic_name' : 'imu/pose',
+        'imu_frame_id' : 'imu_link',
+        'imu_publish_rate' : 50.0,  # 频率为50Hz
+        'gnss_topic_name' : 'gnss/pose',
+        'gnss_frame_id' : 'world_link',
+        'gnss_publish_rate' : 10.0,  # 频率为10Hz
         'enable_debug_log': False,
     }
     
