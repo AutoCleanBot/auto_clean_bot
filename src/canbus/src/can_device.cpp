@@ -29,7 +29,7 @@ CanDevice::CanDevice()
     strcpy(ifr.ifr_name, "vcan0");
     ioctl(socket_id, SIOCGIFINDEX, &ifr);
     struct sockaddr_can addr;
-    addr.can_family = AF_CAN;
+    addr.can_family = AF_CAN; 
     addr.can_ifindex = ifr.ifr_ifindex;
     if(0 > bind(socket_id, (struct sockaddr *)&addr, sizeof(addr)))
     {
@@ -37,7 +37,7 @@ CanDevice::CanDevice()
     }
 
     pThread_recv = new std::thread(&CanDevice::canReceive,this);
-    pThread_recv->detach();
+    pThread_recv->detach(); 
 
     pThread_send_10ms = new std::thread(&CanDevice::canSend_10ms,this);
     pThread_send_10ms->detach();
@@ -48,6 +48,15 @@ CanDevice::CanDevice()
 
 CanDevice::~CanDevice()
 {
+    //退出智驾
+    sendMutex.lock(); // 锁定
+    frame_send.can_id = ENUM_CONTROL_BRAKE_DRIVE_STEERING | CAN_EFF_FLAG; // 制动、行驶控制、转向控制
+    frame_send.can_dlc = 8;
+    vehicleDriveControl.controlMode = 0x00;    
+    memcpy(&frame_send.data, &vehicleDriveControl, frame_send.can_dlc);
+    write(socket_id, &frame_send, sizeof(frame_send)); // 发送数据
+    sendMutex.unlock(); // 解锁
+
     close(socket_id);
     if(pThread_recv->joinable()){
         pThread_recv->join();
@@ -137,9 +146,13 @@ void CanDevice::canSend_10ms()
     /* 发送数据 */ 
     while(true){    
         sendMutex.lock(); // 锁定
-        frame_send.can_id = ENUM_CONTROL_BRAKE_DRIVE_STEERING; // 制动、行驶控制、转向控制
-        vehicleDriveControl.gear = 0x01;  
-        vehicleDriveControl.rotateSpeed = 0x0203;      
+        frame_send.can_id = ENUM_CONTROL_BRAKE_DRIVE_STEERING | CAN_EFF_FLAG; // 制动、行驶控制、转向控制
+        frame_send.can_dlc = 8;
+        vehicleDriveControl.controlMode = 0x02;
+        vehicleDriveControl.setAngle(10);
+        vehicleDriveControl.setRotateSpeed(10);
+        printf("%02x ", vehicleDriveControl.rotateSpeed);
+        vehicleDriveControl.gear = 0x01;      
         memcpy(&frame_send.data, &vehicleDriveControl, frame_send.can_dlc);
         int ret = write(socket_id, &frame_send, sizeof(frame_send)); // 发送数据
         if (ret == -1) {
@@ -156,7 +169,8 @@ void CanDevice::canSend_100ms()
     /* 发送数据 */ 
     while(true){
         sendMutex.lock(); // 锁定
-        frame_send.can_id = ENUM_CONTROL_VEHICLE_SIGNAL_UPLOAD; // 车辆信号控制、上装作业控制
+        frame_send.can_id = ENUM_CONTROL_VEHICLE_SIGNAL_UPLOAD | CAN_EFF_FLAG; // 车辆信号控制、上装作业控制
+        frame_send.can_dlc = 8;
         memcpy(&frame_send.data, &vehicleSignalControl, frame_send.can_dlc);
         int ret = write(socket_id, &frame_send, sizeof(frame_send)); // 发送数据   
         if (ret == -1) {

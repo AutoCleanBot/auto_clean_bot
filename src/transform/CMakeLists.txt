@@ -18,29 +18,33 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(std_msgs REQUIRED)
+find_package(tf2_ros REQUIRED)
 find_package(bot_msg REQUIRED)
-find_package(Eigen3 REQUIRED)
-find_package(PCL 1.10 REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+
+find_package(tf2_geometry_msgs REQUIRED)
 
 include_directories(${EIGEN3_INCLUDE_DIR})
 include_directories(${PCL_INCLUDE_DIRS})
 
-add_executable(transform_coordinate src/corner_radar_transform.cpp src/camera_transform.cpp src/lidar_transform.cpp src/transform_coordinate.cpp)
+add_executable(transform_broadcast src/transform_broadcast.cpp)
 
-target_include_directories(transform_coordinate PUBLIC
+target_include_directories(transform_broadcast PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
 
   ament_target_dependencies(
-    transform_coordinate
+    transform_broadcast
     "rclcpp"
-    "std_msgs"
+    "tf2_ros"
     "bot_msg"
+    "geometry_msgs"
+    "nav_msgs"
   )
   
 install(TARGETS
-  transform_coordinate
+  transform_broadcast
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY 

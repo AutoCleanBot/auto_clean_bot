@@ -12,6 +12,13 @@
   <depend>rclcpp</depend>
   <depend>std_msgs</depend>
   <depend>bot_msg</depend>
+  <depend>Eigen3</depend>
+  <depend>PCL</depend>
+  <depend>geometry_msgs</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_geometry_msgs</depend>
+  <depend>tf2</depend>
+  
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

@@ -32,13 +32,13 @@ def get_params_path(package_name, params_file):
     return os.path.join(package_dir, "config", params_file)
 
 def generate_launch_description():
-    params = get_params_path('transform', 'transform_conf_dev.yaml')
+    params = get_params_path('transform', 'calibration.yaml')
     if not os.path.isfile(params):
         raise FileNotFoundError(f"The configuration file {params} does not exist.")
     transform_ff = Node(
         package="transform",
-        executable="transform_coordinate",
-        name="node_transform_coordinate",
+        executable="transform_broadcast",
+        name="node_transform_broadcast",
         namespace=LaunchConfiguration("namespace"),
         output="screen",
         parameters=[params])

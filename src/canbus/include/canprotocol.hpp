@@ -51,9 +51,9 @@ struct VehicleDriveControl{
     }   
     
     // 角度设置
-    void setAngle(float angle) {    
+    void setAngle(float _angle) {    
         angle = 0;
-        angle = 10 * angle + 6500;
+        angle = 10 * _angle + 6500;
     }
 } ; 
 
