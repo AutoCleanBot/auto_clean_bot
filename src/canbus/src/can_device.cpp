@@ -149,10 +149,8 @@ void CanDevice::canSend_10ms()
         frame_send.can_id = ENUM_CONTROL_BRAKE_DRIVE_STEERING | CAN_EFF_FLAG; // 制动、行驶控制、转向控制
         frame_send.can_dlc = 8;
         vehicleDriveControl.controlMode = 0x02;
-        vehicleDriveControl.setAngle(10);
-        vehicleDriveControl.setRotateSpeed(10);
-        printf("%02x ", vehicleDriveControl.rotateSpeed);
-        vehicleDriveControl.gear = 0x01;      
+        vehicleDriveControl.gear = 0x01;  
+        vehicleDriveControl.setAngle(0);      
         memcpy(&frame_send.data, &vehicleDriveControl, frame_send.can_dlc);
         int ret = write(socket_id, &frame_send, sizeof(frame_send)); // 发送数据
         if (ret == -1) {
