@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(control)
+project(control_test)
 
 # Default to C99
 if(NOT CMAKE_C_STANDARD)
@@ -31,16 +31,16 @@ find_package(rclcpp REQUIRED)
 include_directories(include)
 
 
-add_executable(control_node src/control_node.cpp)
+add_executable(control_test_node src/control_test_node.cpp)
 # Specify libraries to link against
-target_link_libraries(control_node
+target_link_libraries(control_test_node
   ${rclcpp_LIBRARIES}
   # ${serial_LIBRARIES}
 )
 
 # Install executable
 install(TARGETS
-  control_node
+  control_test_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -48,7 +48,7 @@ install(DIRECTORY
 launch DESTINATION share/${PROJECT_NAME})
 
 # Export dependencies and package
-ament_target_dependencies(control_node
+ament_target_dependencies(control_test_node
   bot_msg
   rclcpp
 )
