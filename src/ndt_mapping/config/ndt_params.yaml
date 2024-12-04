@@ -1,0 +1,33 @@
+/**:
+  ros__parameters:
+    # NDT Parameters
+    method_type: 0                    # 0=PCL_GENERIC, 1=PCL_ANH, 2=PCL_ANH_GPU, 3=PCL_OPENMP
+    use_odom: false                   # Whether to use odometry data
+    use_imu: false                    # Whether to use IMU data
+    imu_upside_down: false            # Whether IMU is mounted upside down
+    incremental_voxel_update: false   # Whether to update voxel grid incrementally
+
+    # NDT Grid Parameters
+    resolution: 1.0                   # Resolution of NDT voxels
+    step_size: 0.1                   # Step size for optimization
+    trans_epsilon: 0.01              # Transformation epsilon for convergence
+    max_iterations: 30               # Maximum number of iterations
+
+    # Point Cloud Filter Parameters
+    voxel_leaf_size: 2.0            # Leaf size for voxel grid filter
+    min_scan_range: 5.0             # Minimum scan range
+    max_scan_range: 200.0           # Maximum scan range
+    min_add_scan_shift: 1.0         # Minimum shift between scans to add to map
+
+    # TF Parameters
+    tf_x: 0.0                       # X offset from base_link to lidar
+    tf_y: 0.0                       # Y offset from base_link to lidar
+    tf_z: 2.0                       # Z offset from base_link to lidar
+    tf_roll: 0.0                    # Roll offset from base_link to lidar
+    tf_pitch: 0.0                   # Pitch offset from base_link to lidar
+    tf_yaw: 0.0                     # Yaw offset from base_link to lidar
+
+    # Topic Parameters
+    points_topic: "points_raw"      # Input pointcloud topic
+    imu_topic: "/imu_raw"          # Input IMU topic
+    odom_topic: "/vehicle/odom"    # Input odometry topic
