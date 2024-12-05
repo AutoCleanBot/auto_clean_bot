@@ -9,11 +9,6 @@
 #### 1.1 激光雷达
 
 - `inno_sw_ros2`
-  ```bash
-  cd ~/auto_clean_bot/src/drivers/inno_sw_ros2
-  chmod +x src/inno_lidar_ros/src/inno_sdk/build/build_unix.sh
-  bash build.bash
-  ```
 
 #### 1.2 GMSL 相机
 

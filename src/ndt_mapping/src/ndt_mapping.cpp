@@ -55,11 +55,7 @@ NdtMapping::NdtMapping() : Node("ndt_mapping") {
     RCLCPP_INFO(this->get_logger(), "NDT Mapping node initialized");
 }
 
-/**
- * @brief Destructor
- *          - Save map to file, before shutting down
- */
-NdtMapping::~NdtMapping() { SaveMap(); }
+
 
 /**
  * @brief Initialize parameters

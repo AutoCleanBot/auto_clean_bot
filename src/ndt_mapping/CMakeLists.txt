@@ -24,12 +24,12 @@ find_package(PCL REQUIRED)
 find_package(pcl_conversions REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 
-
 # Include directories
 include_directories(
   include
   ${PCL_INCLUDE_DIRS}
   ${pcl_conversions_INCLUDE_DIRS}
+  ${tf2_eigen_INCLUDE_DIRS}
 )
 
 link_directories(

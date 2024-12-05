@@ -1,3 +1,5 @@
+## 包依赖
+`sudo apt-get install ros-foxy-camera-info-manager`
 ## 编译
 
 - source /opt/ros/humble/setup.bash

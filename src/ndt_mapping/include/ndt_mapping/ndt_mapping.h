@@ -25,7 +25,7 @@
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/float32.hpp>
-#include <tf2_eigen/tf2_eigen.hpp>
+#include <tf2_eigen/tf2_eigen.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/transform_listener.h>
 
@@ -61,7 +61,11 @@ enum class MethodType {
 class NdtMapping : public rclcpp::Node {
   public:
     explicit NdtMapping();
-
+    /**
+    * @brief Destructor
+    *          - Save map to file, before shutting down
+    */
+    virtual ~NdtMapping() { SaveMap(); }
   private:
     // Constants
     static constexpr double kMinScanRange = 1.0;    // [m]
