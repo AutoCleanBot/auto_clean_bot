@@ -17,7 +17,7 @@ def generate_launch_description():
 
     # 设置相机分辨率
     width = LaunchConfiguration('width', default='1920')  # 默认宽度为 1920
-    height = LaunchConfiguration('height', default='1080')  # 默认高度为 1080
+    height = LaunchConfiguration('height', default='1536')  # 默认高度为 1080
 
     # 设置相机配置文件的路径
     camera_config = LaunchConfiguration('camera_config', default=[
@@ -31,7 +31,7 @@ def generate_launch_description():
 
     # 配置相机设备和类型
     camera_dev = LaunchConfiguration('camera_dev', default='/dev/video0')  # 默认相机设备为 /dev/video0
-    camera_type = LaunchConfiguration('camera_type', default='argus')  # 默认相机类型为 "argus"
+    camera_type = LaunchConfiguration('camera_type', default='v4l2')  # 默认相机类型为 "v4l2"
     index = LaunchConfiguration('index', default='0')  # 默认索引为 0
 
     # 创建 V4L2 相机节点
