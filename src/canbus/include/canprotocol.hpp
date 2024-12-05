@@ -40,7 +40,7 @@ struct VehicleDriveControl{
     }  
 
     // 转速设置 
-    void setRotateSpeed(float speed) { 
+    void setSpeed(float speed) { 
         rotateSpeed = 0;   
         rotateSpeed =  speed * 18.2 / (0.377 * 0.296);  
     } 

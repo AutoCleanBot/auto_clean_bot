@@ -7,3 +7,4 @@ node_can:
     min_acc: -5.0
     max_brake_pressure: 7.0
     driving_mode: 2
+    can_interface: vcan0

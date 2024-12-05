@@ -9,6 +9,8 @@
 #include <string>                // for std::string
 #include <thread>                // for std::thread
 #include <mutex>                 // for std::mutex
+#include <fcntl.h>               // for fcntl
+#include <atomic>                // for std::atomic
 #include "canprotocol.hpp"       // for canProtocol
 
 #include "bot_msg/msg/chassis_info.hpp"
@@ -18,42 +20,51 @@ using bot_msg::msg::ChassisInfo;
 using bot_msg::msg::ControlCmd;
 
 
-
 class CanDevice {
 public:
-    CanDevice();
+    CanDevice(const std::string& interface);
     ~CanDevice();                    // destructor
 
+    //init
+    void init();
+    void start();
+    void stop();
     // 控制指令
-    void setControlCmdInfo(const ControlCmd::SharedPtr msg);
+    void sendControlCmd(const bot_msg::msg::ControlCmd& cmd);
+    // 设置底盘信息回调
+    const bot_msg::msg::ChassisInfo getChassisInfo();
 
-    // 
-    VehicleDriveStatus getChassisInfo();
-
-public:
-    void canReceive();   // can接收
-    void canSend_10ms();   // can发送 周期为10ms
-    void canSend_100ms();   // can发送 周期为100ms
-
-private:
-    //send
+private:  
+    //send struct
     VehicleDriveControl vehicleDriveControl;
     VehicleSignalControl vehicleSignalControl; 
-    //recv 
+    //recv struct
     VehicleDriveStatus vehicleDriveStatus;   
     VehicleErrorStatus vehicleErrorStatus;  
     VehicleStatus vehicleStatus; 
 
+    std::string interface_name;
     int socket_id;   
-    struct can_frame frame_recv;
-    struct can_frame frame_send;   
-    std::thread *pThread_recv;
-    std::thread *pThread_send_10ms;   
-    std::thread *pThread_send_100ms;    
 
-    int count; 
+    // 线程  
+    std::thread thread_recv;
+    std::thread thread_send_10ms;   
+    std::thread thread_send_100ms;   
 
-    std::mutex sendMutex; // 添加互斥锁        
+    bot_msg::msg::ControlCmd latest_control_cmd;
+    bot_msg::msg::ChassisInfo chassis_info;
+
+    // 线程函数
+    void canReceive();      // can接收
+    void canSend_10ms();    // can发送 周期为10ms
+    void canSend_100ms();   // can发送 周期为100ms
+
+    void canFrame2ChassisInfo(const can_frame& frame);
+    //刹车踏板计数
+    int brake_count; 
+
+    std::mutex control_cmd_mutex;   
+    std::mutex chassis_info_mutex; 
 };                                        
 
 

@@ -24,11 +24,8 @@ public:
         //参数初始化
         init_parameters();
 
-        // 启动CanDevice类的线程
-        can_device_thread = new std::thread([this]() {
-            can_device = std::make_unique<CanDevice>();
-        });
-        can_device_thread->detach();
+        // 创建can设备
+        can_device = std::make_unique<CanDevice>(can_interface);
 
         // 创建订阅者  订阅控制指令
         subscription = this->create_subscription<ControlCmd>(  
@@ -43,12 +40,7 @@ public:
 
     ~CanNode()  
     {  
-        RCLCPP_INFO(this->get_logger(),"can_node destroyed!");  
-        if(can_device_thread->joinable()){
-            can_device_thread->join();
-        }
-        delete can_device_thread;
-        can_device_thread = nullptr;
+        RCLCPP_INFO(this->get_logger(),"can_node destroyed!");
     }  
   
 private:
@@ -62,6 +54,7 @@ private:
         declare_parameter("min_acc", min_acc);
         declare_parameter("max_brake_pressure",max_brake_pressure);
         declare_parameter("driving_mode", driving_mode);
+        declare_parameter("can_interface",can_interface);
 
         get_parameter("max_steer_angle",max_steer_angle);
         get_parameter("max_steer_angle_spd", max_steer_angle_spd);
@@ -70,6 +63,7 @@ private:
         get_parameter("min_acc", min_acc);
         get_parameter("max_brake_pressure",max_brake_pressure);
         get_parameter("driving_mode", driving_mode);
+        get_parameter("can_interface", can_interface);
 
         // 使用RCLCPP_INFO打印参数  
         RCLCPP_INFO(this->get_logger(), "Max Steer Angle: %f", max_steer_angle);  
@@ -79,22 +73,18 @@ private:
         RCLCPP_INFO(this->get_logger(), "Min Acceleration: %f", min_acc);  
         RCLCPP_INFO(this->get_logger(), "Max Brake Pressure: %f", max_brake_pressure);  
         RCLCPP_INFO(this->get_logger(), "Driving Mode: %d", driving_mode);
+        RCLCPP_INFO(this->get_logger(), "Can Interface: %s", can_interface.c_str());
     }
     void timer_callback()
-    {
-        // VehicleData vehicleData =  canCtrl->getChassisInfo();
-        // RCLCPP_INFO(this->get_logger(), "I heard: '%d'", vehicleData.readytatus); 
-
-        auto chassisInfo = ChassisInfo();
-        // message.data = "Hello, world! ";
-        RCLCPP_INFO(this->get_logger(), "Publishing: '%d'", count++);
+    {  
         //底盘信息
-        publisher->publish(chassisInfo);
+        publisher->publish(can_device->getChassisInfo());
+        RCLCPP_INFO(this->get_logger(), "Publishing: '%d'", count++);
     }  
     void controlCmd_callback(const ControlCmd::SharedPtr msg) const  
     {  
-        //can_device->setControlCmdInfo(msg);  
-        RCLCPP_INFO(this->get_logger(), "Speed:%d'", msg->speed);  
+        can_device->sendControlCmd(*msg);  
+        RCLCPP_INFO(this->get_logger(), "Recv ControlCmd");  
     }  
     // 类的实例  
     std::unique_ptr<CanDevice> can_device; 
@@ -110,7 +100,7 @@ private:
     float min_acc;
     float max_brake_pressure;
     uint8_t driving_mode;
-    std::thread *can_device_thread;
+    std::string can_interface;
 };  
   
 int main(int argc, char *argv[])  
