@@ -21,6 +21,7 @@ set(msg_files
   "msg/Obstacles.msg"
   "msg/ObstacleInfo.msg"
   "msg/TrajectoryPoint.msg"
+  
 )
 set(srv_files
   ""

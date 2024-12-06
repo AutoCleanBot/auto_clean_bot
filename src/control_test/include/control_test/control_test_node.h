@@ -3,6 +3,7 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <bot_msg/msg/localization_info.hpp>
+#include <bot_msg/msg/adc_trajectory.hpp>
 #include <fstream>
 #include <vector>
 #include <string>
@@ -50,7 +51,11 @@ public:
     TrajectoryPublisher()
         : Node("trajectory_publisher"), file_("localization_data.txt", std::ios::in)
     {
-        publisher_ = this->create_publisher<bot_msg::msg::LocalizationInfo>("trajectory_topic", 10);
+        // 从参数服务器读取话题名称
+        declare_parameter("trajectory_topic", "default_trajectory_topic");
+        std::string topic_name = get_parameter("trajectory_topic").as_string();
+
+        publisher_ = this->create_publisher<bot_msg::msg::ADCTrajectory>(topic_name, 10);
 
         if (!file_.is_open()) {
             RCLCPP_ERROR(this->get_logger(), "Failed to open file for reading.");
@@ -73,7 +78,7 @@ private:
 
             ss >> north >> delimiter >> east >> delimiter >> up >> delimiter >> yaw >> delimiter >> pitch >> delimiter >> roll;
 
-            bot_msg::msg::LocalizationInfo point;
+            bot_msg::msg::ADCTrajectory point;
             point.north = north;
             point.east = east;
             point.up = up;
@@ -105,11 +110,10 @@ private:
         }
     }
 
-    rclcpp::Publisher<bot_msg::msg::LocalizationInfo>::SharedPtr publisher_;
+    rclcpp::Publisher<bot_msg::msg::ADCTrajectory>::SharedPtr publisher_;
     std::ifstream file_;
-    std::vector<bot_msg::msg::LocalizationInfo> trajectory_data_;
+    std::vector<bot_msg::msg::ADCTrajectory> trajectory_data_;
     size_t index_ = 0;
     rclcpp::TimerBase::SharedPtr timer_;
 };
-
 #endif // CONTROL_TEST_NODE_H

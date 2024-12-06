@@ -1,3 +1,9 @@
 std_msgs/Header header
 # 轨迹点数组
 TrajectoryPoint[] points
+float64 north
+float64 east
+float64 up
+float32 yaw
+float32 pitch
+float32 roll

@@ -1,0 +1,1 @@
+colcon build --packages-select miivii_gmsl_camera --symlink-install --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON 

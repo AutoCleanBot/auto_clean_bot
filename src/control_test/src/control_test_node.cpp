@@ -13,8 +13,10 @@ int main(int argc, char * argv[])
     executor.add_node(publisher_node);
 
     executor.spin();
+   
+    //auto node = std::make_shared<control_test::ControlTestNode>();
     
-    rclcpp::spin(node);
+    //rclcpp::spin();
     rclcpp::shutdown();
     return 0;
 }

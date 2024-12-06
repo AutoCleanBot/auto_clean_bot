@@ -1,5 +1,3 @@
-std_msgs/Header header
-
 # 规划的轨迹点
 float64 longtitude
 float64 latitude

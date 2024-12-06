@@ -2,7 +2,7 @@
 
 #include <bot_msg/msg/adc_trajectory.hpp>
 #include <bot_msg/msg/control_cmd.hpp>
-# include <bot_msg/msg/control_log.hpp>
+//# include <bot_msg/msg/control_log.hpp>
 #include <bot_msg/msg/localization_info.hpp>
 #include <rclcpp/rclcpp.hpp>
 
@@ -16,8 +16,8 @@ class ControlNode : public rclcpp::Node {
     void LocalizationInfoCallback(const bot_msg::msg::LocalizationInfo::SharedPtr msg);
     void LateralController();
     void LongitudinalController();
-    void trajectory_callback(const bot_msg::msg::LocalizationInfo::SharedPtr msg);
- 
+    //void trajectory_callback(const bot_msg::msg::LocalizationInfo::SharedPtr msg);
+    void trajectory_callback(const bot_msg::msg::ADCTrajectory::SharedPtr msg) ;
   private:
     // subscribers and publishers
     rclcpp::TimerBase::SharedPtr timer_;
@@ -25,7 +25,7 @@ class ControlNode : public rclcpp::Node {
     rclcpp::Subscription<bot_msg::msg::LocalizationInfo>::SharedPtr sub_localization_info_;
     rclcpp::Publisher<bot_msg::msg::ControlCmd>::SharedPtr pub_control_cmd_;
     //rclcpp::Subscription<bot_msg::msg::LocalizationInfo>::SharedPtr sub_localization_info_;
-
+    rclcpp::Subscription<bot_msg::msg::ADCTrajectory>::SharedPtr subscription_;
     // variables
     bot_msg::msg::ADCTrajectory::SharedPtr adc_trajectory_msg_;
     bot_msg::msg::LocalizationInfo::SharedPtr localization_info_msg_;
@@ -46,5 +46,6 @@ class ControlNode : public rclcpp::Node {
     std::string adc_traj_topic_name_;
     std::string localization_info_topic_name_;
     std::string control_cmd_topic_name_;
+   // std::string adc_traj_topic_name_;
 };
 } // namespace control

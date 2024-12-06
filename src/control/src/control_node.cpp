@@ -15,9 +15,8 @@ ControlNode::ControlNode() : Node("control_node") {
     this->sub_localization_info_ = this->create_subscription<bot_msg::msg::LocalizationInfo>(
         this->localization_info_topic_name_, 10,
         std::bind(&ControlNode::LocalizationInfoCallback, this, std::placeholders::_1));
-    this->sub_localization_info_ = this->create_subscription<bot_msg::msg::LocalizationInfo>(
-        "trajectory_topic", 10, 
-        std::bind(&ControlNode::trajectory_callback, this, std::placeholders::_1));
+    this->subscription_ = this->create_subscription<bot_msg::msg::ADCTrajectory>(
+           this-> adc_traj_topic_name_, 10, std::bind(&ControlNode::trajectory_callback, this, std::placeholders::_1));
     this->pub_control_cmd_ = this->create_publisher<bot_msg::msg::ControlCmd>(this->control_cmd_topic_name_, 10);
    
 
@@ -183,7 +182,7 @@ void ControlNode::LocalizationInfoCallback(const bot_msg::msg::LocalizationInfo:
     localization_info_msg_ = msg;
     return;
 }
-void ControlNode::trajectory_callback(const bot_msg::msg::LocalizationInfo::SharedPtr msg)
+void ControlNode::trajectory_callback(const bot_msg::msg::ADCTrajectory::SharedPtr msg)
 {
     double north = msg->north;
     double east = msg->east;
