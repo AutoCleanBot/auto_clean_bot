@@ -19,7 +19,7 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 NdtMapping::NdtMapping() : Node("ndt_mapping") {
-
+    InitParams();
     // Initialize transforms
     InitializeTransforms();
 
@@ -55,8 +55,6 @@ NdtMapping::NdtMapping() : Node("ndt_mapping") {
     RCLCPP_INFO(this->get_logger(), "NDT Mapping node initialized");
 }
 
-
-
 /**
  * @brief Initialize parameters
  */
@@ -67,10 +65,13 @@ void NdtMapping::InitParams() {
     this->declare_parameter("use_imu", false);
     this->declare_parameter("imu_upside_down", false);
     this->declare_parameter("imu_topic", "/imu_raw");
+    this->declare_parameter("points_topic", "/points_raw");
+    this->declare_parameter("odom_topic", "/odom");
     this->declare_parameter("incremental_voxel_update", false);
     this->declare_parameter("trans_eps", 0.01);
     this->declare_parameter("step_size", 0.1);
     this->declare_parameter("ndt_res", 1.0);
+
     this->declare_parameter("max_iter", 30);
 
     // Get parameters
@@ -81,6 +82,8 @@ void NdtMapping::InitParams() {
     this->get_parameter("use_imu", use_imu_);
     this->get_parameter("imu_upside_down", imu_upside_down_);
     this->get_parameter("imu_topic", imu_topic_);
+    this->get_parameter("points_topic", points_topic_);
+    this->get_parameter("odom_topic", odom_topic_);
     this->get_parameter("incremental_voxel_update", incremental_voxel_update_);
     this->get_parameter("trans_eps", trans_eps_);
     this->get_parameter("step_size", step_size_);
@@ -93,6 +96,8 @@ void NdtMapping::InitParams() {
     RCLCPP_INFO(this->get_logger(), "use_imu: %d", use_imu_);
     RCLCPP_INFO(this->get_logger(), "imu_upside_down: %d", imu_upside_down_);
     RCLCPP_INFO(this->get_logger(), "imu_topic: %s", imu_topic_.c_str());
+    RCLCPP_INFO(this->get_logger(), "points_topic: %s", points_topic_.c_str());
+    RCLCPP_INFO(this->get_logger(), "odom_topic: %s", odom_topic_.c_str());
     RCLCPP_INFO(this->get_logger(), "incremental_voxel_update: %d", incremental_voxel_update_);
     RCLCPP_INFO(this->get_logger(), "trans_eps: %f", trans_eps_);
     RCLCPP_INFO(this->get_logger(), "step_size: %f", step_size_);
@@ -128,6 +133,8 @@ void NdtMapping::SetupNdt() {
  */
 void NdtMapping::InitializeTransforms() {
     // TODO 从Transform节点获取变换参数
+
+    // tf_x, tf_y, tf_z, tf_roll, tf_pitch, tf_yaw 是激光雷达坐标系相对于车身底盘坐标系的位姿
     // Get transform parameters
     this->declare_parameter("tf_x", 0.0);
     this->declare_parameter("tf_y", 0.0);
@@ -144,6 +151,13 @@ void NdtMapping::InitializeTransforms() {
     this->get_parameter("tf_pitch", tf_pitch);
     this->get_parameter("tf_yaw", tf_yaw);
 
+    RCLCPP_INFO(this->get_logger(), "tf_x: %f", tf_x);
+    RCLCPP_INFO(this->get_logger(), "tf_y: %f", tf_y);
+    RCLCPP_INFO(this->get_logger(), "tf_z: %f", tf_z);
+    RCLCPP_INFO(this->get_logger(), "tf_roll: %f", tf_roll);
+    RCLCPP_INFO(this->get_logger(), "tf_pitch: %f", tf_pitch);
+    RCLCPP_INFO(this->get_logger(), "tf_yaw: %f", tf_yaw);
+
     // Create transform matrices
     Eigen::Translation3f tl_btol(tf_x, tf_y, tf_z);
     Eigen::AngleAxisf rot_x_btol(tf_roll, Eigen::Vector3f::UnitX());
@@ -153,7 +167,7 @@ void NdtMapping::InitializeTransforms() {
     // 激光雷达相对于车身底盘坐标系的位姿
     tf_lidar_to_base_ = (tl_btol * rot_z_btol * rot_y_btol * rot_x_btol).matrix();
     // 底盘坐标系到激光雷达的变换矩阵
-    tf_base_to_lidar_ = tf_base_to_lidar_.inverse();
+    tf_base_to_lidar_ = tf_base_to_lidar_.inverse().eval();
 }
 
 void NdtMapping::SaveMap() {
@@ -180,11 +194,11 @@ void NdtMapping::PointsCallback(const sensor_msgs::msg::PointCloud2::SharedPtr i
     if (!map_.empty()) {
         ndt_.setInputSource(filtered_scan.makeShared());
         pcl::PointCloud<pcl::PointXYZI>::Ptr output_cloud(new pcl::PointCloud<pcl::PointXYZI>);
-        // align()函数的返回值是一个bool值，表示是否收敛
-        // align()函数的作用是将输入的点云与目标点云进行配准，得到一个变换矩阵
+        // ndt_.align 方法使用 GuessInit 提供的初始位姿对点云进行配准，从而实现点云的精确对齐。
         ndt_.align(*output_cloud, GuessInit());
 
         if (ndt_.hasConverged()) {
+            // ndt_已经收敛
             auto ndt_pose = ndt_.getFinalTransformation(); // 获取当前点云相对于地图的位姿
             UpdateCurrentPose(ndt_pose);
             PublishCurrentPose();
@@ -335,16 +349,17 @@ void NdtMapping::OdomCalc(const rclcpp::Time &current_time) {
 /**
  * @brief Update current pose based on estimated transform
  *          - 基于NDT算法计算出的变换矩阵，更新当前位姿
- * @param transform estimated transform
+ * @param transform 来自于NDT算法的计算出的当前点云相对于地图的位姿
  */
 void NdtMapping::UpdateCurrentPose(const Eigen::Matrix4f &transform) {
+    // 括号内是行列索引
     Eigen::Matrix3f rotation = transform.block<3, 3>(0, 0);
     Eigen::Vector3f translation = transform.block<3, 1>(0, 3);
 
     current_pose_.x = translation(0);
     current_pose_.y = translation(1);
     current_pose_.z = translation(2);
-
+    // 从旋转矩阵中提取欧拉角
     Eigen::Vector3f euler = rotation.eulerAngles(0, 1, 2);
     current_pose_.roll = euler(0);
     current_pose_.pitch = euler(1);
@@ -392,6 +407,7 @@ void NdtMapping::UpdateMap(const pcl::PointCloud<pcl::PointXYZI> &scan) {
 
     if (shift >= kMinAddScanShift) {
         pcl::PointCloud<pcl::PointXYZI> transformed_scan;
+        // 将scan点云转换到地图坐标系下
         pcl::transformPointCloud(scan, transformed_scan, ndt_.getFinalTransformation());
         map_ += transformed_scan;
 
@@ -420,7 +436,7 @@ Eigen::Matrix4f NdtMapping::GuessInit() {
         init_guess = CreateMatrix(guess_pose_);
     }
 
-    return init_guess * tf_base_to_lidar_;
+    return init_guess * tf_base_to_lidar_; // 将base_link坐标系转换到激光雷达坐标系
 }
 
 Eigen::Matrix4f NdtMapping::CreateMatrix(const Pose &p) {

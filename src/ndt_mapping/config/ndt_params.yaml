@@ -20,14 +20,14 @@
     min_add_scan_shift: 1.0         # Minimum shift between scans to add to map
 
     # TF Parameters
-    tf_x: 0.0                       # X offset from base_link to lidar
-    tf_y: 0.0                       # Y offset from base_link to lidar
-    tf_z: 2.0                       # Z offset from base_link to lidar
-    tf_roll: 0.0                    # Roll offset from base_link to lidar
-    tf_pitch: 0.0                   # Pitch offset from base_link to lidar
-    tf_yaw: 0.0                     # Yaw offset from base_link to lidar
+    tf_x: 0.0                       # X offset from lidar to base_link
+    tf_y: 0.0                       # Y offset from lidar to base_link
+    tf_z: 2.0                       # Z offset from lidar to base_link  
+    tf_roll: 0.0                    # Roll offset from lidar to base_link  
+    tf_pitch: 0.0                   # Pitch offset from lidar to base_link  
+    tf_yaw: 0.0                     # Yaw offset from lidar to  base_link 
 
     # Topic Parameters
-    points_topic: "points_raw"      # Input pointcloud topic
-    imu_topic: "/imu_raw"          # Input IMU topic
+    points_topic: "/lidar/points_raw"      # Input pointcloud topic
+    imu_topic: "/imu/imu_raw"          # Input IMU topic
     odom_topic: "/vehicle/odom"    # Input odometry topic

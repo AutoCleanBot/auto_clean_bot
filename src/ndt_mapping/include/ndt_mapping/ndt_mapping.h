@@ -92,8 +92,13 @@ class NdtMapping : public rclcpp::Node {
     bool use_odom_;
     bool use_imu_;
     bool imu_upside_down_; // IMU是否倒置
-    std::string imu_topic_;
     bool incremental_voxel_update_;
+    
+    
+    // subscribe topic id 
+    std::string imu_topic_;
+    std::string points_topic_;
+    std::string odom_topic_;
 
     // NDT object
     pcl::NormalDistributionsTransform<pcl::PointXYZI, pcl::PointXYZI> ndt_;
