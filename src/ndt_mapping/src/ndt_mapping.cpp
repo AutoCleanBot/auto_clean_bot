@@ -30,7 +30,7 @@ NdtMapping::NdtMapping() : Node("ndt_mapping") {
     // Setup subscribers with QoS settings
     auto points_sub_opt = rclcpp::SensorDataQoS();
     points_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-        "points_raw", points_sub_opt, std::bind(&NdtMapping::PointsCallback, this, std::placeholders::_1));
+        points_topic_, points_sub_opt, std::bind(&NdtMapping::PointsCallback, this, std::placeholders::_1));
 
     auto imu_sub_opt = rclcpp::SensorDataQoS();
     imu_sub_ = this->create_subscription<sensor_msgs::msg::Imu>(
@@ -125,6 +125,8 @@ void NdtMapping::SetupNdt() {
     ndt_.setStepSize(0.1);
     ndt_.setResolution(1.0);
     ndt_.setMaximumIterations(30);
+    // Add additional NDT parameters for better robustness
+    ndt_.setOulierRatio(0.55); // Increase outlier ratio threshold
 }
 
 // 从本地参数服务器中获取变换参数，初始化变换矩阵
@@ -160,14 +162,32 @@ void NdtMapping::InitializeTransforms() {
 
     // Create transform matrices
     Eigen::Translation3f tl_btol(tf_x, tf_y, tf_z);
+
     Eigen::AngleAxisf rot_x_btol(tf_roll, Eigen::Vector3f::UnitX());
     Eigen::AngleAxisf rot_y_btol(tf_pitch, Eigen::Vector3f::UnitY());
     Eigen::AngleAxisf rot_z_btol(tf_yaw, Eigen::Vector3f::UnitZ());
 
     // 激光雷达相对于车身底盘坐标系的位姿
     tf_lidar_to_base_ = (tl_btol * rot_z_btol * rot_y_btol * rot_x_btol).matrix();
+    // 日志输出激光雷达相对于车身底盘坐标系的位姿
+    RCLCPP_INFO(this->get_logger(), "tf_lidar_to_base: [%f %f %f %f; %f %f %f %f; %f %f %f %f; %f %f %f %f]",
+                tf_lidar_to_base_(0, 0), tf_lidar_to_base_(0, 1), tf_lidar_to_base_(0, 2), tf_lidar_to_base_(0, 3),
+                tf_lidar_to_base_(1, 0), tf_lidar_to_base_(1, 1), tf_lidar_to_base_(1, 2), tf_lidar_to_base_(1, 3),
+                tf_lidar_to_base_(2, 0), tf_lidar_to_base_(2, 1), tf_lidar_to_base_(2, 2), tf_lidar_to_base_(2, 3),
+                tf_lidar_to_base_(3, 0), tf_lidar_to_base_(3, 1), tf_lidar_to_base_(3, 2), tf_lidar_to_base_(3, 3));
+
     // 底盘坐标系到激光雷达的变换矩阵
-    tf_base_to_lidar_ = tf_base_to_lidar_.inverse().eval();
+    if (tf_base_to_lidar_.determinant() != 0) {
+        tf_base_to_lidar_ = tf_base_to_lidar_.inverse().eval();
+    } else {
+        RCLCPP_ERROR(this->get_logger(), "tf_base_to_lidar_ matrix is singular, cannot invert.");
+    }
+    // 日志输出激光雷达相对于车身底盘坐标系的位姿
+    RCLCPP_INFO(this->get_logger(), "tf_lidar_to_base: [%f %f %f %f; %f %f %f %f; %f %f %f %f; %f %f %f %f]",
+                tf_base_to_lidar_(0, 0), tf_base_to_lidar_(0, 1), tf_base_to_lidar_(0, 2), tf_base_to_lidar_(0, 3),
+                tf_base_to_lidar_(1, 0), tf_base_to_lidar_(1, 1), tf_base_to_lidar_(1, 2), tf_base_to_lidar_(1, 3),
+                tf_base_to_lidar_(2, 0), tf_base_to_lidar_(2, 1), tf_base_to_lidar_(2, 2), tf_base_to_lidar_(2, 3),
+                tf_base_to_lidar_(3, 0), tf_base_to_lidar_(3, 1), tf_base_to_lidar_(3, 2), tf_base_to_lidar_(3, 3));
 }
 
 void NdtMapping::SaveMap() {
@@ -176,39 +196,117 @@ void NdtMapping::SaveMap() {
     RCLCPP_INFO(this->get_logger(), "Saved map to %s", filename.c_str());
 }
 
-void NdtMapping::PointsCallback(const sensor_msgs::msg::PointCloud2::SharedPtr input) {
-    // Convert ROS message to PCL point cloud
-    pcl::PointCloud<pcl::PointXYZI>::Ptr scan_ptr(new pcl::PointCloud<pcl::PointXYZI>);
-    pcl::fromROSMsg(*input, *scan_ptr);
+/**
+ * @brief 移除无效点
+ *
+ * @param cloud 点云数据
+ */
+void NdtMapping::RemoveInvalidPoints(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud) {
+    cloud->points.erase(std::remove_if(cloud->points.begin(), cloud->points.end(),
+                                       [](const pcl::PointXYZ &pnt) {
+                                           return std::isnan(pnt.x) || std::isnan(pnt.y) || std::isnan(pnt.z) ||
+                                                  !std::isfinite(pnt.x) || !std::isfinite(pnt.y) ||
+                                                  !std::isfinite(pnt.z);
+                                       }),
+                        cloud->points.end());
+}
 
-    pcl::PointCloud<pcl::PointXYZI> filtered_scan;
-    // 过滤掉距离小于1m和大于120m的点
-    for (const auto &point : scan_ptr->points) {
-        float r = std::sqrt(point.x * point.x + point.y * point.y);
-        if (r > kMinScanRange && r < kMaxScanRange) {
-            filtered_scan.push_back(point);
+// Add new validation function implementation
+bool NdtMapping::ValidateCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud) {
+    if (!cloud || cloud->empty()) {
+        RCLCPP_WARN(this->get_logger(), "Empty or null point cloud received");
+        return false;
+    }
+
+    if (!cloud->is_dense) {
+        RCLCPP_WARN(this->get_logger(), "Point cloud is not dense, may contain invalid points");
+    }
+
+    return true;
+}
+
+// Add new preprocessing function implementation
+void NdtMapping::PreprocessPointCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud) {
+    // Remove NaN and infinite points
+    RemoveInvalidPoints(cloud);
+
+    // Create a new filtered cloud
+    pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    filtered_cloud->reserve(cloud->size());
+
+    // Filter based on distance
+    for (const auto &point : cloud->points) {
+        double distance = ComputePointDistance(point);
+        if (distance >= kMinScanRange && distance <= kMaxScanRange) {
+            filtered_cloud->points.push_back(point);
         }
+    }
+
+    filtered_cloud->width = filtered_cloud->points.size();
+    filtered_cloud->height = 1;
+    filtered_cloud->is_dense = true;
+
+    // Replace the input cloud with the filtered one
+    cloud = filtered_cloud;
+}
+
+double NdtMapping::ComputePointDistance(const pcl::PointXYZ &point) {
+    return std::sqrt(point.x * point.x + point.y * point.y + point.z * point.z);
+}
+
+// Modify the PointsCallback function to use the new validation and preprocessing
+void NdtMapping::PointsCallback(const sensor_msgs::msg::PointCloud2::SharedPtr input) {
+    RCLCPP_INFO(this->get_logger(), "Received a point cloud");
+
+    // Convert ROS message to PCL point cloud
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::fromROSMsg(*input, *cloud);
+
+    // Validate the input cloud
+    if (!ValidateCloud(cloud)) {
+        return;
+    }
+
+    RCLCPP_INFO(this->get_logger(), "Before preprocessing: %d points", cloud->points.size());
+
+    // 将点云数据从激光雷达坐标系转换到车身底盘坐标系
+    pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::transformPointCloud(*cloud, *transformed_cloud, tf_lidar_to_base_);
+    cloud = transformed_cloud;
+
+    // Preprocess the point cloud
+    PreprocessPointCloud(cloud);
+
+    RCLCPP_INFO(this->get_logger(), "After preprocessing: %d points", cloud->points.size());
+
+    // Check if we have enough points to proceed
+    if (cloud->points.size() < 100) {
+        RCLCPP_WARN(this->get_logger(), "Too few points after filtering (%lu), skipping frame", cloud->points.size());
+        return;
     }
 
     // Perform NDT matching
     if (!map_.empty()) {
-        ndt_.setInputSource(filtered_scan.makeShared());
-        pcl::PointCloud<pcl::PointXYZI>::Ptr output_cloud(new pcl::PointCloud<pcl::PointXYZI>);
-        // ndt_.align 方法使用 GuessInit 提供的初始位姿对点云进行配准，从而实现点云的精确对齐。
-        ndt_.align(*output_cloud, GuessInit());
+        try {
+            ndt_.setInputSource(cloud);
+            pcl::PointCloud<pcl::PointXYZ>::Ptr output_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+            RCLCPP_INFO(this->get_logger(), "NDT matching started");
+            Eigen::Matrix4f guess_trans = GuessInit();
+            ndt_.align(*output_cloud, guess_trans);
+            RCLCPP_INFO(this->get_logger(), "NDT has converged: %d", ndt_.hasConverged());
 
-        if (ndt_.hasConverged()) {
-            // ndt_已经收敛
-            auto ndt_pose = ndt_.getFinalTransformation(); // 获取当前点云相对于地图的位姿
-            UpdateCurrentPose(ndt_pose);
-            PublishCurrentPose();
-            UpdateMap(filtered_scan);
+            if (ndt_.hasConverged()) {
+                auto ndt_pose = ndt_.getFinalTransformation();
+                UpdateCurrentPose(ndt_pose);
+                PublishCurrentPose();
+                UpdateMap(*cloud);
+            }
+        } catch (const std::exception &e) {
+            RCLCPP_ERROR(this->get_logger(), "Error during NDT alignment: %s", e.what());
         }
     } else {
         // First scan, initialize map
-        // 注意此时使用的是原始的filtered_scan
-        // 表明当前的地图的坐标系是激光雷达坐标系,如果未被预先处理的话
-        map_ = filtered_scan;
+        map_ = *cloud;
         ndt_.setInputTarget(map_.makeShared());
     }
 }
@@ -217,6 +315,7 @@ void NdtMapping::PointsCallback(const sensor_msgs::msg::PointCloud2::SharedPtr i
  * @brief IMU 回调函数
  */
 void NdtMapping::ImuCallback(const sensor_msgs::msg::Imu::SharedPtr input) {
+    RCLCPP_INFO(this->get_logger(), "Received an IMU message");
     if (imu_upside_down_) {
         ProcessImuUpsideDown(input);
     }
@@ -401,12 +500,13 @@ void NdtMapping::PublishCurrentPose() {
  *          - Shift check is performed to avoid adding scans too close to each other
  * @param scan new scan
  */
-void NdtMapping::UpdateMap(const pcl::PointCloud<pcl::PointXYZI> &scan) {
+void NdtMapping::UpdateMap(const pcl::PointCloud<pcl::PointXYZ> &scan) {
     double shift =
         std::sqrt(std::pow(current_pose_.x - added_pose_.x, 2.0) + std::pow(current_pose_.y - added_pose_.y, 2.0));
 
+    RCLCPP_INFO(this->get_logger(), "Current shift: %f", shift);
     if (shift >= kMinAddScanShift) {
-        pcl::PointCloud<pcl::PointXYZI> transformed_scan;
+        pcl::PointCloud<pcl::PointXYZ> transformed_scan;
         // 将scan点云转换到地图坐标系下
         pcl::transformPointCloud(scan, transformed_scan, ndt_.getFinalTransformation());
         map_ += transformed_scan;
@@ -428,6 +528,9 @@ void NdtMapping::UpdateMap(const pcl::PointCloud<pcl::PointXYZI> &scan) {
 Eigen::Matrix4f NdtMapping::GuessInit() {
     Eigen::Matrix4f init_guess = Eigen::Matrix4f::Identity();
 
+    // 添加日志检查输入状态
+    // RCLCPP_INFO(this->get_logger(), "use_imu_: %d, use_odom_: %d", use_imu_, use_odom_);
+
     if (use_imu_ && use_odom_) {
         init_guess = CreateMatrix(guess_pose_imu_);
     } else if (use_imu_) {
@@ -435,11 +538,22 @@ Eigen::Matrix4f NdtMapping::GuessInit() {
     } else {
         init_guess = CreateMatrix(guess_pose_);
     }
-
-    return init_guess * tf_base_to_lidar_; // 将base_link坐标系转换到激光雷达坐标系
+    // RCLCPP_INFO(this->get_logger(), "Guess transform: %f %f %f %f %f %f", init_guess(0, 0), init_guess(1, 1),
+    //             init_guess(2, 2), init_guess(0, 3), init_guess(1, 3), init_guess(2, 3));
+    Eigen::Matrix4f res = init_guess * tf_base_to_lidar_; // 将base_link坐标系转换到激光雷达坐标系
+    // RCLCPP_INFO(this->get_logger(), "Guess transform: %f %f %f %f %f %f %f", res(0, 0), res(0, 1), res(0, 2), res(0,
+    // 3),
+    //             res(1, 0), res(1, 1));
+    return res;
 }
 
 Eigen::Matrix4f NdtMapping::CreateMatrix(const Pose &p) {
+    if (std::isnan(p.x) || std::isnan(p.y) || std::isnan(p.z) || std::isnan(p.roll) || std::isnan(p.pitch) ||
+        std::isnan(p.yaw)) {
+        RCLCPP_ERROR(this->get_logger(), "Invalid pose data: x=%f, y=%f, z=%f, roll=%f, pitch=%f, yaw=%f", p.x, p.y,
+                     p.z, p.roll, p.pitch, p.yaw);
+        return Eigen::Matrix4f::Identity(); // 返回一个单位矩阵，避免继续传播错误
+    }
     // Eigen::Vector3f::UnitX()表示x轴方向的单位向量, [1, 0, 0]
     Eigen::AngleAxisf rot_x(p.roll, Eigen::Vector3f::UnitX());
     Eigen::AngleAxisf rot_y(p.pitch, Eigen::Vector3f::UnitY());

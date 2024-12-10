@@ -62,10 +62,11 @@ class NdtMapping : public rclcpp::Node {
   public:
     explicit NdtMapping();
     /**
-    * @brief Destructor
-    *          - Save map to file, before shutting down
-    */
+     * @brief Destructor
+     *          - Save map to file, before shutting down
+     */
     virtual ~NdtMapping() { SaveMap(); }
+
   private:
     // Constants
     static constexpr double kMinScanRange = 1.0;    // [m]
@@ -93,18 +94,17 @@ class NdtMapping : public rclcpp::Node {
     bool use_imu_;
     bool imu_upside_down_; // IMU是否倒置
     bool incremental_voxel_update_;
-    
-    
-    // subscribe topic id 
+
+    // subscribe topic id
     std::string imu_topic_;
     std::string points_topic_;
     std::string odom_topic_;
 
     // NDT object
-    pcl::NormalDistributionsTransform<pcl::PointXYZI, pcl::PointXYZI> ndt_;
+    pcl::NormalDistributionsTransform<pcl::PointXYZ, pcl::PointXYZ> ndt_;
 
     // Point cloud map
-    pcl::PointCloud<pcl::PointXYZI> map_;
+    pcl::PointCloud<pcl::PointXYZ> map_;
 
     // Pose variables
     Pose previous_pose_; // 之前ndt 估计出的位姿
@@ -158,7 +158,7 @@ class NdtMapping : public rclcpp::Node {
     void OdomCalc(const rclcpp::Time &current_time);
     void UpdateCurrentPose(const Eigen::Matrix4f &transform);
     void PublishCurrentPose();
-    void UpdateMap(const pcl::PointCloud<pcl::PointXYZI> &scan);
+    void UpdateMap(const pcl::PointCloud<pcl::PointXYZ> &scan);
 
     // Utility functions
     Eigen::Matrix4f GuessInit();
@@ -167,6 +167,11 @@ class NdtMapping : public rclcpp::Node {
     double WrapToPi(double angle);
     double CalcDiffForRadian(double lhs_rad, double rhs_rad);
     void SaveMap();
+    // void LogPose(const Pose &pose);
+    bool ValidateCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud);
+    void PreprocessPointCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud);
+    double ComputePointDistance(const pcl::PointXYZ &point);
+    void RemoveInvalidPoints(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
 };
 
 #endif // NDT_MAPPING_H_

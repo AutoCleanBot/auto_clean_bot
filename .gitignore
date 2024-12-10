@@ -35,3 +35,5 @@ bags/
 
 # big files or directories that you don't want to commit
 *.engine
+*.pcd
+*.bag
