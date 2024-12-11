@@ -131,10 +131,18 @@ class NdtMapping : public rclcpp::Node {
     double offset_imu_roll_ = 0.0;
     double offset_imu_pitch_ = 0.0;
     double offset_imu_yaw_ = 0.0;
-
     double current_velocity_imu_x_ = 0.0;
     double current_velocity_imu_y_ = 0.0;
     double current_velocity_imu_z_ = 0.0;
+
+    // offset and velocity variables for guess pose
+    double diff_x_ = 0.0;
+    double diff_y_ = 0.0;
+    double diff_z_ = 0.0;
+    double diff_yaw_ = 0.0;
+    double current_velocity_x_ = 0.0;
+    double current_velocity_y_ = 0.0;
+    double current_velocity_z_ = 0.0;
 
     // ndt parameters
     double trans_eps_;
@@ -158,6 +166,7 @@ class NdtMapping : public rclcpp::Node {
     void OdomCalc(const rclcpp::Time &current_time);
     void UpdateCurrentPose(const Eigen::Matrix4f &transform);
     void PublishCurrentPose();
+    void PublishMap();
     void UpdateMap(const pcl::PointCloud<pcl::PointXYZ> &scan);
 
     // Utility functions

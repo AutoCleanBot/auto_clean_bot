@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+// TODO ndt 配准耗时
+
 #include "ndt_mapping/ndt_mapping.h"
 #include <pcl/io/pcd_io.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
@@ -111,7 +113,6 @@ void NdtMapping::InitializePoses() {
     current_pose_ = zero_pose;
     guess_pose_ = zero_pose;
     added_pose_ = zero_pose;
-    localizer_pose_ = zero_pose;
     ndt_pose_ = zero_pose;
     current_pose_imu_ = zero_pose;
     guess_pose_imu_ = zero_pose;
@@ -123,7 +124,7 @@ void NdtMapping::InitializePoses() {
 void NdtMapping::SetupNdt() {
     ndt_.setTransformationEpsilon(0.01);
     ndt_.setStepSize(0.1);
-    ndt_.setResolution(1.0);
+    ndt_.setResolution(2.0);
     ndt_.setMaximumIterations(30);
     // Add additional NDT parameters for better robustness
     ndt_.setOulierRatio(0.55); // Increase outlier ratio threshold
@@ -180,10 +181,11 @@ void NdtMapping::InitializeTransforms() {
     if (tf_base_to_lidar_.determinant() != 0) {
         tf_base_to_lidar_ = tf_base_to_lidar_.inverse().eval();
     } else {
+        tf_base_to_lidar_ = Eigen::Matrix4f::Identity();
         RCLCPP_ERROR(this->get_logger(), "tf_base_to_lidar_ matrix is singular, cannot invert.");
     }
     // 日志输出激光雷达相对于车身底盘坐标系的位姿
-    RCLCPP_INFO(this->get_logger(), "tf_lidar_to_base: [%f %f %f %f; %f %f %f %f; %f %f %f %f; %f %f %f %f]",
+    RCLCPP_INFO(this->get_logger(), "tf_base_to_lidar_: [%f %f %f %f; %f %f %f %f; %f %f %f %f; %f %f %f %f]",
                 tf_base_to_lidar_(0, 0), tf_base_to_lidar_(0, 1), tf_base_to_lidar_(0, 2), tf_base_to_lidar_(0, 3),
                 tf_base_to_lidar_(1, 0), tf_base_to_lidar_(1, 1), tf_base_to_lidar_(1, 2), tf_base_to_lidar_(1, 3),
                 tf_base_to_lidar_(2, 0), tf_base_to_lidar_(2, 1), tf_base_to_lidar_(2, 2), tf_base_to_lidar_(2, 3),
@@ -255,45 +257,132 @@ double NdtMapping::ComputePointDistance(const pcl::PointXYZ &point) {
 }
 
 // Modify the PointsCallback function to use the new validation and preprocessing
-void NdtMapping::PointsCallback(const sensor_msgs::msg::PointCloud2::SharedPtr input) {
-    RCLCPP_INFO(this->get_logger(), "Received a point cloud");
+// void NdtMapping::PointsCallback(const sensor_msgs::msg::PointCloud2::SharedPtr input) {
+//     // RCLCPP_INFO(this->get_logger(), "Received a point cloud");
 
-    // Convert ROS message to PCL point cloud
+//     rclcpp::Time current_time = rclcpp::Clock().now();
+
+//     // Convert ROS message to PCL point cloud
+//     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+//     pcl::fromROSMsg(*input, *cloud);
+
+//     // Validate the input cloud
+//     if (!ValidateCloud(cloud)) {
+//         return;
+//     }
+
+//     // RCLCPP_INFO(this->get_logger(), "Before preprocessing: %d points", cloud->points.size());
+
+//     // 将点云数据从激光雷达坐标系转换到车身底盘坐标系
+//     pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+//     pcl::transformPointCloud(*cloud, *transformed_cloud, tf_lidar_to_base_);
+//     cloud = transformed_cloud;
+
+//     // Preprocess the point cloud
+//     PreprocessPointCloud(cloud);
+
+//     // RCLCPP_INFO(this->get_logger(), "After preprocessing: %d points", cloud->points.size());
+
+//     // Check if we have enough points to proceed
+//     if (cloud->points.size() < 100) {
+//         RCLCPP_WARN(this->get_logger(), "Too few points after filtering (%lu), skipping frame",
+//         cloud->points.size()); return;
+//     }
+
+//     // Perform NDT matching
+//     if (!map_.empty()) {
+//         // 对输入地图进行体素过滤
+//         pcl::VoxelGrid<pcl::PointXYZ> voxel_grid_filter;
+//         voxel_grid_filter.setInputCloud(cloud);
+//         voxel_grid_filter.setLeafSize(0.5, 0.5, 0.5);
+//         voxel_grid_filter.filter(*cloud);
+//         // 进行NDT匹配
+//         try {
+//             ndt_.setInputSource(cloud);
+//             pcl::PointCloud<pcl::PointXYZ>::Ptr output_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+//             // RCLCPP_INFO(this->get_logger(), "NDT matching started");
+//             Eigen::Matrix4f guess_trans = GuessInit();
+//             ndt_.align(*output_cloud, guess_trans);
+//             // RCLCPP_INFO(this->get_logger(), "NDT has converged: %d", ndt_.hasConverged());
+//             double fitness_score = ndt_.getFitnessScore();
+//             // RCLCPP_INFO(this->get_logger(), "Fitness score: %f", fitness_score);
+//             if (ndt_.hasConverged()) {
+//                 // 得到最终的位姿,此时的位置为base_link在map坐标系下的位置
+//                 auto ndt_pose = ndt_.getFinalTransformation();
+//                 UpdateCurrentPose(ndt_pose);
+//                 PublishCurrentPose();
+//                 UpdateMap(*cloud);
+//             }
+//         } catch (const std::exception &e) {
+//             RCLCPP_ERROR(this->get_logger(), "Error during NDT alignment: %s", e.what());
+//         }
+//     } else {
+//         // First scan, initialize map
+//         map_ = *cloud;
+//         ndt_.setInputTarget(map_.makeShared());
+//         PublishMap();
+//         RCLCPP_INFO(this->get_logger(), "Map initialized with %d points", map_.points.size());
+//     }
+
+//     rclcpp::Time time_last_publish = rclcpp::Clock().now();
+//     rclcpp::Duration duration = current_time - time_last_publish;
+//     double diff_time = duration.seconds();
+//     RCLCPP_INFO(this->get_logger(), "diff_time: %f", diff_time);
+// }
+void NdtMapping::PointsCallback(const sensor_msgs::msg::PointCloud2::SharedPtr input) {
+    rclcpp::Clock clock(RCL_ROS_TIME);
+    rclcpp::Time start_time = clock.now();
+    rclcpp::Time step_time;
+
+    // Step 1: Convert ROS message to PCL point cloud
+    step_time = clock.now();
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::fromROSMsg(*input, *cloud);
+    RCLCPP_INFO(this->get_logger(), "Time for conversion to PCL: %f ms", (clock.now() - step_time).seconds() * 1000);
 
-    // Validate the input cloud
+    // Step 2: Validate the input cloud
+    step_time = clock.now();
     if (!ValidateCloud(cloud)) {
         return;
     }
+    RCLCPP_INFO(this->get_logger(), "Time for validation: %f ms", (clock.now() - step_time).seconds() * 1000);
 
-    RCLCPP_INFO(this->get_logger(), "Before preprocessing: %d points", cloud->points.size());
-
-    // 将点云数据从激光雷达坐标系转换到车身底盘坐标系
+    // Step 3: Transform point cloud
+    step_time = clock.now();
     pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::transformPointCloud(*cloud, *transformed_cloud, tf_lidar_to_base_);
     cloud = transformed_cloud;
+    RCLCPP_INFO(this->get_logger(), "Time for transformation: %f ms", (clock.now() - step_time).seconds() * 1000);
 
-    // Preprocess the point cloud
+    // Step 4: Preprocess the point cloud
+    step_time = clock.now();
     PreprocessPointCloud(cloud);
+    RCLCPP_INFO(this->get_logger(), "Time for preprocessing: %f ms", (clock.now() - step_time).seconds() * 1000);
 
-    RCLCPP_INFO(this->get_logger(), "After preprocessing: %d points", cloud->points.size());
-
-    // Check if we have enough points to proceed
+    // Step 5: Check if we have enough points
     if (cloud->points.size() < 100) {
-        RCLCPP_WARN(this->get_logger(), "Too few points after filtering (%lu), skipping frame", cloud->points.size());
+        RCLCPP_WARN(this->get_logger(), "Too few points after filtering, skipping frame");
         return;
     }
 
-    // Perform NDT matching
+    // Step 6: Perform NDT matching
+    step_time = clock.now();
     if (!map_.empty()) {
+        pcl::VoxelGrid<pcl::PointXYZ> voxel_grid_filter;
+        voxel_grid_filter.setInputCloud(cloud);
+        voxel_grid_filter.setLeafSize(0.5, 0.5, 0.5);
+        voxel_grid_filter.filter(*cloud);
+        RCLCPP_INFO(this->get_logger(), "Time for voxel grid filtering: %f ms",
+                    (clock.now() - step_time).seconds() * 1000);
+
         try {
+            step_time = clock.now();
             ndt_.setInputSource(cloud);
             pcl::PointCloud<pcl::PointXYZ>::Ptr output_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-            RCLCPP_INFO(this->get_logger(), "NDT matching started");
             Eigen::Matrix4f guess_trans = GuessInit();
             ndt_.align(*output_cloud, guess_trans);
-            RCLCPP_INFO(this->get_logger(), "NDT has converged: %d", ndt_.hasConverged());
+            RCLCPP_INFO(this->get_logger(), "Time for NDT alignment: %f ms",
+                        (clock.now() - step_time).seconds() * 1000);
 
             if (ndt_.hasConverged()) {
                 auto ndt_pose = ndt_.getFinalTransformation();
@@ -305,10 +394,14 @@ void NdtMapping::PointsCallback(const sensor_msgs::msg::PointCloud2::SharedPtr i
             RCLCPP_ERROR(this->get_logger(), "Error during NDT alignment: %s", e.what());
         }
     } else {
-        // First scan, initialize map
         map_ = *cloud;
         ndt_.setInputTarget(map_.makeShared());
+        PublishMap();
+        RCLCPP_INFO(this->get_logger(), "Map initialized with %d points", map_.points.size());
     }
+
+    RCLCPP_INFO(this->get_logger(), "Total time for PointsCallback: %f ms",
+                (clock.now() - start_time).seconds() * 1000);
 }
 
 /**
@@ -451,6 +544,11 @@ void NdtMapping::OdomCalc(const rclcpp::Time &current_time) {
  * @param transform 来自于NDT算法的计算出的当前点云相对于地图的位姿
  */
 void NdtMapping::UpdateCurrentPose(const Eigen::Matrix4f &transform) {
+    auto current_time = rclcpp::Clock().now();
+    static rclcpp::Time previous_time = current_time;
+    rclcpp::Duration duration = current_time - previous_time;
+    double diff_time = duration.seconds();
+
     // 括号内是行列索引
     Eigen::Matrix3f rotation = transform.block<3, 3>(0, 0);
     Eigen::Vector3f translation = transform.block<3, 1>(0, 3);
@@ -463,6 +561,30 @@ void NdtMapping::UpdateCurrentPose(const Eigen::Matrix4f &transform) {
     current_pose_.roll = euler(0);
     current_pose_.pitch = euler(1);
     current_pose_.yaw = euler(2);
+
+    diff_x_ = current_pose_.x - previous_pose_.x;
+    diff_y_ = current_pose_.y - previous_pose_.y;
+    diff_z_ = current_pose_.z - previous_pose_.z;
+    diff_yaw_ = WrapToPi(current_pose_.yaw - previous_pose_.yaw);
+
+    current_velocity_x_ = diff_x_ / diff_time;
+    current_velocity_y_ = diff_y_ / diff_time;
+    current_velocity_z_ = diff_z_ / diff_time;
+
+    previous_pose_ = current_pose_;
+    previous_time = current_time;
+
+    if (use_imu_) {
+        offset_imu_x_ = 0.0;
+        offset_imu_y_ = 0.0;
+        offset_imu_z_ = 0.0;
+        offset_imu_roll_ = 0.0;
+        offset_imu_pitch_ = 0.0;
+        offset_imu_yaw_ = 0.0;
+        current_velocity_imu_x_ = 0.0;
+        current_velocity_imu_y_ = 0.0;
+        current_velocity_imu_z_ = 0.0;
+    }
 }
 
 /**
@@ -510,41 +632,46 @@ void NdtMapping::UpdateMap(const pcl::PointCloud<pcl::PointXYZ> &scan) {
         // 将scan点云转换到地图坐标系下
         pcl::transformPointCloud(scan, transformed_scan, ndt_.getFinalTransformation());
         map_ += transformed_scan;
-
+        PublishMap();
         added_pose_ = current_pose_;
         ndt_.setInputTarget(map_.makeShared());
-
-        // Publish updated map
-        sensor_msgs::msg::PointCloud2 map_msg;
-        pcl::toROSMsg(map_, map_msg);
-        map_msg.header.frame_id = "map";
-        map_msg.header.stamp = this->now();
-        ndt_map_pub_->publish(map_msg);
     }
 }
+
+void NdtMapping::PublishMap() {
+    // Publish updated map
+    sensor_msgs::msg::PointCloud2 map_msg;
+    pcl::toROSMsg(map_, map_msg);
+    map_msg.header.frame_id = "map";
+    map_msg.header.stamp = this->now();
+    ndt_map_pub_->publish(map_msg);
+}
+
 /**
  * @brief Guess initial pose based on IMU and odometry data
  */
 Eigen::Matrix4f NdtMapping::GuessInit() {
     Eigen::Matrix4f init_guess = Eigen::Matrix4f::Identity();
 
-    // 添加日志检查输入状态
-    // RCLCPP_INFO(this->get_logger(), "use_imu_: %d, use_odom_: %d", use_imu_, use_odom_);
+    guess_pose_.x = previous_pose_.x + diff_x_;
+    guess_pose_.y = previous_pose_.y + diff_y_;
+    guess_pose_.z = previous_pose_.z + diff_z_;
+    guess_pose_.roll = previous_pose_.roll;
+    guess_pose_.pitch = previous_pose_.pitch;
+    guess_pose_.yaw = previous_pose_.yaw + diff_yaw_;
 
-    if (use_imu_ && use_odom_) {
-        init_guess = CreateMatrix(guess_pose_imu_);
-    } else if (use_imu_) {
+    if (use_imu_) {
+        ImuCalc(this->now());
         init_guess = CreateMatrix(guess_pose_imu_);
     } else {
         init_guess = CreateMatrix(guess_pose_);
     }
     // RCLCPP_INFO(this->get_logger(), "Guess transform: %f %f %f %f %f %f", init_guess(0, 0), init_guess(1, 1),
     //             init_guess(2, 2), init_guess(0, 3), init_guess(1, 3), init_guess(2, 3));
-    Eigen::Matrix4f res = init_guess * tf_base_to_lidar_; // 将base_link坐标系转换到激光雷达坐标系
     // RCLCPP_INFO(this->get_logger(), "Guess transform: %f %f %f %f %f %f %f", res(0, 0), res(0, 1), res(0, 2), res(0,
     // 3),
     //             res(1, 0), res(1, 1));
-    return res;
+    return init_guess;
 }
 
 Eigen::Matrix4f NdtMapping::CreateMatrix(const Pose &p) {
