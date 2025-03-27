@@ -1,3 +1,5 @@
+#pragma once
+
 #include <bot_msg/msg/localization_info.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <fstream>

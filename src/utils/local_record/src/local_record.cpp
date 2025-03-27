@@ -8,8 +8,20 @@
 namespace local_record {
 
 LocalRecordNode::LocalRecordNode() : Node("local_record") {
-    save_file_.open(save_path_, std::ios::out);
     InitParams();
+    // 源文件存在清除原有文件
+    std::ifstream file(save_path_);
+    if (file.is_open()) {
+        file.close();
+        std::remove(save_path_.c_str());
+    }
+    // 打开文件流
+    save_file_.open(save_path_, std::ios::out | std::ios::app);
+    if (!save_file_.is_open()) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to open or create file: %s", save_path_.c_str());
+        // 处理文件未打开的情况，例如记录错误或尝试重新打开文件
+        return;
+    }
     int time_interval = static_cast<int>(1000 / save_rate_);
     timer_ = this->create_wall_timer(std::chrono::milliseconds(time_interval), std::bind(&LocalRecordNode::TimerCallback, this));
     this->sub_localization_info_ = this->create_subscription<bot_msg::msg::LocalizationInfo>(topic_name_, 10, std::bind(&LocalRecordNode::LocalizationCallback, this, std::placeholders::_1));
@@ -18,26 +30,36 @@ LocalRecordNode::LocalRecordNode() : Node("local_record") {
 LocalRecordNode::~LocalRecordNode() {
     // 程序结束时关闭文件流
     save_file_.close();
+    RCLCPP_INFO(this->get_logger(), "local_record node stopped");
 }
 
 
 void LocalRecordNode::TimerCallback() {
-    static bot_msg::msg::LocalizationInfo pre_local = *localization_info_msg_;
+    static bool log_header_flag = true;
     if (localization_info_msg_ == nullptr || localization_info_count_ >= 20) {
+        RCLCPP_INFO(this->get_logger(), "LocalizationInfo not received, localization_info_count_:%d",localization_info_count_);
         return;
     }
-    
+    static bot_msg::msg::LocalizationInfo pre_local = *localization_info_msg_;
+
     // 确保文件流已打开
     if (!save_file_.is_open()) {
+        RCLCPP_ERROR(this->get_logger(), "File not open");
         // 处理文件未打开的情况，例如记录错误或尝试重新打开文件
         return;
     }
 
+
     double posi_distance = sqrt(pow(localization_info_msg_->north - pre_local.north, 2) 
                                +  pow(localization_info_msg_->east - pre_local.east, 2)) ;
+    RCLCPP_INFO(this->get_logger(), "posi_distance: %f", posi_distance);
     if (posi_distance < 0.10)  // 位置变化小于 10cm 则不记录
         return;
-
+    // 增加header信息
+    if(log_header_flag){
+        save_file_ << "longtitude,latitude,altitude,north,east,up,yaw,pitch,roll,vel_speed,vel_north,vel_east,vel_up,acc_x,acc_y,acc_z,gyro_x,gyro_y,gyro_z,rtk_status" << std::endl;
+        log_header_flag = false;
+    }
     // 保存 LocalizationInfo 消息中的数据
     save_file_ << localization_info_msg_->longtitude << "," 
                << localization_info_msg_->latitude << "," 
@@ -71,11 +93,12 @@ void LocalRecordNode::TimerCallback() {
 void LocalRecordNode::LocalizationCallback(const bot_msg::msg::LocalizationInfo::SharedPtr msg) {
     localization_info_msg_ = msg;
     localization_info_count_ = 0;
+    RCLCPP_INFO(this->get_logger(), "LocalizationInfo received");
 }
 
 void LocalRecordNode::InitParams() {
     this->declare_parameter("save_path", "/home/limer/auto_clean_bot/path/local_record.csv");
-    this->declare_parameter("save_rate", 100);
+    this->declare_parameter("save_rate", 100.0);
     this->declare_parameter("topic_name", "/localization_info");
 
     save_path_ = this->get_parameter("save_path").as_string();

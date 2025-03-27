@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(local_record)
+project(local_record_test)
 
 # Default to C99
 if(NOT CMAKE_C_STANDARD)
@@ -24,10 +24,10 @@ find_package(rosgraph_msgs REQUIRED)
 
 include_directories(include)
 
-add_executable(local_record_node src/local_record.cpp)
+add_executable(local_record_test_node src/local_record_test.cpp)
 
 # Use ament_target_dependencies to link required dependencies
-ament_target_dependencies(local_record_node
+ament_target_dependencies(local_record_test_node
   bot_msg
   rclcpp
   std_msgs
@@ -45,6 +45,6 @@ install(
   DIRECTORY launch
   DESTINATION share/${PROJECT_NAME}
 )
-install(TARGETS local_record_node
+install(TARGETS local_record_test_node
   DESTINATION lib/${PROJECT_NAME}
 )
