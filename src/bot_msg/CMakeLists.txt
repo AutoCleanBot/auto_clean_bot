@@ -23,7 +23,7 @@ set(msg_files
   "msg/TrajectoryPoint.msg"
 )
 set(srv_files
-  ""
+  "srv/Routing.srv"
 )
 
 rosidl_generate_interfaces(${PROJECT_NAME}
