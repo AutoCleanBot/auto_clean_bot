@@ -91,6 +91,8 @@ void PlanningNode::InitGlobalPath() {
                     adc_trajectory_msg_.points[i].up);
     }
 }
+
+
 /**
  * @brief 定位信息回调函数
  */
@@ -99,7 +101,6 @@ void PlanningNode::LocalizationInfoCallback(
     cur_local_ = *msg;
 }
 void PlanningNode::TimerCallback() {
-    
 }
 PlanningNode::~PlanningNode() {
     RCLCPP_INFO(this->get_logger(), "planning node stopped");
