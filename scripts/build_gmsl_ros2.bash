@@ -1,1 +1,0 @@
-colcon build --packages-select gmsl_ros2 --symlink-install --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON 

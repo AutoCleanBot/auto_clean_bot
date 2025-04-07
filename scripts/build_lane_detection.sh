@@ -1,1 +1,0 @@
-colcon build --packages-select lane_detection --symlink-install --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON 

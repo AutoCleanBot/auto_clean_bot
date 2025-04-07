@@ -1,6 +1,6 @@
 #include "routing/routing.h"
-#include "bot_msg/msg/adc_trajectory.h"
-#include "bot_msg/msg/trajectory_point.h"
+#include "bot_msg/msg/adc_trajectory.hpp"
+#include "bot_msg/msg/trajectory_point.hpp"
 #include <fstream>
 namespace routing {
 
@@ -9,15 +9,20 @@ RoutingNode::RoutingNode() : Node("routing") {
     InitParams();
     m_service =
         this->create_service<bot_msg::srv::Routing>(
-            "routing_service",
+            "/routing_service",
             std::bind(&RoutingNode::HandleRoutingRequest, this,
                       std::placeholders::_1,
                       std::placeholders::_2));
+    
+    // 添加服务创建成功的日志
+    RCLCPP_INFO(this->get_logger(), "Routing service '%s' is ready", "/routing_service");
 }
 void RoutingNode::HandleRoutingRequest(
     const bot_msg::srv::Routing::Request::SharedPtr request,
     bot_msg::srv::Routing::Response::SharedPtr response) {  
     
+    RCLCPP_INFO(this->get_logger(), "Routing request received");
+
     auto csv_path = m_map_names[request->path_type];
     std::ifstream file(csv_path);
 
@@ -59,12 +64,12 @@ void RoutingNode::HandleRoutingRequest(
         std::getline(ss, value, ','); tmp = std::stof(value);
         std::getline(ss, value, ','); tmp = static_cast<uint8_t>(std::stoi(value));
 
-        // todo 曲率没有计算
-
         trajectory.points.push_back(point);
     }
-    
+    trajectory.header.frame_id = "map";
+    trajectory.header.stamp = this->now();
     response->path = trajectory;
+    RCLCPP_INFO(this->get_logger(), "Routing response sent");
     file.close();
 }
 void RoutingNode::InitParams() {
@@ -96,4 +101,6 @@ int main(int argc, char *argv[]) {
     rclcpp::spin(node);
     rclcpp::shutdown();
     return 0;
-    }
+}
+
+

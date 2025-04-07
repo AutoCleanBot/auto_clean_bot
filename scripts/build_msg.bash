@@ -1,1 +1,0 @@
-colcon build --packages-select bot_msg --symlink-install --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON 
