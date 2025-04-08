@@ -104,7 +104,7 @@ struct CanVCUInfoSpd {
 /**
  * 线控底盘的制动信息,来自线控底盘, 发送周期10ms
  */
-struct SEBInfo {
+struct CanSEBInfo {
     uint8_t tmp;           // 保留
     uint8_t tmp_1;         // 保留
     uint8_t tmp_2;         // 保留
@@ -113,7 +113,7 @@ struct SEBInfo {
 /**
  * 线控底盘的转向信息,来自线控底盘, 发送周期10ms
  */
-struct SESInfo {
+struct CanSESInfo {
     uint8_t tmp;              // 保留
     uint8_t tmp_1;            // 保留
     uint16_t cur_steer_angle; // 当前转向角度, -700~700, 单位0.1度, 偏移量为-3000度
