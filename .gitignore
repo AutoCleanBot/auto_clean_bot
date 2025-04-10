@@ -12,7 +12,9 @@
 *.obj
 
 # Ignore build directories
-build/
+/build/
+*/build/
+!scripts/build/
 log/
 bin/
 install/
