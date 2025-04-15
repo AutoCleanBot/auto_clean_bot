@@ -68,9 +68,15 @@ class CanbusNode : public rclcpp::Node {
     std::string control_cmd_topic_;  // 控制指令主题名称
     std::string chassis_info_topic_; // 底盘信息主题名称
     int can_fd_ = 0;
-    std::atomic<bool> running_{true};  // 控制线程运行的标志位
+    std::atomic<bool> running_;  // 控制线程运行的标志位
     std::thread can_thread_;
     ChassisInfoLocal chassis_info_local_;
+    bool line_control_ready_ ;
+    uint32_t control_cmd_cnt_;
+    uint16_t motor_en_cnt_;
+
+
+
     // 回调函数
     void TimerCallback();
     void ControlCmdCallback(const bot_msg::msg::ControlCmd::SharedPtr msg);
@@ -80,7 +86,8 @@ class CanbusNode : public rclcpp::Node {
     void InitParams();
     bool InitCanSocket(std::string can_device_name, int can_baudrate);
     void CanThreadFunc();
-    void FillCanCtrlCmd(CanCtrlCmd &ctrl_cmd, double steer_angle, double brk, uint8_t gear, double spd);
+    void FillCanCtrlCmd(uint8_t data[8], double steer_angle, double brk, uint8_t gear, double spd);
     void FillChassisInfo(bot_msg::msg::ChassisInfo::SharedPtr msg);
+    void PrintCanDataFrame(const struct can_frame &frame);
 };
 } // namespace canbus
