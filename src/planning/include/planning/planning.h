@@ -21,10 +21,15 @@ private:
     bot_msg::msg::ADCTrajectory g_traj_; // 暂时的全局路径
     rclcpp::Subscription<bot_msg::msg::LocalizationInfo>::SharedPtr sub_localization_info_; // 订阅localization信息
     rclcpp::Publisher<bot_msg::msg::ADCTrajectory>::SharedPtr pub_traj_; // 发布路径
-    
+
     std::string local_topic_name_ ; // 定位话题名
     std::string service_name_ ;     // 服务名称
     double process_frq_ ;          // 处理频率
     int path_type_ ;               // 路径类型
+    double preview_dist_ ;         // 预览距离
+    double start_dist_ ;           // 起始距离
+    double traj_pub_interval_ ;    // 路径发布间隔
+    int traj_pub_cnt_ ;            // 路径发布计数
+    int timer_cnt_ ;               // 计时器计数
 };
 }  // namespace planning

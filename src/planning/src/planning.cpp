@@ -7,9 +7,9 @@ PlanningNode::PlanningNode() : Node("planning_node") {
     InitParams();
     InitGlobalPath();
     // Initialize subscribers and publishers
-    double timer_interval = 1.0;
+    int32_t timer_interval = static_cast<int32_t>(1.0 / process_frq_ * 1000);
     timer_ = this->create_wall_timer(
-        std::chrono::milliseconds(static_cast<int64_t>(timer_interval * 1000.0)),
+        std::chrono::milliseconds(timer_interval),
         std::bind(&PlanningNode::TimerCallback, this));
     sub_localization_info_ = this->create_subscription<
         bot_msg::msg::LocalizationInfo>(
@@ -27,6 +27,12 @@ void PlanningNode::InitParams() {
     service_name_ = this->get_parameter("service_name").as_string();
     process_frq_ = this->get_parameter("process_frq").as_double();
     path_type_ = this->get_parameter("path_type").as_int();
+    preview_dist_ = this->get_parameter("preview_dist").as_double();
+    start_dist_ = this->get_parameter("start_dist").as_double();
+    traj_pub_interval_ = this->get_parameter("traj_pub_interval").as_double();
+
+    traj_pub_cnt_ = static_cast<int32_t>(traj_pub_interval_ * process_frq_);
+
 
     RCLCPP_INFO(this->get_logger(),
                 "local_topic_name: %s", local_topic_name_.c_str());
@@ -36,6 +42,12 @@ void PlanningNode::InitParams() {
                 "process_frq: %f", process_frq_);
     RCLCPP_INFO(this->get_logger(),
                 "path_type: %d", path_type_);
+    RCLCPP_INFO(this->get_logger(),
+                "preview_dist: %f", preview_dist_);
+    RCLCPP_INFO(this->get_logger(),
+                "start_dist: %f", start_dist_);
+    RCLCPP_INFO(this->get_logger(),
+                "traj_pub_interval: %f", traj_pub_interval_);
 }
 void PlanningNode::InitGlobalPath() {
     auto client = this->create_client<bot_msg::srv::Routing>(service_name_);
@@ -138,7 +150,11 @@ void PlanningNode::TimerCallback() {
     // 发布路径
     pub_traj.header.stamp = this->now();
     pub_traj.header.frame_id = "map";
-    this->pub_traj_->publish(pub_traj);
+    if(timer_cnt_ >= traj_pub_cnt_){
+        this->pub_traj_->publish(pub_traj);
+        timer_cnt_ = 0;
+    }
+    ++timer_cnt_;
 }
 PlanningNode::~PlanningNode() {
     RCLCPP_INFO(this->get_logger(), "planning node stopped");
