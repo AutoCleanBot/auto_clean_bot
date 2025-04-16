@@ -17,6 +17,7 @@ def generate_launch_description():
     planning_params = {
         'local_topic_name':'/localization_info',
         'service_name' : '/routing_service',
+        'traj_topic_name' : '/planning/trajectory',
         'path_type' : 1,
         'process_frq' : 10.0,    # 处理频率, Hz
         'preview_dist' : 20.0,   # 预览距离, m

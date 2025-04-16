@@ -1,12 +1,33 @@
 #include "planning/planning.h"
 #include "bot_msg/srv/routing.hpp"
 #include <chrono>
+#include <thread>
+#include <rclcpp/executors/multi_threaded_executor.hpp>
 
 namespace planning {
-PlanningNode::PlanningNode() : Node("planning_node") {
+PlanningNode::PlanningNode() : Node("planning_node"), timer_cnt_(0) {
     InitParams();
+    
+    // 使用明确的 QoS 设置创建发布者
+    auto qos = rclcpp::QoS(rclcpp::KeepLast(10))
+        .reliable()
+        .durability_volatile();
+    
+    pub_traj_ = this->create_publisher<bot_msg::msg::ADCTrajectory>(traj_topic_name_, qos);
+    
+    // 立即发布一个空的轨迹消息，确保话题被注册
+    bot_msg::msg::ADCTrajectory empty_traj;
+    empty_traj.header.stamp = this->now();
+    empty_traj.header.frame_id = "map";
+    pub_traj_->publish(empty_traj);
+    RCLCPP_INFO(this->get_logger(), "Published initial empty trajectory message");
+    
+    // 等待一小段时间确保消息被发布
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
     InitGlobalPath();
-    // Initialize subscribers and publishers
+    
+    // Initialize subscribers
     int32_t timer_interval = static_cast<int32_t>(1.0 / process_frq_ * 1000);
     timer_ = this->create_wall_timer(
         std::chrono::milliseconds(timer_interval),
@@ -22,6 +43,10 @@ void PlanningNode::InitParams() {
     this->declare_parameter("process_frq", 10.0);
     this->declare_parameter("service_name", "/service_name");
     this->declare_parameter("path_type", 0);
+    this->declare_parameter("preview_dist", 20.0);
+    this->declare_parameter("start_dist", 5.0);
+    this->declare_parameter("traj_pub_interval", 0.1);
+    this->declare_parameter("traj_topic_name", "/planning/trajectory");
 
     local_topic_name_ = this->get_parameter("local_topic_name").as_string();
     service_name_ = this->get_parameter("service_name").as_string();
@@ -30,6 +55,7 @@ void PlanningNode::InitParams() {
     preview_dist_ = this->get_parameter("preview_dist").as_double();
     start_dist_ = this->get_parameter("start_dist").as_double();
     traj_pub_interval_ = this->get_parameter("traj_pub_interval").as_double();
+    traj_topic_name_ = this->get_parameter("traj_topic_name").as_string();
 
     traj_pub_cnt_ = static_cast<int32_t>(traj_pub_interval_ * process_frq_);
 
@@ -38,6 +64,8 @@ void PlanningNode::InitParams() {
                 "local_topic_name: %s", local_topic_name_.c_str());
     RCLCPP_INFO(this->get_logger(),
                 "service_name: %s", service_name_.c_str());
+    RCLCPP_INFO(this->get_logger(),
+                "traj_topic_name: %s", traj_topic_name_.c_str());
     RCLCPP_INFO(this->get_logger(),
                 "process_frq: %f", process_frq_);
     RCLCPP_INFO(this->get_logger(),
@@ -116,6 +144,20 @@ void PlanningNode::TimerCallback() {
     // 基于当前的当前定位信息, 找到当前位置在全局路径上的最近点
     double min_dist = 1000000.0;
     std::size_t min_idx = 0;
+    
+    // 检查是否有路径数据
+    if (g_traj_.points.empty()) {
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, 
+                            "No trajectory points available");
+        
+        // 即使没有路径点，也发布一个空轨迹以保持话题活跃
+        bot_msg::msg::ADCTrajectory empty_traj;
+        empty_traj.header.stamp = this->now();
+        empty_traj.header.frame_id = "map";
+        pub_traj_->publish(empty_traj);
+        return;
+    }
+    
     for (std::size_t i = 0; i < g_traj_.points.size(); i++) {
         double dist = std::sqrt(std::pow(g_traj_.points[i].east - cur_local_.east, 2) +
                                 std::pow(g_traj_.points[i].north - cur_local_.north, 2));
@@ -126,17 +168,17 @@ void PlanningNode::TimerCallback() {
     }
     RCLCPP_INFO(this->get_logger(), "min_dist: %f, min_idx: %ld", min_dist, min_idx);
     // 根据min_idx, 找到min_idx的前5m和后20m
-    const double preview_dist = 20.0;
+    
     double cur_dis_cnt = 0.0;
     std::size_t start_idx = min_idx;
-    while (cur_dis_cnt < 5.0 && start_idx >= 1) {
+    while (cur_dis_cnt < start_dist_ && start_idx >= 1) {
         cur_dis_cnt += std::sqrt(std::pow(g_traj_.points[start_idx].east - g_traj_.points[start_idx - 1].east, 2) +
                                   std::pow(g_traj_.points[start_idx].north - g_traj_.points[start_idx - 1].north, 2));
         start_idx--;
     }
     cur_dis_cnt = 0.0;
     std::size_t preview_idx = min_idx;
-    while(cur_dis_cnt < preview_dist && preview_idx + 1 < g_traj_.points.size()) {
+    while(cur_dis_cnt < preview_dist_ && preview_idx + 1 < g_traj_.points.size()) {
         cur_dis_cnt += std::sqrt(std::pow(g_traj_.points[preview_idx].east - g_traj_.points[preview_idx + 1].east, 2) +
                                   std::pow(g_traj_.points[preview_idx].north - g_traj_.points[preview_idx + 1].north, 2));
         preview_idx++;
@@ -147,14 +189,11 @@ void PlanningNode::TimerCallback() {
         pub_traj.points.push_back(g_traj_.points[i]);
     }
     RCLCPP_INFO(this->get_logger(), "cur_dis_cnt: %f, start_idx: %ld, preview_idx: %ld", cur_dis_cnt, start_idx, preview_idx);
+    
     // 发布路径
     pub_traj.header.stamp = this->now();
     pub_traj.header.frame_id = "map";
-    if(timer_cnt_ >= traj_pub_cnt_){
-        this->pub_traj_->publish(pub_traj);
-        timer_cnt_ = 0;
-    }
-    ++timer_cnt_;
+    this->pub_traj_->publish(pub_traj);
 }
 PlanningNode::~PlanningNode() {
     RCLCPP_INFO(this->get_logger(), "planning node stopped");
@@ -164,9 +203,23 @@ PlanningNode::~PlanningNode() {
 // 节点注册
 int main(int argc, char *argv[]) {
     rclcpp::init(argc, argv);
+    
+    // 使用更明确的节点选项
+    rclcpp::NodeOptions options;
+    options.automatically_declare_parameters_from_overrides(true);
+    options.allow_undeclared_parameters(true);
+    options.use_intra_process_comms(false);
+    
     auto node = std::make_shared<planning::PlanningNode>();
     RCLCPP_INFO(node->get_logger(), "planning node started");
-    rclcpp::spin(node);
+    
+    // 使用多线程执行器以提高节点的响应性
+    rclcpp::executors::MultiThreadedExecutor executor;
+    executor.add_node(node);
+    
+    RCLCPP_INFO(node->get_logger(), "Spinning planning node");
+    executor.spin();
+    
     rclcpp::shutdown();
     return 0;
 }

@@ -30,9 +30,9 @@ class ControlNode : public rclcpp::Node {
 
     // parameters
     double publish_rate_;       // in milliseconds
-    double preview_time_;       // in seconds
-    double tolerance_distance_; // in meters, for preview point
-    double max_steering_angle_; // in degrees
+    double preview_time_;       // in seconds, 预瞄时间
+    double tolerance_distance_; // in meters, 预瞄距离
+    double max_steering_angle_; // in degrees, 最大转向角度
     double wheelbase_;          // 轴距
 
     double max_linear_velocity_; // in m/s

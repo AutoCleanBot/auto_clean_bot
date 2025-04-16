@@ -24,6 +24,7 @@ private:
 
     std::string local_topic_name_ ; // 定位话题名
     std::string service_name_ ;     // 服务名称
+    std::string traj_topic_name_ ;  // 轨迹发布话题名
     double process_frq_ ;          // 处理频率
     int path_type_ ;               // 路径类型
     double preview_dist_ ;         // 预览距离

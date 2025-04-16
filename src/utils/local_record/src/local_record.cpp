@@ -66,10 +66,8 @@ void LocalRecordNode::TimerCallback() {
     }
 
     double posi_distance = sqrt(
-        pow(localization_info_msg_->north - pre_local.north,
-            2) +
-        pow(localization_info_msg_->east - pre_local.east,
-            2));
+        pow(localization_info_msg_->north - pre_local.north, 2) +
+        pow(localization_info_msg_->east - pre_local.east, 2));
     RCLCPP_INFO(this->get_logger(), "posi_distance: %f",
                 posi_distance);
     if (posi_distance < 0.10)  // 位置变化小于 10cm 则不记录
@@ -127,7 +125,7 @@ void LocalRecordNode::LocalizationCallback(
 void LocalRecordNode::InitParams() {
     this->declare_parameter(
         "save_path",
-        "/home/limer/auto_clean_bot/path/local_record.csv");
+        "~/auto_clean_bot/path/local_record.csv");
     this->declare_parameter("save_rate", 100.0);
     this->declare_parameter("topic_name",
                             "/localization_info");

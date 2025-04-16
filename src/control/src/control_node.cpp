@@ -20,11 +20,24 @@ ControlNode::ControlNode() : Node("control_node") {
 }
 
 void ControlNode::LateralController() {
+    // TODO 注意航向和方位角误差计算时, 需要将角度转换为弧度
+    // 检查输入数据是否有效
+    if (!adc_trajectory_msg_ || !localization_info_msg_) {
+        RCLCPP_WARN(this->get_logger(), "LateralController: Missing trajectory or localization data");
+        return;
+    }
+
+    // 检查轨迹点是否为空
+    if (adc_trajectory_msg_->points.empty()) {
+        RCLCPP_WARN(this->get_logger(), "LateralController: Empty trajectory points");
+        return;
+    }
+
     double cur_north = localization_info_msg_->north;
     double cur_east = localization_info_msg_->east;
     double cur_up = localization_info_msg_->up;
     double cur_spd = localization_info_msg_->vel_speed;
-    double cur_yaw = localization_info_msg_->yaw;
+    double cur_yaw = localization_info_msg_->yaw * M_PI / 180.0; // 当前航向角, 弧度
 
     // 1. 找到当前车辆位置到轨迹上的最近点
     double min_dist = 1000000.0;
@@ -66,7 +79,7 @@ void ControlNode::LateralController() {
     // 3. 计算横向控制命令
     double target_north = adc_trajectory_msg_->points[preview_idx].north;
     double target_east = adc_trajectory_msg_->points[preview_idx].east;
-    double target_yaw = adc_trajectory_msg_->points[preview_idx].yaw; // 目标航向角
+    double target_yaw = adc_trajectory_msg_->points[preview_idx].yaw * M_PI / 180.0; // 目标航向角, 弧度
 
     // 3.1 计算航向误差和方位角误差
 
@@ -123,6 +136,18 @@ void ControlNode::LateralController() {
 }
 
 void ControlNode::LongitudinalController() {
+    // 检查输入数据是否有效
+    if (!adc_trajectory_msg_ || !localization_info_msg_) {
+        RCLCPP_WARN(this->get_logger(), "LongitudinalController: Missing trajectory or localization data");
+        return;
+    }
+
+    // 检查轨迹点是否为空
+    if (adc_trajectory_msg_->points.empty()) {
+        RCLCPP_WARN(this->get_logger(), "LongitudinalController: Empty trajectory points");
+        return;
+    }
+
     double cur_north = localization_info_msg_->north;
     double cur_east = localization_info_msg_->east;
     double cur_up = localization_info_msg_->up;
@@ -168,11 +193,13 @@ void ControlNode::LongitudinalController() {
 }
 
 void ControlNode::ADCTrajectoryCallback(const bot_msg::msg::ADCTrajectory::SharedPtr msg) {
+    RCLCPP_INFO(this->get_logger(), "Received trajectory with %zu points", msg->points.size());
     adc_trajectory_msg_ = msg;
     return;
 }
 
 void ControlNode::LocalizationInfoCallback(const bot_msg::msg::LocalizationInfo::SharedPtr msg) {
+    RCLCPP_INFO(this->get_logger(), "Received localization, position: (%.2f, %.2f)", msg->east, msg->north);
     localization_info_msg_ = msg;
     return;
 }
@@ -182,12 +209,19 @@ void ControlNode::LocalizationInfoCallback(const bot_msg::msg::LocalizationInfo:
  *
  */
 void ControlNode::TimerCallback() {
+    // 检查数据是否准备好
+    if (!adc_trajectory_msg_ || !localization_info_msg_) {
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, 
+                            "Waiting for trajectory and localization data...");
+        return;
+    }
+
     // 1. 计算控制命令
     LateralController();
     LongitudinalController();
 
     // 2. 发布控制命令
-    control_cmd_msg_.header.stamp = this->get_clock()->now().to_msg();
+    control_cmd_msg_.header.stamp = this->now();
     control_cmd_msg_.header.frame_id = "base_link";
     this->pub_control_cmd_->publish(control_cmd_msg_);
     return;
@@ -244,7 +278,7 @@ void ControlNode::InitParams() {
 int main(int argc, char *argv[]) {
     rclcpp::init(argc, argv);
     auto node = std::make_shared<control::ControlNode>();
-    RCLCPP_INFO(node->get_logger(), "rtk node started");
+    RCLCPP_INFO(node->get_logger(), "control node started");
     rclcpp::spin(node);
     rclcpp::shutdown();
     return 0;

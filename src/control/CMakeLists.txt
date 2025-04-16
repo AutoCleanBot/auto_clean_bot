@@ -22,7 +22,7 @@ set(CMAKE_BUILD_TYPE "Release")
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(bot_msg REQUIRED)
-find_package(serial REQUIRED)
+# find_package(serial REQUIRED)
 find_package(rclcpp REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
@@ -35,7 +35,6 @@ add_executable(control_node src/control_node.cpp)
 # Specify libraries to link against
 target_link_libraries(control_node
   ${rclcpp_LIBRARIES}
-  ${serial_LIBRARIES}
 )
 
 # Install executable

@@ -18,14 +18,14 @@ def generate_launch_description():
         'publish_rate': 10.0,
         'preview_time': 10.0,
         'tolerance_distance': 0.1,
-        'max_steering_angle':30.0,
+        'max_steering_angle':400.0,
         'wheelbase':1.2,
         'max_linear_velocity':10.0,
         'max_angular_velocity':10.0,
         'acceleration_limit':1.0,
         'deceleration_limit':-1.0,
-        'adc_traj_topic_name':'planning/adc_traj',
-        'localization_info_topic_name':'localization/rtk_info',
+        'adc_traj_topic_name':'/planning/trajectory',
+        'localization_info_topic_name':'/localization_info',
         'control_cmd_topic_name':'control/control_cmd'
     }
     
