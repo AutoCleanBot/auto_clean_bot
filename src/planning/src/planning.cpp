@@ -124,7 +124,7 @@ void PlanningNode::InitGlobalPath() {
         return;
     }
     // 打印接收的前10个点
-    for (int i = 0; i < 10; i++) {
+    for (size_t i = 0; i < 10; i++) {
         RCLCPP_INFO(this->get_logger(), "point %d: x: %f, y: %f, z: %f", i,
                     g_traj_.points[i].east,
                     g_traj_.points[i].north,

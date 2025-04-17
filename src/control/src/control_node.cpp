@@ -35,14 +35,14 @@ void ControlNode::LateralController() {
 
     double cur_north = localization_info_msg_->north;
     double cur_east = localization_info_msg_->east;
-    double cur_up = localization_info_msg_->up;
+    // double cur_up = localization_info_msg_->up;
     double cur_spd = localization_info_msg_->vel_speed;
     double cur_yaw = localization_info_msg_->yaw * M_PI / 180.0; // 当前航向角, 弧度
 
     // 1. 找到当前车辆位置到轨迹上的最近点
     double min_dist = 1000000.0;
-    int closest_idx = -1;
-    for (int i = 0; i < adc_trajectory_msg_->points.size(); i++) {
+    size_t closest_idx = 0;
+    for (size_t i = 0; i < adc_trajectory_msg_->points.size(); i++) {
         double dist = std::sqrt(std::pow(cur_north - adc_trajectory_msg_->points[i].north, 2) +
                                 std::pow(cur_east - adc_trajectory_msg_->points[i].east, 2));
         if (dist < min_dist) {
@@ -50,13 +50,14 @@ void ControlNode::LateralController() {
             closest_idx = i;
         }
     }
-    if (closest_idx == -1) {
-        RCLCPP_ERROR(this->get_logger(), "Closest index is -1");
+    if (closest_idx >= adc_trajectory_msg_->points.size()) {
+        RCLCPP_ERROR(this->get_logger(), "Closest index is invalid");
         return;
     }
 
     // 2. 找到轨迹上的预瞄点
-    int preview_idx = closest_idx + 1;
+    size_t preview_idx = closest_idx + 1;
+    // 预瞄距离 = 预瞄距离容差 + 预瞄时间 * 当前速度
     double preview_dist = tolerance_distance_ + preview_time_ * cur_spd;
     if (preview_idx >= adc_trajectory_msg_->points.size()) {
         preview_idx = closest_idx;
@@ -77,13 +78,13 @@ void ControlNode::LateralController() {
     }
 
     // 3. 计算横向控制命令
+    // 获取预瞄点信息
     double target_north = adc_trajectory_msg_->points[preview_idx].north;
     double target_east = adc_trajectory_msg_->points[preview_idx].east;
     double target_yaw = adc_trajectory_msg_->points[preview_idx].yaw * M_PI / 180.0; // 目标航向角, 弧度
 
     // 3.1 计算航向误差和方位角误差
-
-    double heading_error = deg2rad(target_yaw - cur_yaw);                                          // 航向误差
+    double heading_error = target_yaw - cur_yaw;                                                    // 航向误差
     double angular_error = std::atan2(target_east - cur_east, target_north - cur_north) - cur_yaw; // 方位角误差
 
     // 限制角度在 [-PI, PI] 范围内，避免跳变
@@ -93,29 +94,44 @@ void ControlNode::LateralController() {
         angular_error += 2 * M_PI;
 
     // 3.2 计算横向误差
-    int line_start = std::max(0, closest_idx - 20); // 在附近点内找横向误差
-    int line_min = line_start;
-    for (int i = line_start; i < closest_idx; i++) {
-        double dist = std::sqrt(std::pow(adc_trajectory_msg_->points[i].north - cur_north, 2) +
-                                std::pow(adc_trajectory_msg_->points[i].east - cur_east, 2));
-        if (dist < min_dist) {
-            line_min = i;
-        }
+    // 计算路径切线方向
+    double path_direction;
+    if (closest_idx + 1 < adc_trajectory_msg_->points.size()) {
+        // 使用前向点计算切线
+        path_direction = std::atan2(
+            adc_trajectory_msg_->points[closest_idx + 1].east - adc_trajectory_msg_->points[closest_idx].east,
+            adc_trajectory_msg_->points[closest_idx + 1].north - adc_trajectory_msg_->points[closest_idx].north);
+    } else if (closest_idx > 0) {
+        // 使用后向点计算切线
+        path_direction = std::atan2(
+            adc_trajectory_msg_->points[closest_idx].east - adc_trajectory_msg_->points[closest_idx - 1].east,
+            adc_trajectory_msg_->points[closest_idx].north - adc_trajectory_msg_->points[closest_idx - 1].north);
+    } else {
+        // 只有一个点，使用目标航向
+        path_direction = adc_trajectory_msg_->points[closest_idx].yaw * M_PI / 180.0;
     }
-    double lat_error = std::sqrt(std::pow(adc_trajectory_msg_->points[line_min].north - cur_north, 2) +
-                                 std::pow(adc_trajectory_msg_->points[line_min].east - cur_east, 2));
 
-    // 横向误差的方向修正
-    double direction_error = std::atan2(target_east - cur_east, target_north - cur_north) -
-                             std::atan2(adc_trajectory_msg_->points[line_min].east - cur_east,
-                                        adc_trajectory_msg_->points[line_min].north - cur_north);
-    if (direction_error > M_PI)
-        direction_error -= 2 * M_PI;
-    if (direction_error < -M_PI)
-        direction_error += 2 * M_PI;
-    if (direction_error > 0) {
-        lat_error = -lat_error;
-    }
+    RCLCPP_INFO(this->get_logger(), "Path direction: %.2f degrees", path_direction * 180.0 / M_PI);
+    // 计算车辆到最近点的向量
+    double dx = cur_east - adc_trajectory_msg_->points[closest_idx].east;
+    double dy = cur_north - adc_trajectory_msg_->points[closest_idx].north;
+
+    // 计算横向误差（向量在垂直于路径方向上的投影）
+    // 使用 (-sin(θ), cos(θ)) 作为法向量进行投影计算
+    double lat_error = -dx * std::sin(path_direction) + dy * std::cos(path_direction);
+
+    // // 横向误差的方向修正
+    // double direction_error = std::atan2(target_east - cur_east, target_north - cur_north) -
+    //                          std::atan2(adc_trajectory_msg_->points[closest_idx].east - cur_east,
+    //                                     adc_trajectory_msg_->points[closest_idx].north - cur_north);
+    // if (direction_error > M_PI)
+    //     direction_error -= 2 * M_PI;
+    // else if (direction_error < -M_PI)
+    //     direction_error += 2 * M_PI;
+    
+    // if (direction_error > 0) {
+    //     lat_error = -lat_error;
+    // }
 
     // 3.3 使用混合控制器计算转向角
     double pursuit_control = std::atan2(2 * wheelbase_ * std::sin(angular_error), preview_dist); // 纯追踪控制
@@ -123,16 +139,28 @@ void ControlNode::LateralController() {
 
     // 3.4 计算最终转向角，并限制在合理范围内
     double steer_angle = 0.6 * pursuit_control + 0.4 * stanley_control; // 混合控制
+    // 乘以10.0原因是, 计算出的是前轮转角,控制量是方向盘转角,中间有一个10倍的传动比
     steer_angle = std::max(-max_steering_angle_,
-                           std::min(max_steering_angle_, steer_angle * 180.0 / M_PI)); // 限制在[-30, 30]度之间
+                           std::min(max_steering_angle_, steer_angle * 180.0 / M_PI *10)); // 限制在[-30, 30]度之间
 
     // 输出调试信息
     RCLCPP_INFO(this->get_logger(), "Heading Error: %.2f degrees", heading_error * 180.0 / M_PI);
+    RCLCPP_INFO(this->get_logger(), "Angular Error: %.2f degrees", angular_error * 180.0 / M_PI);
     RCLCPP_INFO(this->get_logger(), "Lateral Error: %.2f meters", lat_error);
     RCLCPP_INFO(this->get_logger(), "Steering Angle: %.2f degrees", steer_angle);
+    RCLCPP_INFO(this->get_logger(), "Preview Distance: %.2f meters", preview_dist);
+    RCLCPP_INFO(this->get_logger(), "Preview Index: %zu", preview_idx);
+    RCLCPP_INFO(this->get_logger(), "Closest Index: %zu", closest_idx);
+    RCLCPP_INFO(this->get_logger(), "Target North: %.2f meters", target_north);
+    RCLCPP_INFO(this->get_logger(), "Target East: %.2f meters", target_east);
+    RCLCPP_INFO(this->get_logger(), "Target Yaw: %.2f degrees", target_yaw * 180.0 / M_PI);
+    RCLCPP_INFO(this->get_logger(), "Current Yaw: %.2f degrees", cur_yaw * 180.0 / M_PI);
+    RCLCPP_INFO(this->get_logger(), "Current North: %.2f meters", cur_north);
+    RCLCPP_INFO(this->get_logger(), "Current East: %.2f meters", cur_east);
+    RCLCPP_INFO(this->get_logger(), "Current Speed: %.2f meters/second", cur_spd);
 
     // 4. 赋值给控制命令
-    control_cmd_msg_.steer_angle = steer_angle;
+    control_cmd_msg_.steer_angle = steer_angle; 
 }
 
 void ControlNode::LongitudinalController() {
@@ -150,14 +178,14 @@ void ControlNode::LongitudinalController() {
 
     double cur_north = localization_info_msg_->north;
     double cur_east = localization_info_msg_->east;
-    double cur_up = localization_info_msg_->up;
+    // double cur_up = localization_info_msg_->up;
     double cur_spd = localization_info_msg_->vel_speed;
-    double cur_yaw = localization_info_msg_->yaw;
+    // double cur_yaw = localization_info_msg_->yaw * M_PI / 180.0; // 当前航向角, 弧度
 
     // 1. 找到当前车辆位置到轨迹上的最近点
     double min_dist = 1000000.0;
-    int closest_idx = -1;
-    for (int i = 0; i < adc_trajectory_msg_->points.size(); i++) {
+    size_t closest_idx = 0;
+    for (size_t i = 0; i < adc_trajectory_msg_->points.size(); i++) {
         double dist = std::sqrt(std::pow(cur_north - adc_trajectory_msg_->points[i].north, 2) +
                                 std::pow(cur_east - adc_trajectory_msg_->points[i].east, 2));
         if (dist < min_dist) {
@@ -165,8 +193,8 @@ void ControlNode::LongitudinalController() {
             closest_idx = i;
         }
     }
-    if (closest_idx == -1) {
-        RCLCPP_ERROR(this->get_logger(), "Closest index is -1");
+    if (closest_idx >= adc_trajectory_msg_->points.size()) {
+        RCLCPP_ERROR(this->get_logger(), "Closest index is invalid");
         return;
     }
 

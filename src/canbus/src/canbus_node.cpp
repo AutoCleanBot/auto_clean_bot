@@ -299,7 +299,7 @@ void CanbusNode::ControlCmdCallback(const bot_msg::msg::ControlCmd::SharedPtr ms
  * 填充控制CAN结构体
  */
 void CanbusNode::FillCanCtrlCmd(uint8_t data[8], double steer_angle, double brk, uint8_t gear, double spd) {
-    // TODO(Yangsh): CAN协议的方向盘转角帧
+
     static uint8_t life_signal = 0;
     // printf("steer_angle: %f, current gear: %d, speed: %f\n", steer_angle, gear, spd);
     // byte0

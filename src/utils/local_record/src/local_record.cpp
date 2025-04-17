@@ -108,9 +108,6 @@ void LocalRecordNode::TimerCallback() {
                << std::endl;
 
     localization_info_count_++;
-    if (localization_info_count_ >= 200) {  // 防止溢出
-        localization_info_count_ = 200;
-    }
     pre_local = *localization_info_msg_;
 }
 

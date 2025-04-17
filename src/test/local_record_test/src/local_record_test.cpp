@@ -10,7 +10,7 @@ void LocalRecordTest::TimerCallback() {
     static int count = 0;
     bot_msg::msg::LocalizationInfo localization_info_msg;
     localization_info_msg.north = 10.0;
-    localization_info_msg.east = 2.0;
+    localization_info_msg.east = 0.0;
     // localization_info_msg.north = 1.0 + count*0.1;
     // localization_info_msg.east = 2.0 + count*0.1;
 

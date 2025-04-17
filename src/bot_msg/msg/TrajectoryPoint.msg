@@ -13,8 +13,8 @@ float32 acceleration_x
 float32 acceleration_y
 float32 acceleration_z
 
-float64 yaw
-float64 pitch
-float64 roll
+float64 yaw # 航向角, 角度
+float64 pitch # 俯仰角, 角度
+float64 roll # 滚转角, 角度
 
 float32 curvature  # 曲率

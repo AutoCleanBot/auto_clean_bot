@@ -87,7 +87,7 @@ void RoutingNode::InitParams() {
 
     RCLCPP_INFO(this->get_logger(), "Init parameters");
     // Get parameters
-    for(int i = 1; i < 10; i++){
+    for(size_t i = 1; i < 10; i++){
         std::string csv_path = this->get_parameter(std::to_string(i)).get_value<std::string>();
         m_map_names[i] = csv_path;
     }
