@@ -20,6 +20,7 @@ def generate_launch_description():
         'tolerance_distance': 0.1,
         'max_steering_angle':400.0,
         'wheelbase':1.2,
+        'ratio':10.0,
         'max_linear_velocity':10.0,
         'max_angular_velocity':10.0,
         'acceleration_limit':1.0,

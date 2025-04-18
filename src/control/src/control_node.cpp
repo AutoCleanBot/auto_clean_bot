@@ -138,15 +138,16 @@ void ControlNode::LateralController() {
     double stanley_control = heading_error + std::atan(0.2 * lat_error / (cur_spd + 1e-5));      // Stanley控制
 
     // 3.4 计算最终转向角，并限制在合理范围内
-    double steer_angle = 0.6 * pursuit_control + 0.4 * stanley_control; // 混合控制
+    double front_wheel_rad = 0.6 * pursuit_control + 0.4 * stanley_control; // 混合控制
     // 乘以10.0原因是, 计算出的是前轮转角,控制量是方向盘转角,中间有一个10倍的传动比
-    steer_angle = std::max(-max_steering_angle_,
-                           std::min(max_steering_angle_, steer_angle * 180.0 / M_PI *10)); // 限制在[-30, 30]度之间
+    double steer_angle = std::max(-max_steering_angle_,
+                           std::min(max_steering_angle_, front_wheel_rad * 180.0 / M_PI * ratio_)); // 限制在[-30, 30]度之间
 
     // 输出调试信息
     RCLCPP_INFO(this->get_logger(), "Heading Error: %.2f degrees", heading_error * 180.0 / M_PI);
     RCLCPP_INFO(this->get_logger(), "Angular Error: %.2f degrees", angular_error * 180.0 / M_PI);
     RCLCPP_INFO(this->get_logger(), "Lateral Error: %.2f meters", lat_error);
+    RCLCPP_INFO(this->get_logger(), "Front Wheel Deg: %.2f rad", front_wheel_rad * 180.0 / M_PI);
     RCLCPP_INFO(this->get_logger(), "Steering Angle: %.2f degrees", steer_angle);
     RCLCPP_INFO(this->get_logger(), "Preview Distance: %.2f meters", preview_dist);
     RCLCPP_INFO(this->get_logger(), "Preview Index: %zu", preview_idx);
@@ -269,7 +270,7 @@ void ControlNode::InitParams() {
     this->declare_parameter<double>("min_linear_velocity", 0.0);
     this->declare_parameter<double>("acceleration_limit", 0.0);
     this->declare_parameter<double>("deceleration_limit", 0.0);
-
+    this->declare_parameter<double>("ratio", 10.0);
     this->declare_parameter<std::string>("adc_traj_topic_name", "/planing/adc_traj");
     this->declare_parameter<std::string>("control_cmd_topic_name", "/control/control_cmd");
     this->declare_parameter<std::string>("localization_info_topic_name", "/control/local_info");
@@ -284,6 +285,7 @@ void ControlNode::InitParams() {
     this->acceleration_limit_ = this->get_parameter("acceleration_limit").get_value<double>();
     this->deceleration_limit_ = this->get_parameter("deceleration_limit").get_value<double>();
     this->adc_traj_topic_name_ = this->get_parameter("adc_traj_topic_name").get_value<std::string>();
+    this->ratio_ = this->get_parameter("ratio").get_value<double>();
     this->control_cmd_topic_name_ = this->get_parameter("control_cmd_topic_name").get_value<std::string>();
     this->localization_info_topic_name_ = this->get_parameter("localization_info_topic_name").get_value<std::string>();
     // Print parameters
@@ -299,6 +301,7 @@ void ControlNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "Wheelbase: %f", this->wheelbase_);
     RCLCPP_INFO(this->get_logger(), "Acceleration limit: %f", this->acceleration_limit_);
     RCLCPP_INFO(this->get_logger(), "Deceleration limit: %f", this->deceleration_limit_);
+    RCLCPP_INFO(this->get_logger(), "Ratio: %f", this->ratio_);
     return;
 }
 } // namespace control

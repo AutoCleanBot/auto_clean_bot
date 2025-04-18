@@ -2,7 +2,39 @@
 #include "bot_msg/msg/adc_trajectory.hpp"
 #include "bot_msg/msg/trajectory_point.hpp"
 #include <fstream>
+#include <pwd.h>
+#include <unistd.h>
+
 namespace routing {
+
+// 添加一个辅助函数来展开波浪号
+std::string expandTilde(const std::string& path) {
+    if (path.empty() || path[0] != '~') {
+        return path;
+    }
+
+    // 获取当前用户的主目录
+    const char* home = getenv("HOME");
+    if (home == nullptr) {
+        struct passwd* pwd = getpwuid(getuid());
+        if (pwd) {
+            home = pwd->pw_dir;
+        }
+    }
+
+    if (home == nullptr) {
+        return path;  // 如果无法获取主目录，返回原始路径
+    }
+
+    // 替换波浪号
+    if (path.length() == 1) {  // 仅有 "~"
+        return home;
+    }
+    if (path[1] == '/') {  // "~/xxx"
+        return std::string(home) + path.substr(1);
+    }
+    return path;  // "~xxx" 其他情况返回原始路径
+}
 
 RoutingNode::RoutingNode() : Node("routing") {
     // Initialize subscribers and publishers
@@ -23,7 +55,7 @@ void RoutingNode::HandleRoutingRequest(
     
     RCLCPP_INFO(this->get_logger(), "Routing request received");
 
-    auto csv_path = m_map_names[request->path_type];
+    auto csv_path = expandTilde(m_map_names[request->path_type]);
     std::ifstream file(csv_path);
 
     if (!file.is_open()) {

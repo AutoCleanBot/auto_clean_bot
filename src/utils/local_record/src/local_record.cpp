@@ -4,38 +4,91 @@
 #include <cstdio>
 #include <fstream>
 #include <string>
+#include <pwd.h>
+#include <unistd.h>
 
 namespace local_record {
 
+// 添加一个辅助函数来展开波浪号
+std::string expandTilde(const std::string& path) {
+    if (path.empty() || path[0] != '~') {
+        return path;
+    }
+
+    // 获取当前用户的主目录
+    const char* home = getenv("HOME");
+    if (home == nullptr) {
+        struct passwd* pwd = getpwuid(getuid());
+        if (pwd) {
+            home = pwd->pw_dir;
+        }
+    }
+
+    if (home == nullptr) {
+        return path;  // 如果无法获取主目录，返回原始路径
+    }
+
+    // 替换波浪号
+    if (path.length() == 1) {  // 仅有 "~"
+        return home;
+    }
+    if (path[1] == '/') {  // "~/xxx"
+        return std::string(home) + path.substr(1);
+    }
+    return path;  // "~xxx" 其他情况返回原始路径
+}
+
 LocalRecordNode::LocalRecordNode() : Node("local_record") {
     InitParams();
-    // 源文件存在清除原有文件
-    std::ifstream file(save_path_);
-    if (file.is_open()) {
-        file.close();
-        std::remove(save_path_.c_str());
+    
+    // 展开路径中的波浪号
+    std::string expanded_path = expandTilde(save_path_);
+    
+    // 查找已存在的文件并确定新文件的序号
+    int max_files = 5;  // 保存最近5次的记录
+    std::string base_path = expanded_path;
+    std::string extension = ".csv";
+    
+    // 查找现有文件的最大序号
+    int max_index = 0;
+    for (int i = 1; i <= max_files; i++) {
+        std::string test_path = base_path + "_" + std::to_string(i) + extension;
+        std::ifstream test_file(test_path);
+        if (test_file.is_open()) {
+            test_file.close();
+            max_index = i;
+        }
     }
+    
+    // 如果已经有5个文件，删除最旧的文件（序号最小的）
+    if (max_index == max_files) {
+        std::string oldest_file = base_path + "_1" + extension;
+        std::remove(oldest_file.c_str());
+        // 重命名其他文件（将2-5重命名为1-4）
+        for (int i = 2; i <= max_files; i++) {
+            std::string old_name = base_path + "_" + std::to_string(i) + extension;
+            std::string new_name = base_path + "_" + std::to_string(i-1) + extension;
+            std::rename(old_name.c_str(), new_name.c_str());
+        }
+        max_index = max_files - 1;
+    }
+    
+    // 确定新文件的路径
+    save_path_ = base_path + "_" + std::to_string(max_index + 1) + extension;
+    RCLCPP_INFO(this->get_logger(), "Creating new file: %s", save_path_.c_str());
+    
     // 打开文件流
-    save_file_.open(save_path_,
-                    std::ios::out | std::ios::app);
+    save_file_.open(save_path_, std::ios::out | std::ios::app);
     if (!save_file_.is_open()) {
-        RCLCPP_ERROR(this->get_logger(),
-                     "Failed to open or create file: %s",
-                     save_path_.c_str());
-        // 处理文件未打开的情况，例如记录错误或尝试重新打开文件
+        RCLCPP_ERROR(this->get_logger(), "Failed to open or create file: %s", save_path_.c_str());
         return;
     }
+    
     int time_interval = static_cast<int>(1000 / save_rate_);
-    timer_ = this->create_wall_timer(
-        std::chrono::milliseconds(time_interval),
-        std::bind(&LocalRecordNode::TimerCallback, this));
-    this->sub_localization_info_ =
-        this->create_subscription<
-            bot_msg::msg::LocalizationInfo>(
-            topic_name_, 10,
-            std::bind(
-                &LocalRecordNode::LocalizationCallback,
-                this, std::placeholders::_1));
+    timer_ = this->create_wall_timer(std::chrono::milliseconds(time_interval),
+                                    std::bind(&LocalRecordNode::TimerCallback, this));
+    this->sub_localization_info_ = this->create_subscription<bot_msg::msg::LocalizationInfo>(
+        topic_name_, 10, std::bind(&LocalRecordNode::LocalizationCallback, this, std::placeholders::_1));
 }
 
 LocalRecordNode::~LocalRecordNode() {
@@ -120,26 +173,17 @@ void LocalRecordNode::LocalizationCallback(
 }
 
 void LocalRecordNode::InitParams() {
-    this->declare_parameter(
-        "save_path",
-        "~/auto_clean_bot/path/local_record.csv");
+    this->declare_parameter("save_path", "~/auto_clean_bot/path/local_record");  // 修改默认路径，移除末尾的/
     this->declare_parameter("save_rate", 100.0);
-    this->declare_parameter("topic_name",
-                            "/localization_info");
+    this->declare_parameter("topic_name", "/localization_info");
 
-    save_path_ =
-        this->get_parameter("save_path").as_string();
-    save_rate_ =
-        this->get_parameter("save_rate").as_double();
-    topic_name_ =
-        this->get_parameter("topic_name").as_string();
+    save_path_ = this->get_parameter("save_path").as_string();
+    save_rate_ = this->get_parameter("save_rate").as_double();
+    topic_name_ = this->get_parameter("topic_name").as_string();
 
-    RCLCPP_INFO(this->get_logger(), "save_path: %s",
-                save_path_.c_str());
-    RCLCPP_INFO(this->get_logger(), "save_rate: %f",
-                save_rate_);
-    RCLCPP_INFO(this->get_logger(), "topic_name: %s",
-                topic_name_.c_str());
+    RCLCPP_INFO(this->get_logger(), "base save_path: %s", save_path_.c_str());
+    RCLCPP_INFO(this->get_logger(), "save_rate: %f", save_rate_);
+    RCLCPP_INFO(this->get_logger(), "topic_name: %s", topic_name_.c_str());
 }
 
 }  // namespace local_record

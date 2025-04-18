@@ -15,7 +15,7 @@ def generate_launch_description():
     
     # 将所有参数放在一个字典中
     local_record_params = {
-        'save_path': '/home/limer/auto_clean_bot/path/local_record.csv',
+        'save_path': '/home/limer/auto_clean_bot/path/local_record',
         'save_rate': 10.0,
         'topic_name': '/localization_info',
     }
