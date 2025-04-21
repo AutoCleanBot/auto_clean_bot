@@ -37,17 +37,22 @@ PlanningNode::PlanningNode() : Node("planning_node"), timer_cnt_(0) {
         local_topic_name_, 10,
         std::bind(&PlanningNode::LocalizationInfoCallback,
                   this, std::placeholders::_1));
+    sub_perc_ = this->create_subscription<bot_msg::msg::Obstacles>(
+        perc_topic_name_, 10,
+        std::bind(&PlanningNode::ObstaclesCallback,
+                  this, std::placeholders::_1));
 }
 void PlanningNode::InitParams() {
     this->declare_parameter("local_topic_name", "/localization_info");
     this->declare_parameter("process_frq", 10.0);
     this->declare_parameter("service_name", "/service_name");
+    this->declare_parameter("traj_topic_name", "/planning/trajectory");
+    this->declare_parameter("perc_topic_name", "/planning/perception");
     this->declare_parameter("path_type", 0);
     this->declare_parameter("preview_dist", 20.0);
     this->declare_parameter("start_dist", 5.0);
     this->declare_parameter("traj_pub_interval", 0.1);
-    this->declare_parameter("traj_topic_name", "/planning/trajectory");
-
+    this->declare_parameter("planning_spd", 2.0);
     local_topic_name_ = this->get_parameter("local_topic_name").as_string();
     service_name_ = this->get_parameter("service_name").as_string();
     process_frq_ = this->get_parameter("process_frq").as_double();
@@ -56,7 +61,8 @@ void PlanningNode::InitParams() {
     start_dist_ = this->get_parameter("start_dist").as_double();
     traj_pub_interval_ = this->get_parameter("traj_pub_interval").as_double();
     traj_topic_name_ = this->get_parameter("traj_topic_name").as_string();
-
+    perc_topic_name_ = this->get_parameter("perc_topic_name").as_string();
+    planning_spd_ = this->get_parameter("planning_spd").as_double();
     traj_pub_cnt_ = static_cast<int32_t>(traj_pub_interval_ * process_frq_);
 
 
@@ -132,6 +138,11 @@ void PlanningNode::InitGlobalPath() {
     }
 }
 
+// 障碍物回调函数
+void PlanningNode::ObstaclesCallback(const bot_msg::msg::Obstacles::SharedPtr msg) {
+    RCLCPP_INFO(this->get_logger(), "ObstaclesCallback, size: %d", msg->obstacles.size());
+    obstacles_ = *msg;
+}
 
 /**
  * @brief 定位信息回调函数
@@ -140,11 +151,17 @@ void PlanningNode::LocalizationInfoCallback(
     const bot_msg::msg::LocalizationInfo::SharedPtr msg) {
     cur_local_ = *msg;
 }
+
+
+// TODO 待验证,更新机制是有有问题
 void PlanningNode::TimerCallback() {
     // 基于当前的当前定位信息, 找到当前位置在全局路径上的最近点
+    UpdateObstacleInfo();
+    UpdatePlanningStatus();
+
+
     double min_dist = 1000000.0;
     std::size_t min_idx = 0;
-    
     // 检查是否有路径数据
     if (g_traj_.points.empty()) {
         RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, 
@@ -190,20 +207,53 @@ void PlanningNode::TimerCallback() {
     }
     RCLCPP_INFO(this->get_logger(), "cur_dis_cnt: %f, start_idx: %ld, preview_idx: %ld", cur_dis_cnt, start_idx, preview_idx);
     
+    // 填充速度
+
+    for (std::size_t i = 0; i < pub_traj.points.size(); i++) {
+        if(planning_status_ == PlanningStatus::Stop) {
+            pub_traj.points[i].vel_speed = 0.0;
+        }else{
+            pub_traj.points[i].vel_speed = planning_spd_; // 速度2m/s
+        }
+    }
+
+
     // 发布路径
     pub_traj.header.stamp = this->now();
     pub_traj.header.frame_id = "map";
     this->pub_traj_->publish(pub_traj);
 }
+
+void PlanningNode::UpdateObstacleInfo() {
+    obstacle_info_.fill(-1);
+    for (std::size_t i = 0; i < obstacles_.obstacles.size(); i++) {
+        auto&& obstacle = obstacles_.obstacles[i];
+        // 障碍物在当前车辆正前方
+        if(obstacle.position_y < 1.0 && obstacle.position_y > -1.0) {
+            if(obstacle.position_x < 10.0 && obstacle.position_x > 0.0) {
+                obstacle_info_[1] = i;
+            }
+        }
+        // 障碍物在当前车辆左侧
+        if(obstacle.position_y > 2.0 && obstacle.position_y < 10.0) {
+            if(obstacle.position_x < 10.0 && obstacle.position_x > 0.0) {
+                obstacle_info_[0] = i;
+            }
+        }
+        // 障碍物在当前车辆右侧
+        if(obstacle.position_y < -2.0 && obstacle.position_y > -10.0) {
+            if(obstacle.position_x < 10.0 && obstacle.position_x > 0.0) {
+                obstacle_info_[2] = i;
+            }
+        }
+    }
+}
+
 void PlanningNode::UpdatePlanningStatus() {
-    if (planning_status_ == PlanningStatus::Init) {
-        planning_status_ = PlanningStatus::Ready;
-    }
-    if (planning_status_ == PlanningStatus::Ready) {
-        planning_status_ = PlanningStatus::Planning;
-    }
-    if (planning_status_ == PlanningStatus::Planning) {
+    if(obstacle_info_[1] != -1) {
         planning_status_ = PlanningStatus::Stop;
+    }else{
+        planning_status_ = PlanningStatus::Planning;
     }
 }
 PlanningNode::~PlanningNode() {

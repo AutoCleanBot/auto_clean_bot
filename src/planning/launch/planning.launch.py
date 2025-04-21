@@ -18,11 +18,13 @@ def generate_launch_description():
         'local_topic_name':'/localization_info',
         'service_name' : '/routing_service',
         'traj_topic_name' : '/planning/trajectory',
+        'perc_topic_name' : '/perception/obstacles',
         'path_type' : 1,
         'process_frq' : 10.0,    # 处理频率, Hz
         'preview_dist' : 20.0,   # 预览距离, m
         'start_dist' : 5.0,      # 起始距离, m
-        'traj_pub_interval' : 0.1 # 路径发布间隔, 秒
+        'traj_pub_interval' : 0.1, # 路径发布间隔, 秒
+        'planning_spd' : 2.0     # 规划速度, m/s
     }
     
     # 配置节点，并将参数字典直接传递给参数字段
