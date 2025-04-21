@@ -1,0 +1,18 @@
+/**:
+  ros__parameters:
+    # 坐标系ID
+    gnss_frame_id: "gnss_link"
+    lidar_frame_id: "lidar_link"
+    # 记录的是lidar_link相对于gnss_link的偏移量
+    # 平移参数 (单位：米)
+    transform_translation:
+      x: 2.0  # 前后方向偏移
+      y: 1.0  # 左右方向偏移
+      z: 0.0  # 上下方向偏移
+
+    # 记录的是lidar_link相对于gnss_link的旋转量
+    # 旋转参数 (单位：弧度)
+    transform_rotation:
+      roll: 0.0   # 横滚角
+      pitch: 0.0  # 俯仰角
+      yaw: 0.0    # 偏航角 

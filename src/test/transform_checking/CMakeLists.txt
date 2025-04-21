@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(transform)
+project(transform_checking)
 
 # Default to C99
 if(NOT CMAKE_C_STANDARD)
@@ -22,20 +22,29 @@ find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(tf2_msgs REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
 
-include_directories(include)
+add_executable(transform_checking_node src/transform_checking.cpp)
+target_include_directories(transform_checking_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
 
-add_executable(transform_node
-  src/transform.cpp
-)
-
-# Use ament_target_dependencies to link required dependencies
-ament_target_dependencies(transform_node
+ament_target_dependencies(transform_checking_node
   rclcpp
   tf2
   tf2_ros
   geometry_msgs
   tf2_msgs
+  tf2_geometry_msgs
+)
+
+install(TARGETS transform_checking_node
+  DESTINATION lib/${PROJECT_NAME})
+
+# Install launch files
+install(DIRECTORY
+  launch
+  DESTINATION share/${PROJECT_NAME}
 )
 
 if(BUILD_TESTING)
@@ -46,15 +55,3 @@ if(BUILD_TESTING)
 endif()
 
 ament_package()
-
-install(TARGETS
-  transform_node
-  DESTINATION lib/${PROJECT_NAME}
-)
-
-# Install launch files
-install(DIRECTORY
-  launch
-  config
-  DESTINATION share/${PROJECT_NAME}
-)
