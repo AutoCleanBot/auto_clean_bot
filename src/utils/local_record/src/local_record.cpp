@@ -185,7 +185,6 @@ void LocalRecordNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "save_rate: %f", save_rate_);
     RCLCPP_INFO(this->get_logger(), "topic_name: %s", topic_name_.c_str());
 }
-
 }  // namespace local_record
 
 // 节点注册
