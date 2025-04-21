@@ -282,18 +282,22 @@ void CanbusNode::ControlCmdCallback(const bot_msg::msg::ControlCmd::SharedPtr ms
     uint8_t gear = msg->gear;
     double spd = msg->speed;
 
-    // 发送控制指令
-    can_frame frame;
-    frame.can_id = CONTROL_CMD;
-    frame.can_dlc = 8;
-    FillCanCtrlCmd(frame.data, steer_angle, brk, gear, spd);
-    PrintCanDataFrame(frame);
-    int ret = write(can_fd_, &frame, sizeof(frame));
-    
-    if (ret < 0) {
-        RCLCPP_ERROR(this->get_logger(), "Error sending CAN frame");
+    // 仅当处于线控模式或预备切换模式时，才发送控制指令
+    // TODO 待测试
+    if(chassis_info_local_.vcu_mode == 4 || chassis_info_local_.vcu_mode == 2) {
+        // 发送控制指令
+        can_frame frame;
+        frame.can_id = CONTROL_CMD;
+        frame.can_dlc = 8;
+        FillCanCtrlCmd(frame.data, steer_angle, brk, gear, spd);
+        PrintCanDataFrame(frame);
+        int ret = write(can_fd_, &frame, sizeof(frame));
+        
+        if (ret < 0) {
+            RCLCPP_ERROR(this->get_logger(), "Error sending CAN frame");
+        }
+        control_cmd_cnt_ = 0;
     }
-    control_cmd_cnt_ = 0;
 }
 /**
  * 填充控制CAN结构体
@@ -307,10 +311,10 @@ void CanbusNode::FillCanCtrlCmd(uint8_t data[8], double steer_angle, double brk,
     data[0] |= 0x01; // motor_enable = 1;   // 1: 启用
     data[0] |= gear << 1; // target_gear = gear; // 目标档位, 0: N挡, 1: D档, 2: R档
     if(motor_en_cnt_ < 10) {
-        data[0] |= 0 << 3; // target_mode = 1;    // 1: 线控模式
+        data[0] |= 0 << 3; // target_mode = 0;    // 0: 手动模式
         motor_en_cnt_++;
     } else {
-        data[0] |= 1 << 3; // target_mode = 0;    // 0: 手动模式
+        data[0] |= 1 << 3; // target_mode = 1;    // 1: 线控模式
     }
 
     data[0] |= life_signal++ << 4; // life_signal = life_signal++;

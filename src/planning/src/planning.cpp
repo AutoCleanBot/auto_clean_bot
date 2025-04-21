@@ -195,6 +195,17 @@ void PlanningNode::TimerCallback() {
     pub_traj.header.frame_id = "map";
     this->pub_traj_->publish(pub_traj);
 }
+void PlanningNode::UpdatePlanningStatus() {
+    if (planning_status_ == PlanningStatus::Init) {
+        planning_status_ = PlanningStatus::Ready;
+    }
+    if (planning_status_ == PlanningStatus::Ready) {
+        planning_status_ = PlanningStatus::Planning;
+    }
+    if (planning_status_ == PlanningStatus::Planning) {
+        planning_status_ = PlanningStatus::Stop;
+    }
+}
 PlanningNode::~PlanningNode() {
     RCLCPP_INFO(this->get_logger(), "planning node stopped");
 }

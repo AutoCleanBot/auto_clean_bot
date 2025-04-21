@@ -6,6 +6,15 @@
 #include "bot_msg/msg/localization_info.hpp"
 
 namespace planning {
+
+enum PlanningStatus {
+    Init = 0,
+    Ready = 1,
+    Planning = 2,
+    Stop = 3,
+};
+
+
 class PlanningNode : public rclcpp::Node {
 public:
     PlanningNode();
@@ -15,6 +24,7 @@ public:
 
     void TimerCallback();
     void LocalizationInfoCallback(const bot_msg::msg::LocalizationInfo::SharedPtr msg);
+    void UpdatePlanningStatus();
 private:
     rclcpp::TimerBase::SharedPtr timer_;
     bot_msg::msg::LocalizationInfo cur_local_;
@@ -32,5 +42,6 @@ private:
     double traj_pub_interval_ ;    // 路径发布间隔
     int traj_pub_cnt_ ;            // 路径发布计数
     int timer_cnt_ ;               // 计时器计数
+    uint8_t planning_status_ ;     // 规划状态
 };
 }  // namespace planning
