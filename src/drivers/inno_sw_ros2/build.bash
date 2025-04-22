@@ -10,5 +10,5 @@ shared=1 ./build_unix.sh
 echo "build status $?"
 cd -
 
-# build ros
-colcon build
+# # build ros
+# colcon build
