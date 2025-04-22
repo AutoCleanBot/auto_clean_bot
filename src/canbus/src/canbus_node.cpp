@@ -283,7 +283,7 @@ void CanbusNode::ControlCmdCallback(const bot_msg::msg::ControlCmd::SharedPtr ms
     double spd = msg->speed;
 
     // 仅当处于线控模式或预备切换模式时，才发送控制指令
-    // TODO 待测试
+    // 注意当遥控器接管后,需要关闭遥控器,才能使车辆回到 mode 4.
     if(chassis_info_local_.vcu_mode == 4 || chassis_info_local_.vcu_mode == 2) {
         // 发送控制指令
         can_frame frame;
