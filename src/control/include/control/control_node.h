@@ -39,7 +39,7 @@ class ControlNode : public rclcpp::Node {
     double min_linear_velocity_; // in m/s
     double acceleration_limit_;  // in m/s^2
     double deceleration_limit_;  // in m/s^2
-    double ratio_;              // 方向盘转角与前轮转角的比例
+    double ratio_;               // 方向盘转角与前轮转角的比例
     // config variables
     std::string adc_traj_topic_name_;
     std::string localization_info_topic_name_;
@@ -47,6 +47,5 @@ class ControlNode : public rclcpp::Node {
 
     // 运行中的信息
     size_t closest_idx_; // 当前车辆到轨迹上的最近点
-
 };
 } // namespace control
