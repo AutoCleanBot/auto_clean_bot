@@ -47,7 +47,7 @@ void CanbusNode::TimerCallback() {
     FillChassisInfo(msg);
     pub_chassis_info_->publish(*msg);
     ++control_cmd_cnt_;
-    if(control_cmd_cnt_ > 99) {
+    if (control_cmd_cnt_ > 99) {
         motor_en_cnt_ = 0;
         RCLCPP_INFO(this->get_logger(), "control_cmd_cnt_: %d", control_cmd_cnt_);
         control_cmd_cnt_ = 100;
@@ -61,7 +61,7 @@ void CanbusNode::FillChassisInfo(bot_msg::msg::ChassisInfo::SharedPtr msg) {
     msg->steer_angle = (static_cast<float>(chassis_info_local_.cur_steer_angle) * 0.1f - 3000.0f);
     msg->brk_press = static_cast<float>(chassis_info_local_.cur_brk_press) * 0.05f / 8.0f; // 压力百分比
     msg->cur_speed = static_cast<float>(chassis_info_local_.current_speed) / 10.0f;
-    msg->soc = static_cast<float>(chassis_info_local_.soc) *0.4f;
+    msg->soc = static_cast<float>(chassis_info_local_.soc) * 0.4f;
     msg->gear = static_cast<int8_t>(chassis_info_local_.cur_gear);
     msg->direction = static_cast<int8_t>(chassis_info_local_.current_direction);
     msg->vcu_mode = static_cast<int8_t>(chassis_info_local_.vcu_mode);
@@ -202,8 +202,6 @@ void CanbusNode::CanThreadFunc() {
                 PrintCanDataFrame(frame);
             }
 
-            
-
             // 解析CAN数据
             if (frame.can_id == VCU_INFO_1) {
                 // 解析VCU_INFO_1
@@ -213,7 +211,7 @@ void CanbusNode::CanThreadFunc() {
                 chassis_info_local_.moter_en_sts = vcu_info_1.moter_en_sts;
                 chassis_info_local_.motor_torque = vcu_info_1.motor_torque;
                 chassis_info_local_.vcu_mode = vcu_info_1.vcu_mode;
-                if(!line_control_ready_ && chassis_info_local_.vcu_mode == 4) {
+                if (!line_control_ready_ && chassis_info_local_.vcu_mode == 4) {
                     line_control_ready_ = true;
                     RCLCPP_INFO(this->get_logger(), "Line control ready");
                 }
@@ -284,7 +282,7 @@ void CanbusNode::ControlCmdCallback(const bot_msg::msg::ControlCmd::SharedPtr ms
 
     // 仅当处于线控模式或预备切换模式时，才发送控制指令
     // 注意当遥控器接管后,需要关闭遥控器,才能使车辆回到 mode 4.
-    if(chassis_info_local_.vcu_mode == 4 || chassis_info_local_.vcu_mode == 2) {
+    if (chassis_info_local_.vcu_mode == 4 || chassis_info_local_.vcu_mode == 2) {
         // 发送控制指令
         can_frame frame;
         frame.can_id = CONTROL_CMD;
@@ -292,7 +290,7 @@ void CanbusNode::ControlCmdCallback(const bot_msg::msg::ControlCmd::SharedPtr ms
         FillCanCtrlCmd(frame.data, steer_angle, brk, gear, spd);
         PrintCanDataFrame(frame);
         int ret = write(can_fd_, &frame, sizeof(frame));
-        
+
         if (ret < 0) {
             RCLCPP_ERROR(this->get_logger(), "Error sending CAN frame");
         }
@@ -308,9 +306,9 @@ void CanbusNode::FillCanCtrlCmd(uint8_t data[8], double steer_angle, double brk,
     // printf("steer_angle: %f, current gear: %d, speed: %f\n", steer_angle, gear, spd);
     // byte0
     memset(data, 0, 8);
-    data[0] |= 0x01; // motor_enable = 1;   // 1: 启用
+    data[0] |= 0x01;      // motor_enable = 1;   // 1: 启用
     data[0] |= gear << 1; // target_gear = gear; // 目标档位, 0: N挡, 1: D档, 2: R档
-    if(motor_en_cnt_ < 10) {
+    if (motor_en_cnt_ < 10) {
         data[0] |= 0 << 3; // target_mode = 0;    // 0: 手动模式
         motor_en_cnt_++;
     } else {
@@ -324,22 +322,22 @@ void CanbusNode::FillCanCtrlCmd(uint8_t data[8], double steer_angle, double brk,
     // byte1
     uint8_t target_speed = (spd * 10 > 127) ? 127 : spd * 10;
     data[1] |= target_speed; // target_speed = target_speed; // 目标速度, 0~127, 单位0.1m/s
-    data[1] |= 1 << 7; // target_spd_val = 1;          // 目标速度值有效位, 1: 有效
+    data[1] |= 1 << 7;       // target_spd_val = 1;          // 目标速度值有效位, 1: 有效
 
     // byte2
     uint8_t target_brk_press = static_cast<uint8_t>(brk * 8.0 * 20.0);
     data[2] |= target_brk_press; // target_brk_press = target_brk_press; // 目标刹车压力, 0~8, 单位0.05MPa
     // byte3~byte4
-    uint16_t target_steer_angle = static_cast<uint16_t>(steer_angle + 700.0)*10;
+    uint16_t target_steer_angle = static_cast<uint16_t>(steer_angle + 700.0) * 10;
     if (target_steer_angle > 14000) {
         target_steer_angle = 14000;
     }
     target_steer_angle = target_steer_angle << 1;
     data[3] |= static_cast<uint8_t>((target_steer_angle >> 8) & 0xFF);
-    data[4] |= target_steer_angle & 0xFF; // target_steer_angle = target_steer_angle & 0xFF; 
-    data[4] |= 0x01 ; // steer_moter_enable = 1; // z轴转向电机使能, 1: 启用
+    data[4] |= target_steer_angle & 0xFF; // target_steer_angle = target_steer_angle & 0xFF;
+    data[4] |= 0x01;                      // steer_moter_enable = 1; // z轴转向电机使能, 1: 启用
     // byte5 跳过 torque模式使用
-    // byte6 
+    // byte6
     data[6] |= 1; // torque_rpm_mode = 1; // 0-扭矩模式，1-速度模式
     uint8_t target_turnlight = 0;
     if (target_steer_angle > 8000) {
@@ -358,8 +356,8 @@ void CanbusNode::FillCanCtrlCmd(uint8_t data[8], double steer_angle, double brk,
 
 void CanbusNode::PrintCanDataFrame(const struct can_frame &frame) {
     std::stringstream ss;
-    ss <<"CAN frame, ID: 0x" << std::hex << frame.can_id << ", Length: " << std::dec
-       << static_cast<int>(frame.can_dlc) << ", Data: ";
+    ss << "CAN frame, ID: 0x" << std::hex << frame.can_id << ", Length: " << std::dec << static_cast<int>(frame.can_dlc)
+       << ", Data: ";
     for (int i = 0; i < frame.can_dlc; i++) {
         ss << std::hex << std::uppercase << std::setw(2) << std::setfill('0') << static_cast<int>(frame.data[i]) << " ";
     }
