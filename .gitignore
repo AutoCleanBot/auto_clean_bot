@@ -15,6 +15,7 @@
 /build/
 */build/
 !scripts/build/
+!src/drivers/seyond_lidar_ros/src/inno_sdk/build/
 log/
 bin/
 install/

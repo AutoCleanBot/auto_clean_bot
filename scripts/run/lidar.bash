@@ -2,7 +2,6 @@
 
 source install/setup.bash
 # Run the lidar node
-ros2 launch innovusion ivu_pc2.py \
- device_ip:=172.168.1.10 \
- frame_id:=base_link \
- output_topic:=drivers/front_lidar
+# 因为在执行 source install/setup.bash 后，ROS 2 会把工作目录设置在工作空间根目录
+ros2 launch seyond start.py \
+ config_path:=src/drivers/seyond_lidar_ros/config/config.yaml 
