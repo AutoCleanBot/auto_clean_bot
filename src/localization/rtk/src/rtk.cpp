@@ -325,7 +325,7 @@ bool RTKNode::DeviceInit() {
 
 void RTKNode::InitValues() {
     // initialize values here
-    base_point_set_ = false;
+    base_point_set_ = true;
     running_ = false;
     read_thread_ = nullptr;
 }
