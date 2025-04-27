@@ -32,6 +32,7 @@ def generate_launch_description():
         'gnss_frame_id' : 'world_link',
         'gnss_publish_rate' : 10.0,  # 频率为10Hz
         'enable_debug_log': False,
+        'heading_offset':-90         # 航向偏移量,° 
     }
     
     # 配置节点，并将参数字典直接传递给参数字段

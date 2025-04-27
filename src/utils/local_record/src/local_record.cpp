@@ -6,6 +6,7 @@
 #include <string>
 #include <pwd.h>
 #include <unistd.h>
+#include <iomanip>
 
 namespace local_record {
 
@@ -135,9 +136,12 @@ void LocalRecordNode::TimerCallback() {
             << std::endl;
         log_header_flag = false;
     }
+
     // 保存 LocalizationInfo 消息中的数据
-    save_file_ << localization_info_msg_->longtitude << ","
+    save_file_ << std::fixed << std::setprecision(8) 
+               << localization_info_msg_->longtitude << ","
                << localization_info_msg_->latitude << ","
+               << std::setprecision(3)  // 其他数据使用3位小数
                << localization_info_msg_->altitude << ","
                << localization_info_msg_->north << ","
                << localization_info_msg_->east << ","
@@ -155,9 +159,7 @@ void LocalRecordNode::TimerCallback() {
                << localization_info_msg_->gyro_x << ","
                << localization_info_msg_->gyro_y << ","
                << localization_info_msg_->gyro_z << ","
-               << static_cast<int>(
-                      localization_info_msg_
-                          ->rtk_status)  // uint8 转换为 int
+               << static_cast<int>(localization_info_msg_->rtk_status)
                << std::endl;
 
     localization_info_count_++;

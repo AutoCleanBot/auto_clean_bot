@@ -138,6 +138,14 @@ void RTKNode::ParseRTKInfo(const std::string &info_str) {
                     giavp.acc_x_m_s2, giavp.acc_y_m_s2, giavp.acc_z_m_s2, giavp.gyro_x_deg_s, giavp.gyro_y_deg_s,
                     giavp.gyro_z_deg_s);
     }
+
+    giavp.heading_deg += heading_offset_; // 由于安装位置的不同需要做航向的偏移
+    if(giavp.heading_deg >= 360){
+        giavp.heading_deg -= 360;
+    }else if(giavp.heading_deg < 0){
+        giavp.heading_deg += 360;
+    }
+
     // simply publish the parsed RTK info
     rtk_msg_.header.stamp = this->get_clock()->now();
     rtk_msg_.header.frame_id = this->local_frame_id_;
@@ -218,7 +226,6 @@ void RTKNode::InfoReadLoop() {
         char buf[512] = {0};
         int ret = read(sockfd_, buf, sizeof(buf));
         if (ret < 0) {
-            // TODO 串口错误处理
             RCLCPP_WARN(this->get_logger(), "Read error: %s", strerror(errno));
         }
         data += buf;
@@ -258,6 +265,7 @@ void RTKNode::InitParams() {
     this->declare_parameter<std::string>("gnss_frame_id", "gnss_pose_enu_frame");
     this->declare_parameter<std::string>("gnss_topic_name", "gnss_pose_enu");
     this->declare_parameter<double>("gnss_publish_rate", 10.0);
+    this->declare_parameter<double>("heading_offset", 0);
 
     // set the parameters
     this->get_parameter("device_name", this->device_name_);
@@ -276,6 +284,7 @@ void RTKNode::InitParams() {
     this->get_parameter("base_latitude", this->base_latitude_deg_);
     this->get_parameter("base_longtitude", this->base_longitude_deg_);
     this->get_parameter("base_altitude", this->base_altitude_m_);
+    this->get_parameter("heading_offset", this->heading_offset_);
 
     // print the parameters
     RCLCPP_INFO(this->get_logger(), "Device name: %s", this->device_name_.c_str());
@@ -294,6 +303,7 @@ void RTKNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "Base latitude: %lf", this->base_latitude_deg_);
     RCLCPP_INFO(this->get_logger(), "Base longitude: %lf", this->base_longitude_deg_);
     RCLCPP_INFO(this->get_logger(), "Base altitude: %lf", this->base_altitude_m_);
+    RCLCPP_INFO(this->get_logger(), "heading error:%lf", this->heading_offset_);
     return;
 }
 

@@ -17,7 +17,7 @@ def generate_launch_description():
     local_record_params = {
         'save_path': '/home/limer/auto_clean_bot/path/local_record',
         'save_rate': 10.0,
-        'topic_name': '/localization_info',
+        'topic_name': '/localization/rtk_info',
     }
     
     # 配置节点，并将参数字典直接传递给参数字段

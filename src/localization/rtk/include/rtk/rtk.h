@@ -88,6 +88,7 @@ class RTKNode : public rclcpp::Node {
     double base_latitude_deg_;                 // base point latitude (degrees)
     double base_longitude_deg_;                // base point longitude (degrees)
     double base_altitude_m_;                   // base point altitude (meters)
+    double heading_offset_;                    // the offset of heading (degrees)
 
     bool enable_debug_log_; // enable debug log
 };
