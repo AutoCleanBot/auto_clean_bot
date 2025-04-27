@@ -42,6 +42,7 @@ def generate_launch_description():
         name='rtk_node',  # 保持与代码中一致
         output='screen',
         parameters=[rtk_params],  # 直接使用参数字典
+        # 小的动态测试
         arguments=['--ros-args', '--log-level', log_level]
     )
 
