@@ -17,7 +17,7 @@ def generate_launch_description():
     canbus_params = {
         'can_device': 'can0',
         'can_baud': 500,
-        'control_cmd_topic': '/control_cmd',
+        'control_cmd_topic': '/control/control_cmd',
         'chassis_info_topic': '/chassis_info_topic',
     }
     

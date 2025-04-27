@@ -15,11 +15,11 @@ def generate_launch_description():
     
     # 将所有参数放在一个字典中
     planning_params = {
-        'local_topic_name':'/localization_info',
+        'local_topic_name':'/localization/rtk_info'',
         'service_name' : '/routing_service',
         'traj_topic_name' : '/planning/trajectory',
         'perc_topic_name' : '/perception/obstacles',
-        'path_type' : 1,
+        'path_type' : 3,
         'process_frq' : 10.0,    # 处理频率, Hz
         'preview_dist' : 20.0,   # 预览距离, m
         'start_dist' : 5.0,      # 起始距离, m
