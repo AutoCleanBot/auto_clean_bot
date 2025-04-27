@@ -18,8 +18,8 @@ def generate_launch_description():
         'device_name' : '/dev/ttyUART_232_A',
         'baud_rate' : 460800,
         'timeout_ms' : 10,
-        'base_longtitude':117.38,  #基点经度
-        'base_latitude': 31.96,  #基点纬度
+        'base_longtitude':117.37730582,  #基点经度
+        'base_latitude': 31.96316616,  #基点纬度
         'base_altitude': 0.0,  #基点高度
         
         'local_topic_name' : 'localization/rtk_info',
