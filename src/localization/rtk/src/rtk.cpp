@@ -265,7 +265,7 @@ void RTKNode::InitParams() {
     this->declare_parameter<std::string>("gnss_frame_id", "gnss_pose_enu_frame");
     this->declare_parameter<std::string>("gnss_topic_name", "gnss_pose_enu");
     this->declare_parameter<double>("gnss_publish_rate", 10.0);
-    this->declare_parameter<double>("heading_offset", 0);
+    this->declare_parameter<double>("heading_offset", 0.0);
 
     // set the parameters
     this->get_parameter("device_name", this->device_name_);
