@@ -3,6 +3,9 @@
 
 double inline deg2rad(double deg) { return deg * M_PI / 180.0; }
 
+ssize_t g_debug_cnt = 0;
+
+
 namespace control {
 ControlNode::ControlNode() : Node("control_node") {
     // Initialize subscribers and publishers
@@ -131,22 +134,24 @@ void ControlNode::LateralController() {
     double steer_angle = std::max(-max_steering_angle_,
                            std::min(max_steering_angle_, front_wheel_rad * 180.0 / M_PI * ratio_)); // 限制在[-30, 30]度之间
 
-    // 输出调试信息
-    RCLCPP_INFO(this->get_logger(), "Heading Error: %.2f degrees", heading_error * 180.0 / M_PI);
-    RCLCPP_INFO(this->get_logger(), "Angular Error: %.2f degrees", angular_error * 180.0 / M_PI);
-    RCLCPP_INFO(this->get_logger(), "Lateral Error: %.2f meters", lat_error);
-    RCLCPP_INFO(this->get_logger(), "Front Wheel Deg: %.2f rad", front_wheel_rad * 180.0 / M_PI);
-    RCLCPP_INFO(this->get_logger(), "Steering Angle: %.2f degrees", steer_angle);
-    RCLCPP_INFO(this->get_logger(), "Preview Distance: %.2f meters", preview_dist);
-    RCLCPP_INFO(this->get_logger(), "Preview Index: %zu", preview_idx);
-    RCLCPP_INFO(this->get_logger(), "Closest Index: %zu", closest_idx_);
-    RCLCPP_INFO(this->get_logger(), "Target North: %.2f meters", target_north);
-    RCLCPP_INFO(this->get_logger(), "Target East: %.2f meters", target_east);
-    RCLCPP_INFO(this->get_logger(), "Target Yaw: %.2f degrees", target_yaw * 180.0 / M_PI);
-    RCLCPP_INFO(this->get_logger(), "Current Yaw: %.2f degrees", cur_yaw * 180.0 / M_PI);
-    RCLCPP_INFO(this->get_logger(), "Current North: %.2f meters", cur_north);
-    RCLCPP_INFO(this->get_logger(), "Current East: %.2f meters", cur_east);
-    RCLCPP_INFO(this->get_logger(), "Current Speed: %.2f meters/second", cur_spd);
+    if(g_debug_cnt % 10 == 0){
+        // 输出调试信息
+        RCLCPP_INFO(this->get_logger(), "Heading Error: %.2f degrees", heading_error * 180.0 / M_PI);
+        RCLCPP_INFO(this->get_logger(), "Angular Error: %.2f degrees", angular_error * 180.0 / M_PI);
+        RCLCPP_INFO(this->get_logger(), "Lateral Error: %.2f meters", lat_error);
+        RCLCPP_INFO(this->get_logger(), "Front Wheel Deg: %.2f degrees", front_wheel_rad * 180.0 / M_PI);
+        RCLCPP_INFO(this->get_logger(), "Steering Angle: %.2f degrees", steer_angle);
+        RCLCPP_INFO(this->get_logger(), "Preview Distance: %.2f meters", preview_dist);
+        RCLCPP_INFO(this->get_logger(), "Preview Index: %zu", preview_idx);
+        RCLCPP_INFO(this->get_logger(), "Closest Index: %zu", closest_idx_);
+        RCLCPP_INFO(this->get_logger(), "Target North: %.2f meters", target_north);
+        RCLCPP_INFO(this->get_logger(), "Target East: %.2f meters", target_east);
+        RCLCPP_INFO(this->get_logger(), "Target Yaw: %.2f degrees", target_yaw * 180.0 / M_PI);
+        RCLCPP_INFO(this->get_logger(), "Current Yaw: %.2f degrees", cur_yaw * 180.0 / M_PI);
+        RCLCPP_INFO(this->get_logger(), "Current North: %.2f meters", cur_north);
+        RCLCPP_INFO(this->get_logger(), "Current East: %.2f meters", cur_east);
+        RCLCPP_INFO(this->get_logger(), "Current Speed: %.2f meters/second", cur_spd);
+    }
 
     // 4. 赋值给控制命令
     control_cmd_msg_.steer_angle = steer_angle; 
@@ -221,6 +226,11 @@ void ControlNode::TimerCallback() {
     control_cmd_msg_.header.stamp = this->now();
     control_cmd_msg_.header.frame_id = "base_link";
     this->pub_control_cmd_->publish(control_cmd_msg_);
+
+    ++g_debug_cnt;
+    if(g_debug_cnt == 60000){
+        g_debug_cnt = 0;
+    }
     return;
 }
 

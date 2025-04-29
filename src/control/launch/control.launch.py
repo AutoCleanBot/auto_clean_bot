@@ -27,7 +27,7 @@ def generate_launch_description():
         'deceleration_limit':-1.0,
         'target_spd':2, # 期望速度 m/s
         'adc_traj_topic_name':'/planning/trajectory',
-        'localization_info_topic_name':'/localization/rtk_info'',
+        'localization_info_topic_name':'/localization/rtk_info',
         'control_cmd_topic_name':'/control/control_cmd'
     }
     

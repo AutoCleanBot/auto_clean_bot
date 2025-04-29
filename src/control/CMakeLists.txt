@@ -17,7 +17,7 @@ endif()
 
 
 # Set build type to Debug
-set(CMAKE_BUILD_TYPE "Release")
+set(CMAKE_BUILD_TYPE "Debug")
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
