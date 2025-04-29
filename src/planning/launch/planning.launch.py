@@ -19,7 +19,7 @@ def generate_launch_description():
         'service_name' : '/routing_service',
         'traj_topic_name' : '/planning/trajectory',
         'perc_topic_name' : '/perception/obstacles',
-        'path_type' : 3,
+        'path_type' : 5,
         'process_frq' : 10.0,    # 处理频率, Hz
         'preview_dist' : 8.0,   # 预览距离, m
         'preview_time' : 1.0,     # 预瞄时间, s

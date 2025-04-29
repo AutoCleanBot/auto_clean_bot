@@ -17,7 +17,7 @@ def generate_launch_description():
     control_params = {
         'publish_rate': 10.0,
         'preview_time': 10.0,
-        'tolerance_distance': 0.1,
+        'tolerance_distance': 2.0,
         'max_steering_angle':400.0,
         'wheelbase':1.2,
         'ratio':10.0,

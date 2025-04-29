@@ -7,7 +7,7 @@ class ControlCanbus : public rclcpp::Node {
   public:
     ControlCanbus() : Node("control_canbus") {
         RCLCPP_INFO(this->get_logger(), "ControlCanbus node started");
-        pub_ = this->create_publisher<bot_msg::msg::ControlCmd>("/control_cmd", 10);
+        pub_ = this->create_publisher<bot_msg::msg::ControlCmd>("/control/control_cmd", 10);
         timer_ =
             this->create_wall_timer(std::chrono::milliseconds(10), std::bind(&ControlCanbus::TimerCallback, this));
     }
@@ -25,11 +25,11 @@ class ControlCanbus : public rclcpp::Node {
                 spd = 4.0;
             }
         }
-        msg->steer_angle = 0;
-        msg->brk = 0.4;
+        msg->steer_angle = steer_angle;
+        msg->brk = 0;
         msg->thr = 0;
         msg->gear = 1;
-        msg->speed = 0;
+        msg->speed = 1.0;
         pub_->publish(*msg);
         ++time_count;
     }

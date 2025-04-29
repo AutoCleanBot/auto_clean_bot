@@ -191,7 +191,9 @@ void ControlNode::LongitudinalController() {
     RCLCPP_INFO(this->get_logger(), "Speed Cmd: %.2f meters/second", speed_cmd);
 
     // 3. 赋值给控制命令
-    control_cmd_msg_.speed = speed_cmd;
+    // control_cmd_msg_.speed = speed_cmd;
+    control_cmd_msg_.speed = 1;
+
 }
 
 void ControlNode::ADCTrajectoryCallback(const bot_msg::msg::ADCTrajectory::SharedPtr msg) {
@@ -225,6 +227,8 @@ void ControlNode::TimerCallback() {
     // 2. 发布控制命令
     control_cmd_msg_.header.stamp = this->now();
     control_cmd_msg_.header.frame_id = "base_link";
+    // TODO (yangsh) temporary use the gear forward
+    control_cmd_msg_.gear = 1;
     this->pub_control_cmd_->publish(control_cmd_msg_);
 
     ++g_debug_cnt;
