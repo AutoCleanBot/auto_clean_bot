@@ -179,8 +179,8 @@ void ControlNode::LongitudinalController() {
     // RCLCPP_INFO(this->get_logger(), "Speed Cmd: %.2f meters/second", speed_cmd);
 
     // 3. 赋值给控制命令
-    control_cmd_msg_.speed = target_speed;
-    // control_cmd_msg_.speed = 1;
+    // control_cmd_msg_.speed = target_speed;
+    control_cmd_msg_.speed = 1;
 }
 
 void ControlNode::ADCTrajectoryCallback(const bot_msg::msg::ADCTrajectory::SharedPtr msg) {
