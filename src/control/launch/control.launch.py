@@ -16,8 +16,8 @@ def generate_launch_description():
     # 将所有参数放在一个字典中
     control_params = {
         'publish_rate': 10.0,
-        'preview_time': 10.0,
-        'tolerance_distance': 2.0,
+        'preview_time': 1.0,
+        'tolerance_distance': 4.0,
         'max_steering_angle':400.0,
         'wheelbase':1.2,
         'ratio':10.0,

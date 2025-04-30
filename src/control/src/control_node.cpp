@@ -1,10 +1,12 @@
 #include "control/control_node.h"
 #include <cmath>
 
-double inline deg2rad(double deg) { return deg * M_PI / 180.0; }
-
+double NormalizeAngle(double angle) {
+    while (angle > M_PI) angle -= 2 * M_PI;
+    while (angle < -M_PI) angle += 2 * M_PI;
+    return angle;
+}
 ssize_t g_debug_cnt = 0;
-
 
 namespace control {
 ControlNode::ControlNode() : Node("control_node") {
@@ -40,7 +42,7 @@ void ControlNode::LateralController() {
     double cur_east = localization_info_msg_->east;
     // double cur_up = localization_info_msg_->up;
     double cur_spd = localization_info_msg_->vel_speed;
-    double cur_yaw = localization_info_msg_->yaw * M_PI / 180.0; // 当前航向角, 弧度
+    double cur_yaw = NormalizeAngle(localization_info_msg_->yaw * M_PI / 180.0); // 当前航向角, 弧度
 
     // 1. 找到当前车辆位置到轨迹上的最近点
     double min_dist = 1000000.0;
@@ -84,17 +86,12 @@ void ControlNode::LateralController() {
     // 获取预瞄点信息
     double target_north = adc_trajectory_msg_->points[preview_idx].north;
     double target_east = adc_trajectory_msg_->points[preview_idx].east;
-    double target_yaw = adc_trajectory_msg_->points[preview_idx].yaw * M_PI / 180.0; // 目标航向角, 弧度
-
+    double target_yaw = NormalizeAngle(adc_trajectory_msg_->points[preview_idx].yaw * M_PI / 180.0); // 目标航向角, 弧度
     // 3.1 计算航向误差和方位角误差
-    double heading_error = target_yaw - cur_yaw;                                                    // 航向误差
-    double angular_error = std::atan2(target_east - cur_east, target_north - cur_north) - cur_yaw; // 方位角误差
+    double heading_error = NormalizeAngle(target_yaw - cur_yaw);     // 航向误差
+    double deg_angular = std::atan2(target_east - cur_east, target_north - cur_north) ; // 方位角误差
+    double angular_error = NormalizeAngle(deg_angular - cur_yaw);
 
-    // 限制角度在 [-PI, PI] 范围内，避免跳变
-    if (angular_error > M_PI)
-        angular_error -= 2 * M_PI;
-    if (angular_error < -M_PI)
-        angular_error += 2 * M_PI;
 
     // 3.2 计算横向误差
     // 计算路径切线方向
@@ -113,8 +110,8 @@ void ControlNode::LateralController() {
         // 只有一个点，使用目标航向
         path_direction = adc_trajectory_msg_->points[closest_idx_].yaw * M_PI / 180.0;
     }
+    path_direction = NormalizeAngle(path_direction);
 
-    RCLCPP_INFO(this->get_logger(), "Path direction: %.2f degrees", path_direction * 180.0 / M_PI);
     // 计算车辆到最近点的向量
     double dx = cur_east - adc_trajectory_msg_->points[closest_idx_].east;
     double dy = cur_north - adc_trajectory_msg_->points[closest_idx_].north;
@@ -123,7 +120,6 @@ void ControlNode::LateralController() {
     // 使用 (-sin(θ), cos(θ)) 作为法向量进行投影计算
     double lat_error = -dx * std::sin(path_direction) + dy * std::cos(path_direction);
 
-
     // 3.3 使用混合控制器计算转向角
     double pursuit_control = std::atan2(2 * wheelbase_ * std::sin(angular_error), preview_dist); // 纯追踪控制
     double stanley_control = heading_error + std::atan(0.2 * lat_error / (cur_spd + 1e-5));      // Stanley控制
@@ -131,30 +127,23 @@ void ControlNode::LateralController() {
     // 3.4 计算最终转向角，并限制在合理范围内
     double front_wheel_rad = 0.6 * pursuit_control + 0.4 * stanley_control; // 混合控制
     // 乘以10.0原因是, 计算出的是前轮转角,控制量是方向盘转角,中间有一个10倍的传动比
-    double steer_angle = std::max(-max_steering_angle_,
-                           std::min(max_steering_angle_, front_wheel_rad * 180.0 / M_PI * ratio_)); // 限制在[-30, 30]度之间
+    double steer_angle =
+        std::max(-max_steering_angle_,
+                 std::min(max_steering_angle_, front_wheel_rad * 180.0 / M_PI * ratio_)); // 限制在[-30, 30]度之间
 
-    if(g_debug_cnt % 10 == 0){
+    if (g_debug_cnt % 10 == 0) {
         // 输出调试信息
-        RCLCPP_INFO(this->get_logger(), "Heading Error: %.2f degrees", heading_error * 180.0 / M_PI);
-        RCLCPP_INFO(this->get_logger(), "Angular Error: %.2f degrees", angular_error * 180.0 / M_PI);
-        RCLCPP_INFO(this->get_logger(), "Lateral Error: %.2f meters", lat_error);
-        RCLCPP_INFO(this->get_logger(), "Front Wheel Deg: %.2f degrees", front_wheel_rad * 180.0 / M_PI);
-        RCLCPP_INFO(this->get_logger(), "Steering Angle: %.2f degrees", steer_angle);
-        RCLCPP_INFO(this->get_logger(), "Preview Distance: %.2f meters", preview_dist);
-        RCLCPP_INFO(this->get_logger(), "Preview Index: %zu", preview_idx);
-        RCLCPP_INFO(this->get_logger(), "Closest Index: %zu", closest_idx_);
-        RCLCPP_INFO(this->get_logger(), "Target North: %.2f meters", target_north);
-        RCLCPP_INFO(this->get_logger(), "Target East: %.2f meters", target_east);
-        RCLCPP_INFO(this->get_logger(), "Target Yaw: %.2f degrees", target_yaw * 180.0 / M_PI);
-        RCLCPP_INFO(this->get_logger(), "Current Yaw: %.2f degrees", cur_yaw * 180.0 / M_PI);
-        RCLCPP_INFO(this->get_logger(), "Current North: %.2f meters", cur_north);
-        RCLCPP_INFO(this->get_logger(), "Current East: %.2f meters", cur_east);
-        RCLCPP_INFO(this->get_logger(), "Current Speed: %.2f meters/second", cur_spd);
+        RCLCPP_INFO(this->get_logger(),
+                    "heading_error,%.2f,angular_error,%.2f,lat_error,%.2f,front_wheel_deg,%.2f,steer_angle,%.2f,"
+                    "preview_dist,%.2f,preview_idx,%zu,closest_idx,%zu,target_north,%.2f,target_east,%.2f,target_yaw,%."
+                    "2f,cur_yaw,%.2f,cur_north,%.2f,cur_east,%.2f,cur_spd,%.2f",
+                    heading_error * 180.0 / M_PI, angular_error * 180.0 / M_PI, lat_error,
+                    front_wheel_rad * 180.0 / M_PI, steer_angle, preview_dist, preview_idx, closest_idx_, target_north,
+                    target_east, target_yaw * 180.0 / M_PI, cur_yaw * 180.0 / M_PI, cur_north, cur_east, cur_spd);
     }
 
     // 4. 赋值给控制命令
-    control_cmd_msg_.steer_angle = steer_angle; 
+    control_cmd_msg_.steer_angle = steer_angle;
 }
 
 void ControlNode::LongitudinalController() {
@@ -170,7 +159,6 @@ void ControlNode::LongitudinalController() {
         return;
     }
 
-
     double cur_spd = localization_info_msg_->vel_speed;
     // 由于只是速度控制，因此只需要计算速度误差即可
     // 暂时不需要PID控制，直接赋值给控制命令
@@ -185,15 +173,14 @@ void ControlNode::LongitudinalController() {
     speed_cmd = std::max(std::min(speed_cmd, max_linear_velocity_), min_linear_velocity_);
 
     // 输出调试信息
-    RCLCPP_INFO(this->get_logger(), "Speed Error: %.2f meters/second", speed_error);
-    RCLCPP_INFO(this->get_logger(), "Acceleration: %.2f meters/second^2", acceleration);
-    RCLCPP_INFO(this->get_logger(), "Deceleration: %.2f meters/second^2", deceleration);
-    RCLCPP_INFO(this->get_logger(), "Speed Cmd: %.2f meters/second", speed_cmd);
+    // RCLCPP_INFO(this->get_logger(), "Speed Error: %.2f meters/second", speed_error);
+    // RCLCPP_INFO(this->get_logger(), "Acceleration: %.2f meters/second^2", acceleration);
+    // RCLCPP_INFO(this->get_logger(), "Deceleration: %.2f meters/second^2", deceleration);
+    // RCLCPP_INFO(this->get_logger(), "Speed Cmd: %.2f meters/second", speed_cmd);
 
     // 3. 赋值给控制命令
-    // control_cmd_msg_.speed = speed_cmd;
-    control_cmd_msg_.speed = 1;
-
+    control_cmd_msg_.speed = target_speed;
+    // control_cmd_msg_.speed = 1;
 }
 
 void ControlNode::ADCTrajectoryCallback(const bot_msg::msg::ADCTrajectory::SharedPtr msg) {
@@ -215,8 +202,8 @@ void ControlNode::LocalizationInfoCallback(const bot_msg::msg::LocalizationInfo:
 void ControlNode::TimerCallback() {
     // 检查数据是否准备好
     if (!adc_trajectory_msg_ || !localization_info_msg_) {
-        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, 
-                            "Waiting for trajectory and localization data...");
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
+                             "Waiting for trajectory and localization data...");
         return;
     }
 
@@ -232,7 +219,7 @@ void ControlNode::TimerCallback() {
     this->pub_control_cmd_->publish(control_cmd_msg_);
 
     ++g_debug_cnt;
-    if(g_debug_cnt == 60000){
+    if (g_debug_cnt == 60000) {
         g_debug_cnt = 0;
     }
     return;

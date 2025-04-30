@@ -66,22 +66,15 @@ void PlanningNode::InitParams() {
     traj_pub_cnt_ = static_cast<int32_t>(traj_pub_interval_ * process_frq_);
 
 
-    RCLCPP_INFO(this->get_logger(),
-                "local_topic_name: %s", local_topic_name_.c_str());
-    RCLCPP_INFO(this->get_logger(),
-                "service_name: %s", service_name_.c_str());
-    RCLCPP_INFO(this->get_logger(),
-                "traj_topic_name: %s", traj_topic_name_.c_str());
-    RCLCPP_INFO(this->get_logger(),
-                "process_frq: %f", process_frq_);
-    RCLCPP_INFO(this->get_logger(),
-                "path_type: %d", path_type_);
-    RCLCPP_INFO(this->get_logger(),
-                "preview_dist: %f", preview_dist_);
-    RCLCPP_INFO(this->get_logger(),
-                "start_dist: %f", start_dist_);
-    RCLCPP_INFO(this->get_logger(),
-                "traj_pub_interval: %f", traj_pub_interval_);
+    RCLCPP_INFO(this->get_logger(),"local_topic_name: %s", local_topic_name_.c_str());
+    RCLCPP_INFO(this->get_logger(),"service_name: %s", service_name_.c_str());
+    RCLCPP_INFO(this->get_logger(),"traj_topic_name: %s", traj_topic_name_.c_str());
+    RCLCPP_INFO(this->get_logger(),"process_frq: %f", process_frq_);
+    RCLCPP_INFO(this->get_logger(),"path_type: %d", path_type_);
+    RCLCPP_INFO(this->get_logger(),"preview_dist: %f", preview_dist_);
+    RCLCPP_INFO(this->get_logger(),"start_dist: %f", start_dist_);
+    RCLCPP_INFO(this->get_logger(),"traj_pub_interval: %f", traj_pub_interval_);
+    RCLCPP_INFO(this->get_logger(),"planning_spd_: %f", planning_spd_);
 }
 void PlanningNode::InitGlobalPath() {
     auto client = this->create_client<bot_msg::srv::Routing>(service_name_);
