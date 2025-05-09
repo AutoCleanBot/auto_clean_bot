@@ -29,7 +29,7 @@ def generate_launch_description():
         'imu_frame_id' : 'imu_link',
         'imu_publish_rate' : 50.0,  # 频率为50Hz
         'gnss_topic_name' : 'gnss/pose',
-        'gnss_frame_id' : 'world_link',
+        'gnss_frame_id' : 'gnss_link',
         'gnss_publish_rate' : 10.0,  # 频率为10Hz
         'enable_debug_log': True,
         'heading_offset':-90.0         # 航向偏移量,° 

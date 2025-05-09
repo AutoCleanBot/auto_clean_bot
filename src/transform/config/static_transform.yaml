@@ -1,9 +1,10 @@
 /**:
   ros__parameters:
     # 坐标系ID
-    gnss_frame_id: "gnss_link"
-    lidar_frame_id: "lidar_link"
-    # 记录的是lidar_link相对于gnss_link的偏移量
+    base_frame_id: "base_link"
+    lidar_frame_id: "front_lidar"
+    # 记录的是lidar_link相对于base_link的偏移量
+    # 注意这里的base_link是车辆的相对基点, 这个基点等于rtk的位置
     # 平移参数 (单位：米)
     transform_translation:
       x: 2.0  # 前后方向偏移

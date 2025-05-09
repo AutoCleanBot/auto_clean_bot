@@ -8,9 +8,9 @@ lidars:
       packet_mode: false                              #Packet mode (true: packets + pointcloud, false: direct pointcloud)
       aggregate_num: 20                               #Aggregate number
 
-      frame_id: seyond                                #Frame id
-      packet_topic: /iv_packets                       #Packet topic
-      frame_topic: /iv_points                         #Frame topic
+      frame_id: front_lidar                                #Frame id
+      packet_topic: /drivers/front_packets                 #Packet topic
+      frame_topic: /drivers/front_lidar                    #Frame topic
 
       lidar_name: seyond                              #Lidar name
       lidar_ip: 172.168.1.10                          #Lidar ip

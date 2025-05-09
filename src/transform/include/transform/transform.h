@@ -17,7 +17,7 @@ namespace transform
         std::shared_ptr<tf2_ros::StaticTransformBroadcaster> tf_broadcaster_;
         
         // 参数
-        std::string gnss_frame_id_;
+        std::string base_front_id_;
         std::string lidar_frame_id_;
         
         // 初始化参数

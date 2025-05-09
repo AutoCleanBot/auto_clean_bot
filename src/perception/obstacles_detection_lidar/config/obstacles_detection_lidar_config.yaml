@@ -13,19 +13,7 @@ obstacles_detection_lidar_node:
     max_cluster_size: 30000
     leaf_size: 0.1
     plane_point_percent : 0.5 # 平面内点云点比例
-    # 坐标系转换参数
-    lidar_base_x: 0.0
-    lidar_base_y: 0.0
-    lidar_base_z: 0.0
-    lidar_base_yaw: 180.0
-    lidar_base_pitch: 0.0
-    lidar_base_roll: 0.0
-    radar_base_x: 0.0
-    radar_base_y: 0.0
-    radar_base_z: 0.0
-    radar_base_yaw: 0.0
-    radar_base_pitch: 0.0
-    radar_base_roll: 0.0
+
     # 调试参数
     enable_visualization: false
     enable_use_roi: false
@@ -34,12 +22,22 @@ obstacles_detection_lidar_node:
     segment_ground_type: 1 # 1:algorithm, 2:based on height
     # 相关订阅参数
     is_use_front_lidar: true
-    front_lidar_topic: drivers/front_lidar
+    front_lidar_frame_id: "front_lidar"
+    front_lidar_topic: "drivers/front_lidar"
     is_use_left_lidar: false
-    left_lidar_topic: drivers/left_lidar
+    left_lidar_frame_id: "left_lidar"
+    left_lidar_topic: "drivers/left_lidar"
     is_use_right_lidar: false
-    right_lidar_topic: drivers/right_lidar
-    is_use_front_camera: false
-    front_camera_topic: drivers/front_camera
-    # 消息ID
-    frame_id: base_link
+    right_lidar_frame_id: "right_lidar"
+    right_lidar_topic: "drivers/right_lidar"
+
+    # GNSS设备参数
+    is_use_gnss: true
+    gnss_frame_id: "gnss_link"
+    gnss_topic: "gnss/pose"
+
+    # BASE坐标系参数
+    base_frame_id: "base_link"
+
+    
+    

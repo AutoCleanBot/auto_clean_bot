@@ -27,12 +27,16 @@ ObstaclesDetectionLidarNode::ObstaclesDetectionLidarNode() : Node("perception_no
         right_lidar_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
             right_lidar_topic_, 10,
             std::bind(&ObstaclesDetectionLidarNode::PointClould2Callback, this, std::placeholders::_1));
+    if (is_use_gnss_)
+        gnss_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+            gnss_topic_, 10,
+            std::bind(&ObstaclesDetectionLidarNode::GNSSCallback, this, std::placeholders::_1));
 
     obstacle_pub_ = this->create_publisher<bot_msg::msg::Obstacles>("/perception/obstacles", 10);
     marker_pub_ = this->create_publisher<visualization_msgs::msg::Marker>("/perception/marker", 10);
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
-    static_broadcaster_ = std::make_shared<tf2_ros::StaticTransformBroadcaster>(this);
+
 
 #if DEBUG_PUBLISH_POINT_CLOUD
     // 在构造函数中初始化发布器
@@ -41,84 +45,43 @@ ObstaclesDetectionLidarNode::ObstaclesDetectionLidarNode() : Node("perception_no
     ground_seg_cloud_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/perception/ground_seg_cloud", 10);
     clustered_cloud_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/perception/clustered_cloud", 10);
 #endif
-    // 发布静态变换
-    InitStaticTransformBroadcaster();
 }
 
-// TODO：静态变换的发布器，放置到专门的包中
-void ObstaclesDetectionLidarNode::InitStaticTransformBroadcaster() {
-    // 设置默认值并声明参数
-    this->declare_parameter<double>("lidar_base_x", 0.0);
-    this->declare_parameter<double>("lidar_base_y", 0.0);
-    this->declare_parameter<double>("lidar_base_z", 0.0);
-    this->declare_parameter<double>("lidar_base_yaw", 0.0);
-    this->declare_parameter<double>("lidar_base_pitch", 0.0);
-    this->declare_parameter<double>("lidar_base_roll", 0.0);
-    this->declare_parameter<double>("radar_base_x", 0.0);
-    this->declare_parameter<double>("radar_base_y", 0.0);
-    this->declare_parameter<double>("radar_base_z", 0.0);
-    this->declare_parameter<double>("radar_base_yaw", 0.0);
-    this->declare_parameter<double>("radar_base_pitch", 0.0);
-    this->declare_parameter<double>("radar_base_roll", 0.0);
-
-    // 获取参数值
-    lidar_base_x_ = this->get_parameter("lidar_base_x").as_double();
-    lidar_base_y_ = this->get_parameter("lidar_base_y").as_double();
-    lidar_base_z_ = this->get_parameter("lidar_base_z").as_double();
-    lidar_base_yaw_ = DEG2RAD(this->get_parameter("lidar_base_yaw").as_double());
-    lidar_base_pitch_ = DEG2RAD(this->get_parameter("lidar_base_pitch").as_double());
-    lidar_base_roll_ = DEG2RAD(this->get_parameter("lidar_base_roll").as_double());
-    radar_base_x_ = this->get_parameter("radar_base_x").as_double();
-    radar_base_y_ = this->get_parameter("radar_base_y").as_double();
-    radar_base_z_ = this->get_parameter("radar_base_z").as_double();
-    radar_base_yaw_ = DEG2RAD(this->get_parameter("radar_base_yaw").as_double());
-    radar_base_pitch_ = DEG2RAD(this->get_parameter("radar_base_pitch").as_double());
-    radar_base_roll_ = DEG2RAD(this->get_parameter("radar_base_roll").as_double());
-
-    // 打印输出
-    RCLCPP_INFO(this->get_logger(), "Lidar base transform: x=%f, y=%f, z=%f, yaw=%f, pitch=%f, roll=%f", lidar_base_x_,
-                lidar_base_y_, lidar_base_z_, lidar_base_yaw_, lidar_base_pitch_, lidar_base_roll_);
-    RCLCPP_INFO(this->get_logger(), "Radar base transform: x=%f, y=%f, z=%f, yaw=%f, pitch=%f, roll=%f", radar_base_x_,
-                radar_base_y_, radar_base_z_, radar_base_yaw_, radar_base_pitch_, radar_base_roll_);
-
-    // 初始化静态变换发布器
-
-    geometry_msgs::msg::TransformStamped lidar_to_base, radar_to_base;
-
-    // 假设雷达的坐标系与车辆基准坐标系（base_link）的相对变换
-    radar_to_base.header.stamp = this->now();
-    radar_to_base.header.frame_id = "base_link";
-    radar_to_base.child_frame_id = "os_radar";
-    radar_to_base.transform.translation.x = radar_base_x_; // 在 x 轴上的平移
-    radar_to_base.transform.translation.y = radar_base_y_; // 在 y 轴上的平移
-    radar_to_base.transform.translation.z = radar_base_z_; // 在 z 轴上的平移
-    tf2::Quaternion radar_q;
-    radar_q.setRPY(radar_base_roll_, radar_base_pitch_, radar_base_yaw_); // 无旋转
-    radar_to_base.transform.rotation.x = radar_q.x();
-    radar_to_base.transform.rotation.y = radar_q.y();
-    radar_to_base.transform.rotation.z = radar_q.z();
-    radar_to_base.transform.rotation.w = radar_q.w();
-
-    // 同样定义激光雷达到车辆基准坐标系的转换
-    lidar_to_base.header.stamp = this->now();
-    lidar_to_base.header.frame_id = "base_link";
-    lidar_to_base.child_frame_id = "os_lidar";
-    lidar_to_base.transform.translation.x = lidar_base_x_; // 激光雷达的 x 坐标
-    lidar_to_base.transform.translation.y = lidar_base_y_; // 激光雷达的 y 坐标
-    lidar_to_base.transform.translation.z = lidar_base_z_; // 激光雷达的 z 坐标
-    tf2::Quaternion lidar_q;
-    lidar_q.setRPY(lidar_base_roll_, lidar_base_pitch_, lidar_base_yaw_); // 假设无旋转
-    lidar_to_base.transform.rotation.x = lidar_q.x();
-    lidar_to_base.transform.rotation.y = lidar_q.y();
-    lidar_to_base.transform.rotation.z = lidar_q.z();
-    lidar_to_base.transform.rotation.w = lidar_q.w();
-
-    // 广播两个静态转换
-    static_broadcaster_->sendTransform(radar_to_base);
-    static_broadcaster_->sendTransform(lidar_to_base);
-
-    RCLCPP_INFO(this->get_logger(), "Published static transforms for radar and lidar");
+/**
+ * @brief GNSS设备回调函数,注意GNSS设备消息的坐标系为东北天坐标系
+ * 
+ * @param gnss_msg 
+ */
+void ObstaclesDetectionLidarNode::GNSSCallback(const geometry_msgs::msg::PoseStamped::SharedPtr gnss_msg) {
+    is_gnss_msg_received_ = true;
+    gnss_msg_ = *gnss_msg;
 }
+
+void ObstaclesDetectionLidarNode::Obstacle2ENU(bot_msg::msg::ObstacleInfo &obstacle) {
+
+    // 1. 将将激光雷达坐标系的坐标数据转换到base坐标系下
+    geometry_msgs::msg::PointStamped point_in_lidar;    
+    point_in_lidar.header.frame_id = front_lidar_frame_id_;
+    point_in_lidar.point.x = obstacle.position_x;
+    point_in_lidar.point.y = obstacle.position_y;
+    point_in_lidar.point.z = obstacle.position_z;
+    geometry_msgs::msg::PointStamped point_in_base;
+    try {
+        // 注意这里的 base_link 表示的是车辆的相对原点坐标系
+        point_in_base = tf_buffer_->transform(point_in_lidar, base_frame_id_);
+    } catch (const tf2::TransformException &ex) {
+        RCLCPP_ERROR(this->get_logger(), "Transform error: %s", ex.what());
+    }
+    // 2. 将base坐标系下的坐标数据转换到gnss坐标系下
+    if(is_use_gnss_){
+        // TODO 编写坐标转换到gnss坐标系下的逻辑
+    }else{
+        obstacle.position_x = point_in_base.point.x;
+        obstacle.position_y = point_in_base.point.y;
+        obstacle.position_z = point_in_base.point.z;
+    }
+}
+
 
 void ObstaclesDetectionLidarNode::InitParameters() {
     // 设置默认值并声明参数
@@ -146,8 +109,13 @@ void ObstaclesDetectionLidarNode::InitParameters() {
     this->declare_parameter<std::string>("front_lidar_topic", "drivers/front_lidar");
     this->declare_parameter<std::string>("left_lidar_topic", "drivers/left_lidar");
     this->declare_parameter<std::string>("right_lidar_topic", "drivers/right_lidar");
-    this->declare_parameter<std::string>("front_camera_topic", "drivers/front_camera");
+    this->declare_parameter<std::string>("gnss_topic", "gnss/pose");
     this->declare_parameter<std::string>("frame_id", "base_link");
+    this->declare_parameter<std::string>("gnss_frame_id", "gnss_link");
+    this->declare_parameter<std::string>("front_lidar_frame_id", "front_lidar");
+    this->declare_parameter<std::string>("left_lidar_frame_id", "left_lidar");
+    this->declare_parameter<std::string>("right_lidar_frame_id", "right_lidar");
+    this->declare_parameter<std::string>("base_frame_id", "base_link");
 
     // 获取参数值
 
@@ -175,9 +143,14 @@ void ObstaclesDetectionLidarNode::InitParameters() {
     front_lidar_topic_ = this->get_parameter("front_lidar_topic").as_string();
     left_lidar_topic_ = this->get_parameter("left_lidar_topic").as_string();
     right_lidar_topic_ = this->get_parameter("right_lidar_topic").as_string();
-    front_camera_topic_ = this->get_parameter("front_camera_topic").as_string();
     frame_id_ = this->get_parameter("frame_id").as_string();
-
+    gnss_frame_id_ = this->get_parameter("gnss_frame_id").as_string();
+    front_lidar_frame_id_ = this->get_parameter("front_lidar_frame_id").as_string();
+    left_lidar_frame_id_ = this->get_parameter("left_lidar_frame_id").as_string();
+    right_lidar_frame_id_ = this->get_parameter("right_lidar_frame_id").as_string();
+    base_frame_id_ = this->get_parameter("base_frame_id").as_string();
+    is_use_gnss_ = this->get_parameter("is_use_gnss").as_bool();
+    gnss_topic_ = this->get_parameter("gnss_topic").as_string();
     // 打印参数值
     RCLCPP_INFO(this->get_logger(), "max_height: %f", max_height_);
     RCLCPP_INFO(this->get_logger(), "min_height: %f", min_height_);
@@ -197,7 +170,7 @@ void ObstaclesDetectionLidarNode::InitParameters() {
     RCLCPP_INFO(this->get_logger(), "segment_ground_type: %d", segment_ground_type_);
     RCLCPP_INFO(this->get_logger(), "plane_point_percent: %f", plane_point_percent_);
     RCLCPP_INFO(this->get_logger(), "frame_id: %s", frame_id_.c_str());
-
+    RCLCPP_INFO(this->get_logger(), "is_use_gnss: %d", is_use_gnss_);
     RCLCPP_INFO(this->get_logger(), "is_use_front_lidar: %d", is_use_front_lidar_);
     if (is_use_front_lidar_)
         RCLCPP_INFO(this->get_logger(), "front_lidar_topic: %s", front_lidar_topic_.c_str());
@@ -207,9 +180,8 @@ void ObstaclesDetectionLidarNode::InitParameters() {
     RCLCPP_INFO(this->get_logger(), "is_use_left_lidar: %d", is_use_left_lidar_);
     if (is_use_left_lidar_)
         RCLCPP_INFO(this->get_logger(), "left_lidar_topic: %s", left_lidar_topic_.c_str());
-    RCLCPP_INFO(this->get_logger(), "is_use_front_camera: %d", is_use_front_camera_);
-    if (is_use_front_camera_)
-        RCLCPP_INFO(this->get_logger(), "front_camera_topic: %s", front_camera_topic_.c_str());
+    if (is_use_gnss_)
+        RCLCPP_INFO(this->get_logger(), "gnss_topic: %s", gnss_topic_.c_str());
 }
 
 /**
@@ -503,6 +475,17 @@ void ObstaclesDetectionLidarNode::PublishPointCloud(
     publisher->publish(output_cloud);
 }
 
+
+
+/**
+ * @brief 核心的回调函数, 目前的是接受到就处理
+ * 
+ * @param pnt_cloud 
+ */
+
+// TODO 确认图达通激光雷达的坐标系
+
+
 void ObstaclesDetectionLidarNode::PointClould2Callback(const sensor_msgs::msg::PointCloud2::SharedPtr pnt_cloud) {
 
     auto node_timestamp = this->get_clock()->now();
@@ -511,17 +494,6 @@ void ObstaclesDetectionLidarNode::PointClould2Callback(const sensor_msgs::msg::P
     auto time_diff = cur_tt - node_timestamp;
     // 查询转换坐标关系
     geometry_msgs::msg::TransformStamped transformStamped;
-    // try {
-    //     // 查找 os_lidar 到 base_link 的变换
-    //     transformStamped = tf_buffer_->lookupTransform("base_link", "os_lidar", tf2::TimePointZero);
-
-    //     // 如果需要，将某些点云从 os_lidar 坐标系转换到 base_link 坐标系
-    //     // 例如，可以使用 tf2::doTransform 来转换一个点
-    //     // tf2::doTransform(original_point, transformed_point, transformStamped);
-    // } catch (tf2::TransformException &ex) {
-    //     RCLCPP_WARN(this->get_logger(), "Could not transform os_radar to base_link: %s", ex.what());
-    //     return;
-    // }
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::fromROSMsg(*pnt_cloud, *cloud);
@@ -578,6 +550,7 @@ void ObstaclesDetectionLidarNode::PointClould2Callback(const sensor_msgs::msg::P
     *cloud_filtered = *cloud_clipped;
     // ROI区域筛选
     if (enable_use_roi_) {
+        // 根据车辆宽度的一半和ROI宽度的一半来判断点是否在ROI区域内
         indices.clear();
         for (size_t i = 0; i < cloud_filtered->points.size(); i++) {
             // 这里可以设置条件判断，判断某个点是否在障碍物的范围内
@@ -691,16 +664,16 @@ void ObstaclesDetectionLidarNode::PointClould2Callback(const sensor_msgs::msg::P
         // 计算质心点
         Eigen::Vector4f centroid;
         pcl::compute3DCentroid(*cloud_cluster, centroid);
-        // obstacle.position.x = centroid[0]; // Default values; you should compute them
-        // obstacle.position.y = centroid[1];
-        // obstacle.position.z = centroid[2];
+        obstacle.position.x = centroid[0]; 
+        obstacle.position.y = centroid[1];
+        obstacle.position.z = centroid[2];
 
         // 计算障碍物的长宽高
         pcl::PointXYZ min_point, max_point;
         pcl::getMinMax3D(*cloud_cluster, min_point, max_point);
-        // obstacle.dimensions.x = max_point.x - min_point.x;
-        // obstacle.dimensions.y = max_point.y - min_point.y;
-        // obstacle.dimensions.z = max_point.z - min_point.z;
+        obstacle.dimensions.x = max_point.x - min_point.x;
+        obstacle.dimensions.y = max_point.y - min_point.y;
+        obstacle.dimensions.z = max_point.z - min_point.z;
 
         // 判断障碍物类型
         // if (obstacle.dimensions.x > 5)
@@ -730,11 +703,16 @@ void ObstaclesDetectionLidarNode::PointClould2Callback(const sensor_msgs::msg::P
         // obstacle.closest_point.z = closest_point.z;
 
         // 计算危险系数
-        // float distance = std::sqrt(std::pow(obstacle.closest_point.x, 2) + std::pow(obstacle.closest_point.y, 2) +
-        //                            std::pow(obstacle.closest_point.z, 2));
-        // obstacle.danger_level = 1.0 / (distance + 0.1); // 距离越近，危险系数越大
-        // // Add the obstacle to the array
-        // obstacle_array_msg.obstacles.push_back(obstacle);
+        float distance = std::sqrt(std::pow(obstacle.closest_point.x, 2) + std::pow(obstacle.closest_point.y, 2) +
+                                   std::pow(obstacle.closest_point.z, 2));
+        obstacle.danger_level = 1.0 / (distance + 0.1); // 距离越近，危险系数越大
+        // Add the obstacle to the array
+
+        obstacle_array_msg.obstacles.push_back(obstacle);
+
+        // 基于激光雷达到GNSS设备的转移矩阵和RTK数据,计算障碍物在东北天坐标系下的坐标
+        // 其中east - x, north - y, up - z
+
 
         j++;
         // RCLCPP_INFO(this->get_logger(),
@@ -752,6 +730,8 @@ void ObstaclesDetectionLidarNode::PointClould2Callback(const sensor_msgs::msg::P
     PublishPointCloud(cloud_obstacles, clustered_cloud_pub_);
 #endif
     RCLCPP_INFO(this->get_logger(), "Lidar:Number of obstacles detected: %d", j);
+
+    // 发布障碍物信息
     if (obstacle_array_msg.obstacles.size() > 0) {
         obstacle_array_msg.header.stamp = this->get_clock()->now();
         obstacle_array_msg.header.frame_id = frame_id_;
