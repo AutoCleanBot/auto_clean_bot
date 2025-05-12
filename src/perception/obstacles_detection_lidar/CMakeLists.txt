@@ -36,6 +36,7 @@ find_package(bot_msg REQUIRED)
 # find_package(pcl_ros REQUIRED)
 # find_package(pcl_conversions REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
 
 # Include directories
 include_directories(
@@ -92,6 +93,7 @@ ament_target_dependencies(obstacles_detection_lidar_node
   sensor_msgs
   visualization_msgs
   bot_msg
+  tf2_geometry_msgs
   # conti_radar
 )
 # 导出依赖

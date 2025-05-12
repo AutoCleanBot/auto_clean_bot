@@ -1,4 +1,5 @@
 #include <geometry_msgs/msg/point.hpp>
+#include <geometry_msgs/msg/point_stamped.hpp>
 #include <pcl/common/centroid.h>
 #include <pcl/common/common.h> // Ensure you have this header included
 // #include <pcl/segmentation/dbscan.h>
@@ -10,7 +11,7 @@
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/LinearMath/Vector3.h>
-// #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 ObstaclesDetectionLidarNode::ObstaclesDetectionLidarNode() : Node("perception_node") {
     // 加载yaml配置参数
@@ -176,7 +177,6 @@ void ObstaclesDetectionLidarNode::InitParameters() {
     is_use_front_lidar_ = this->get_parameter("is_use_front_lidar").as_bool();
     is_use_right_lidar_ = this->get_parameter("is_use_right_lidar").as_bool();
     is_use_left_lidar_ = this->get_parameter("is_use_left_lidar").as_bool();
-    is_use_front_camera_ = this->get_parameter("is_use_front_camera").as_bool();
     front_lidar_topic_ = this->get_parameter("front_lidar_topic").as_string();
     left_lidar_topic_ = this->get_parameter("left_lidar_topic").as_string();
     right_lidar_topic_ = this->get_parameter("right_lidar_topic").as_string();
@@ -697,16 +697,16 @@ void ObstaclesDetectionLidarNode::PointClould2Callback(const sensor_msgs::msg::P
         // 计算质心点
         Eigen::Vector4f centroid;
         pcl::compute3DCentroid(*cloud_cluster, centroid);
-        obstacle.position.x = centroid[0]; 
-        obstacle.position.y = centroid[1];
-        obstacle.position.z = centroid[2];
+        obstacle.position_x = centroid[0]; 
+        obstacle.position_y = centroid[1];
+        obstacle.position_z = centroid[2];
 
         // 计算障碍物的长宽高
         pcl::PointXYZ min_point, max_point;
         pcl::getMinMax3D(*cloud_cluster, min_point, max_point);
-        obstacle.dimensions.x = max_point.x - min_point.x;
-        obstacle.dimensions.y = max_point.y - min_point.y;
-        obstacle.dimensions.z = max_point.z - min_point.z;
+        obstacle.length = max_point.x - min_point.x;
+        obstacle.width = max_point.y - min_point.y;
+        obstacle.height = max_point.z - min_point.z;
 
         // 判断障碍物类型
         // if (obstacle.dimensions.x > 5)
@@ -736,9 +736,9 @@ void ObstaclesDetectionLidarNode::PointClould2Callback(const sensor_msgs::msg::P
         // obstacle.closest_point.z = closest_point.z;
 
         // 计算危险系数
-        float distance = std::sqrt(std::pow(obstacle.closest_point.x, 2) + std::pow(obstacle.closest_point.y, 2) +
-                                   std::pow(obstacle.closest_point.z, 2));
-        obstacle.danger_level = 1.0 / (distance + 0.1); // 距离越近，危险系数越大
+        // float distance = std::sqrt(std::pow(closest_point.x, 2) + std::pow(closest_point.y, 2) +
+        //                            std::pow(closest_point.z, 2));
+        // obstacle.danger_level = 1.0 / (distance + 0.1); // 距离越近，危险系数越大
         // Add the obstacle to the array
 
         // 基于激光雷达到GNSS设备的转移矩阵和RTK数据,计算障碍物在东北天坐标系下的坐标

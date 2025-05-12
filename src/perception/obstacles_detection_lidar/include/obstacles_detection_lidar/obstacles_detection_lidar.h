@@ -1,10 +1,11 @@
-
 #pragma once
 
 #include "bot_msg/msg/obstacle_info.hpp"
 #include "bot_msg/msg/obstacles.hpp"
 #include "visualization_msgs/msg/marker.hpp"
 #include <geometry_msgs/msg/transform_stamped.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
+#include <geometry_msgs/msg/point_stamped.hpp>
 #include <pcl/filters/extract_indices.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/point_types.h>
@@ -17,6 +18,7 @@
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/static_transform_broadcaster.h>
 #include <tf2_ros/transform_listener.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <yaml-cpp/yaml.h>
 
 #define DEBUG_PUBLISH_POINT_CLOUD 1
@@ -32,7 +34,7 @@ class ObstaclesDetectionLidarNode : public rclcpp::Node {
     void GNSSCallback(const geometry_msgs::msg::PoseStamped::SharedPtr gnss_msg);
     void RemoveInvalidPoints(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
     void FillAndPublishObstacleMarker(const bot_msg::msg::Obstacles &obstacle_array_msg, int obstacles_type);
-    void Obstacle2ENU(const bot_msg::msg::ObstacleInfo &obstacle);
+    void Obstacle2ENU(bot_msg::msg::ObstacleInfo &obstacle);
 
     
     visualization_msgs::msg::Marker MakeObstacleMarker(const bot_msg::msg::ObstacleInfo &obstacle, int obstacles_type);
@@ -107,4 +109,5 @@ class ObstaclesDetectionLidarNode : public rclcpp::Node {
 
     // 消息标志位
     bool is_gnss_msg_received_;      // GNSS设备消息标志位
+
 };
