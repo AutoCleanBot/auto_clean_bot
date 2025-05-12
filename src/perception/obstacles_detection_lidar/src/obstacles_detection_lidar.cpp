@@ -1,5 +1,3 @@
-
-
 #include <geometry_msgs/msg/point.hpp>
 #include <pcl/common/centroid.h>
 #include <pcl/common/common.h> // Ensure you have this header included
@@ -9,6 +7,9 @@
 #include <pcl/filters/passthrough.h>
 #include <pcl/segmentation/region_growing.h>
 #include <pcl/visualization/pcl_visualizer.h>
+#include <tf2/LinearMath/Matrix3x3.h>
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2/LinearMath/Vector3.h>
 // #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 ObstaclesDetectionLidarNode::ObstaclesDetectionLidarNode() : Node("perception_node") {
@@ -52,13 +53,18 @@ ObstaclesDetectionLidarNode::ObstaclesDetectionLidarNode() : Node("perception_no
  * 
  * @param gnss_msg 
  */
-void ObstaclesDetectionLidarNode::GNSSCallback(const geometry_msgs::msg::PoseStamped::SharedPtr gnss_msg) {
+void ObstaclesDetectionLidarNode::GNSSCallback(
+                    const geometry_msgs::msg::PoseStamped::SharedPtr gnss_msg) {
     is_gnss_msg_received_ = true;
     gnss_msg_ = *gnss_msg;
 }
-
+/**
+ * @brief 将障碍物的坐标系转换到ENU坐标系
+ * 
+ * @param obstacle 
+ */
 void ObstaclesDetectionLidarNode::Obstacle2ENU(bot_msg::msg::ObstacleInfo &obstacle) {
-
+    // TODO 该功能待测试
     // 1. 将将激光雷达坐标系的坐标数据转换到base坐标系下
     geometry_msgs::msg::PointStamped point_in_lidar;    
     point_in_lidar.header.frame_id = front_lidar_frame_id_;
@@ -74,7 +80,38 @@ void ObstaclesDetectionLidarNode::Obstacle2ENU(bot_msg::msg::ObstacleInfo &obsta
     }
     // 2. 将base坐标系下的坐标数据转换到gnss坐标系下
     if(is_use_gnss_){
-        // TODO 编写坐标转换到gnss坐标系下的逻辑
+        // 将base坐标系下的障碍物坐标转换到ENU(东北天)坐标系下
+        
+        // 获取当前车辆在ENU坐标系中的位置和姿态
+        double vehicle_east = gnss_msg_.pose.position.x;
+        double vehicle_north = gnss_msg_.pose.position.y;
+        double vehicle_up = gnss_msg_.pose.position.z;
+        
+        // 提取四元数表示的车辆姿态
+        tf2::Quaternion q(
+            gnss_msg_.pose.orientation.x,
+            gnss_msg_.pose.orientation.y,
+            gnss_msg_.pose.orientation.z,
+            gnss_msg_.pose.orientation.w
+        );
+        
+        // 创建旋转矩阵，用于将车体坐标系下的向量转换到ENU坐标系
+        tf2::Matrix3x3 rotation_matrix(q);
+        
+        // 获取车体坐标系中障碍物的相对位置
+        tf2::Vector3 obstacle_local(
+            point_in_base.point.x,
+            point_in_base.point.y,
+            point_in_base.point.z
+        );
+        
+        // 应用旋转，将相对位置从车体坐标系转换到ENU坐标系
+        tf2::Vector3 obstacle_enu = rotation_matrix * obstacle_local;
+        
+        // 计算障碍物在ENU坐标系中的绝对位置
+        obstacle.position_x = vehicle_east + obstacle_enu.x(); // East
+        obstacle.position_y = vehicle_north + obstacle_enu.y(); // North
+        obstacle.position_z = vehicle_up + obstacle_enu.z(); // Up
     }else{
         obstacle.position_x = point_in_base.point.x;
         obstacle.position_y = point_in_base.point.y;
@@ -482,10 +519,6 @@ void ObstaclesDetectionLidarNode::PublishPointCloud(
  * 
  * @param pnt_cloud 
  */
-
-// TODO 确认图达通激光雷达的坐标系
-
-
 void ObstaclesDetectionLidarNode::PointClould2Callback(const sensor_msgs::msg::PointCloud2::SharedPtr pnt_cloud) {
 
     auto node_timestamp = this->get_clock()->now();
@@ -708,12 +741,10 @@ void ObstaclesDetectionLidarNode::PointClould2Callback(const sensor_msgs::msg::P
         obstacle.danger_level = 1.0 / (distance + 0.1); // 距离越近，危险系数越大
         // Add the obstacle to the array
 
-        obstacle_array_msg.obstacles.push_back(obstacle);
-
         // 基于激光雷达到GNSS设备的转移矩阵和RTK数据,计算障碍物在东北天坐标系下的坐标
         // 其中east - x, north - y, up - z
-
-
+        Obstacle2ENU(obstacle);
+        obstacle_array_msg.obstacles.push_back(obstacle);
         j++;
         // RCLCPP_INFO(this->get_logger(),
         //             "Lidar object,position,x,%.2f,y,%.2f,z,%.2f,closest_point,x,%.2f,y,%.2f,z,%.2f,dimensions,"
