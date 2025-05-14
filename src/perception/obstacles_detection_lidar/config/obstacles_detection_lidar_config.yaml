@@ -31,7 +31,7 @@ obstacles_detection_lidar_node:
     right_lidar_frame_id: "right_lidar"
     right_lidar_topic: "drivers/right_lidar"
 
-    # GNSS设备参数
+    # GNSS设备参数, is_use_gnss 是否将坐标转换到gnss的东北天坐标系下
     is_use_gnss: true
     gnss_frame_id: "gnss_link"
     gnss_topic: "gnss/pose"

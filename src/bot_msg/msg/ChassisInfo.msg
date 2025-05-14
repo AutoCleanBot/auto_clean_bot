@@ -5,7 +5,7 @@ float32 steer_angle # 转向角度
 float32 brk_press # 刹车压力
 float32 cur_speed # 当前速度
 float32 soc # 电池电量
-int8 gear # 当前档位
+int8 gear # 当前档位, 0 N, 1 F, 2 R
 int8 direction # 当前方向
 int8 vcu_mode # VCU模式
 int8 controller_online_sts # 控制器在线状态
