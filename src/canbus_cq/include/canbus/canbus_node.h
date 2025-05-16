@@ -68,6 +68,7 @@ class CanbusNode : public rclcpp::Node {
     bool InitCanSocket(std::string can_device_name, int can_baudrate);
     void CanThreadFunc();
     void FillCanCtrlCmd(uint8_t data[8], double steer_angle, double brk, uint8_t gear, double spd);
+    void SendCtrlMsg(double steer_angle, double brk, uint8_t gear, double spd);
     void FillChassisInfo(bot_msg::msg::ChassisInfo::SharedPtr msg);
     void PrintCanDataFrame(const struct can_frame &frame);
 };

@@ -25,11 +25,11 @@ class ControlCanbus : public rclcpp::Node {
                 spd = 4.0;
             }
         }
-        msg->steer_angle = steer_angle;
-        msg->brk = 0;
+        msg->steer_angle = steer_angle / 10.0;
+        msg->brk = 0.2;
         msg->thr = 0;
-        msg->gear = 1;
-        msg->speed = 1.0;
+        msg->gear = 0;
+        msg->speed = 0.0;
         pub_->publish(*msg);
         ++time_count;
     }

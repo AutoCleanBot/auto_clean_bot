@@ -129,7 +129,7 @@ void ControlNode::LateralController() {
     // 乘以10.0原因是, 计算出的是前轮转角,控制量是方向盘转角,中间有一个10倍的传动比
     double steer_angle =
         std::max(-max_steering_angle_,
-                 std::min(max_steering_angle_, front_wheel_rad * 180.0 / M_PI * ratio_)); // 限制在[-30, 30]度之间
+                 std::min(max_steering_angle_, front_wheel_rad * 180.0 / M_PI)); // 限制在[-30, 30]度之间
 
     if (g_debug_cnt % 10 == 0) {
         // 输出调试信息

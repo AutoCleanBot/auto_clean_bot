@@ -274,7 +274,7 @@ void CanbusNode::CanThreadFunc() {
 void CanbusNode::ControlCmdCallback(const bot_msg::msg::ControlCmd::SharedPtr msg) {
     RCLCPP_INFO(this->get_logger(), "recv control cmd");
     // 解析控制指令
-    double steer_angle = msg->steer_angle;
+    double steer_angle = msg->steer_angle * 10.0; // 放大倍数
     double brk = msg->brk;
     // double thr = msg->thr;
     uint8_t gear = msg->gear;

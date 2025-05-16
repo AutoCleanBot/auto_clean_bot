@@ -18,7 +18,7 @@ def generate_launch_description():
         'publish_rate': 10.0,
         'preview_time': 1.0,
         'tolerance_distance': 4.0,
-        'max_steering_angle':400.0,
+        'max_steering_angle':40.0,     # 最大前轮转角
         'wheelbase':1.2,
         'ratio':10.0,
         'max_linear_velocity':10.0,

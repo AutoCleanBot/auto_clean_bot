@@ -8,7 +8,6 @@
 namespace canbus {
 CanbusNode::CanbusNode() : Node("canbus_node") {
     running_ = true;
-    motor_en_cnt_ = 0;
     control_cmd_cnt_ = 0;
     InitParams();
     bool ret = InitCanSocket(can_device_name_, can_baudrate_);
@@ -40,6 +39,40 @@ CanbusNode::~CanbusNode() {
     }
 }
 
+/**
+ * @brief 发送给底盘控制的can消息
+ *         ! 需要一次性发送两帧消息
+ * 
+ * @param steer_angle 
+ * @param brk 
+ * @param gear 
+ * @param spd 
+ */
+void CanbusNode::SendCtrlMsg(double steer_angle, double brk, uint8_t gear, double spd){
+    can_frame frame;
+    frame.can_id = CONTROL_CMD;
+    frame.can_dlc = 8;
+    FillCanCtrlCmd(frame.data, steer_angle, brk, gear, spd);
+    int ret = write(can_fd_, &frame, sizeof(frame));
+    if (ret < 0) {
+        RCLCPP_ERROR(this->get_logger(), "Error sending CAN frame");
+    }
+    PrintCanDataFrame(frame);
+
+    frame.can_id = PERIPH_CMD;
+    frame.can_dlc = 8;
+    memset(frame.data, 0, 8);
+    ret = write(can_fd_, &frame, sizeof(frame));
+    if (ret < 0) {
+        RCLCPP_ERROR(this->get_logger(), "Error sending CAN frame");
+    }
+    PrintCanDataFrame(frame);
+}
+
+/**
+ * @brief 定时器回调函数, 定时上发底盘状态信息;且如无控制消息时,定时下发维持连接的控制消息
+ * 
+ */
 void CanbusNode::TimerCallback() {
     auto msg = std::make_shared<bot_msg::msg::ChassisInfo>();
     // RCLCPP_INFO(this->get_logger(), "TimerCallback");
@@ -47,20 +80,11 @@ void CanbusNode::TimerCallback() {
     pub_chassis_info_->publish(*msg);
 
     if(control_cmd_cnt_ > 0){ // 保持无人驾驶的控制连接
-        can_frame frame;
-        frame.can_id = CONTROL_CMD;
-        frame.can_dlc = 8;
-        FillCanCtrlCmd(frame.data, 0, 0, 0, 0);
-        int ret = write(can_fd_, &frame, sizeof(frame));
-        if (ret < 0) {
-            RCLCPP_ERROR(this->get_logger(), "Error sending CAN frame");
-        }
+        SendCtrlMsg(0.0, 0.2, 0, 0);
     }
 
     ++control_cmd_cnt_;
     if (control_cmd_cnt_ > 99) {
-        motor_en_cnt_ = 0;
-        RCLCPP_INFO(this->get_logger(), "control_cmd_cnt_: %d", control_cmd_cnt_);
         control_cmd_cnt_ = 100;
     }
 }
@@ -72,7 +96,7 @@ void CanbusNode::FillChassisInfo(bot_msg::msg::ChassisInfo::SharedPtr msg) {
     msg->steer_angle = chassis_info_local_.steering_wheel_angle;
     msg->brk_press = chassis_info_local_.service_brake_percentage_feedback; // 压力百分比
     msg->cur_speed = chassis_info_local_.speed_feedback;
-    msg->soc = static_cast<float>(chassis_info_local_.soc) * 0.4f;
+    msg->soc = chassis_info_local_.soc;
     if(chassis_info_local_.forward_gear_feedback == 1){
         msg->gear = 1;
         msg->direction = 1;
@@ -87,6 +111,7 @@ void CanbusNode::FillChassisInfo(bot_msg::msg::ChassisInfo::SharedPtr msg) {
     msg->controller_online_sts = 0;
     msg->ipc_online_sts = 0;
 }
+
 
 void CanbusNode::InitParams() {
     this->declare_parameter<std::string>("can_device", "can0");
@@ -105,6 +130,14 @@ void CanbusNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "chassis_info_topic: %s", chassis_info_topic_.c_str());
 }
 
+/**
+ * @brief 初始化can socket
+ * 
+ * @param can_device_name 
+ * @param can_baudrate 
+ * @return true 
+ * @return false 
+ */
 bool CanbusNode::InitCanSocket(std::string can_device_name, int can_baudrate) {
     struct sockaddr_can addr;
     struct ifreq ifr;
@@ -225,10 +258,11 @@ void CanbusNode::CanThreadFunc() {
                 chassis_info_local_.safety_edge_status = ctrl_info.safety_edge_status;
 
                 chassis_info_local_.service_brake_percentage_feedback =
-                    static_cast<double>(ctrl_info.service_brake_percentage_feedback) * 0.4;
+                    static_cast<double>(ctrl_info.service_brake_percentage_feedback) * 0.4 / 100.0;
 
                 chassis_info_local_.speed_feedback = ctrl_info.travel_motor_speed_feedback / 24.2 / 60 * 0.71 * M_PI; // 轮上转速m/s
                 chassis_info_local_.steering_wheel_angle =static_cast<double>(ctrl_info.steering_wheel_angle)*0.01;
+                PrintCanDataFrame(frame);
             } else if (frame.can_id == CONTROL_PHY_INFO) {
                 // 解析VCU_INFO_2
                 ControlPhyInfo ctrl_phy_info;
@@ -237,13 +271,13 @@ void CanbusNode::CanThreadFunc() {
                 // 解析VCU_INFO_DIAG
                 VechicleStatusFeedback vechicle_sts;
                 memcpy(&vechicle_sts, frame.data, sizeof(vechicle_sts));
-
             } else if (frame.can_id == BMS_STATUS_FEEDBACK) {
                 // 解析VCU_INFO_SPD
                 BmsStatusFeedback bms_sts;
                 memcpy(&bms_sts, frame.data, sizeof(bms_sts));
-                chassis_info_local_.soc = bms_sts.soc * 0.04;
+                chassis_info_local_.soc = static_cast<double>(bms_sts.soc) * 0.4 / 100.0;
             }
+            // PrintCanDataFrame(frame);
         }
     }
     RCLCPP_INFO(this->get_logger(), "CAN thread exiting");
@@ -256,30 +290,26 @@ void CanbusNode::ControlCmdCallback(const bot_msg::msg::ControlCmd::SharedPtr ms
 
     RCLCPP_INFO(this->get_logger(), "recv control cmd");
     // 解析控制指令
-    double steer_angle = msg->steer_angle;
+    double steer_angle = msg->steer_angle * 100.0;
     double brk = msg->brk;
     // double thr = msg->thr;
     uint8_t gear = msg->gear;
     double spd = msg->speed;
 
-    // 仅当允许进入自动驾驶状态的时候才允许进行控制
-    if (chassis_info_local_.auto_enable == 1) {
-        // 发送控制指令
-        can_frame frame;
-        frame.can_id = CONTROL_CMD;
-        frame.can_dlc = 8;
-        FillCanCtrlCmd(frame.data, steer_angle, brk, gear, spd);
-        PrintCanDataFrame(frame);
-        int ret = write(can_fd_, &frame, sizeof(frame));
 
-        if (ret < 0) {
-            RCLCPP_ERROR(this->get_logger(), "Error sending CAN frame");
-        }
-    }
+    // 发送控制指令
+    SendCtrlMsg(steer_angle, brk, gear, spd);
     control_cmd_cnt_ = 0;
 }
+
 /**
- * 填充控制CAN结构体
+ * @brief 填充can data frame的控制消息
+ * 
+ * @param data can dataframe 数组值
+ * @param steer_angle  方向盘转角, 经过比例放大后
+ * @param brk          刹车百分比, 0~1
+ * @param gear         档位, 0-N, 1-F, 2-R
+ * @param spd          速度, m/s
  */
 void CanbusNode::FillCanCtrlCmd(uint8_t data[8], double steer_angle, double brk, uint8_t gear, double spd) {
     // printf("steer_angle: %f, current gear: %d, speed: %f\n", steer_angle, gear, spd);
@@ -289,7 +319,7 @@ void CanbusNode::FillCanCtrlCmd(uint8_t data[8], double steer_angle, double brk,
     // data[0] &= 0xFB;      // bit2:0 行车制动无效
     data[0] |= 0x01 << 3;   // bit3:1 转向使能
     // data[0] &= 0xEF;        // bit4:0 充电使能无效
-    if(gear == 1){  // 转向控制
+    if(gear == 1){  // 档位控制
         data[0] |= 1 << 5;
     }else if(gear == 2){
         data[0] |= 1 << 6;
@@ -314,6 +344,11 @@ void CanbusNode::FillCanCtrlCmd(uint8_t data[8], double steer_angle, double brk,
     data[7] = 10;
 }
 
+/**
+ * @brief 打印can消息
+ * 
+ * @param frame 
+ */
 void CanbusNode::PrintCanDataFrame(const struct can_frame &frame) {
     std::stringstream ss;
     ss << "CAN frame, ID: 0x" << std::hex << frame.can_id << ", Length: " << std::dec << static_cast<int>(frame.can_dlc)
