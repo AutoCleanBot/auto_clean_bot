@@ -201,7 +201,6 @@ void PlanningNode::TimerCallback() {
     RCLCPP_INFO(this->get_logger(), "cur_dis_cnt: %f, start_idx: %ld, preview_idx: %ld", cur_dis_cnt, start_idx, preview_idx);
     
     // 填充速度
-
     for (std::size_t i = 0; i < pub_traj.points.size(); i++) {
         if(planning_status_ == PlanningStatus::Stop) {
             pub_traj.points[i].vel_speed = 0.0;
