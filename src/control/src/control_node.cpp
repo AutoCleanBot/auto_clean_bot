@@ -143,7 +143,7 @@ void ControlNode::LateralController() {
     }
 
     // 4. 赋值给控制命令
-    control_cmd_msg_.steer_angle = steer_angle;
+    control_cmd_msg_.steer_angle = -steer_angle;
 }
 
 void ControlNode::LongitudinalController() {
