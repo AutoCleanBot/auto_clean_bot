@@ -138,7 +138,7 @@ void ControlNode::LateralController() {
 
     // 计算横向误差（向量在垂直于路径方向上的投影）
      // lat_error 定义为：车辆在路径右侧时为正，左侧时为负。
-    double lat_error = dy * std::sin(path_direction) - dx * std::cos(path_direction);
+    double lat_error = dx * std::cos(path_direction) - dy * std::sin(path_direction);
 
     // 3.3 使用混合控制器计算转向角
     double pursuit_control = std::atan2(2 * wheelbase_ * std::sin(angular_error), preview_dist); // 纯追踪控制
