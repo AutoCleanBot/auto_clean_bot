@@ -147,6 +147,7 @@ void PlanningNode::LocalizationInfoCallback(
 
 
 // TODO 待验证,更新机制是有有问题
+// TODO 路径终点的处理机制
 void PlanningNode::TimerCallback() {
     // 基于当前的当前定位信息, 找到当前位置在全局路径上的最近点
     UpdateObstacleInfo();

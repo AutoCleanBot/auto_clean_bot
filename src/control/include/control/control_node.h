@@ -4,11 +4,13 @@
 #include <bot_msg/msg/control_cmd.hpp>
 #include <bot_msg/msg/localization_info.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <fstream>
 
 namespace control {
 class ControlNode : public rclcpp::Node {
   public:
     ControlNode();
+    ~ControlNode();
     void InitParams();
     void TimerCallback();
     void ADCTrajectoryCallback(const bot_msg::msg::ADCTrajectory::SharedPtr msg);
@@ -39,13 +41,18 @@ class ControlNode : public rclcpp::Node {
     double min_linear_velocity_; // in m/s
     double acceleration_limit_;  // in m/s^2
     double deceleration_limit_;  // in m/s^2
+    double pursuit_control_rate_; // 纯追踪控制比例
+    double stanley_control_rate_; // Stanley控制比例
     double ratio_;               // 方向盘转角与前轮转角的比例
     // config variables
     std::string adc_traj_topic_name_;
     std::string localization_info_topic_name_;
     std::string control_cmd_topic_name_;
+    std::string log_file_path_;
 
     // 运行中的信息
     size_t closest_idx_; // 当前车辆到轨迹上的最近点
+
+    std::ofstream debug_log_file_;
 };
 } // namespace control
