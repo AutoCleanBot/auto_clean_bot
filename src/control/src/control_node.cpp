@@ -144,15 +144,16 @@ void ControlNode::LateralController() {
 
     // 计算横向误差（向量在垂直于路径方向上的投影）
     // 使用 (-sin(θ), cos(θ)) 作为法向量进行投影计算
+    // 这样计算的结果是在路径的左侧时,横向误差为负; 在路径的右侧时横向误差为正
     double lat_error = -dx * std::sin(path_direction) + dy * std::cos(path_direction);
-
-    // ! 目前计算结果为做左正右负
+    // ! 目前计算结果为左正右负
     // 3.3 使用混合控制器计算转向角
     double pursuit_control = -std::atan2(2 * wheelbase_ * std::sin(angular_error), preview_dist);   // 纯追踪控制
-    double stanley_control = -(heading_error + std::atan(0.2 * lat_error / effective_stanley_spd)); // Stanley控制
+    double stanley_control = -(heading_error - std::atan(0.2 * lat_error / effective_stanley_spd)); // Stanley控制
+
+    // ! 注意如果出现当前的需要控制情况为右转为正左转为负的情况的话pursuit_control和stanley_control去除负号即可
 
     // 3.4 计算最终转向角，并限制在合理范围内
-
     double front_wheel_rad =
         pursuit_control_rate_ * pursuit_control + stanley_control_rate_ * stanley_control; // 混合控制
     // 乘以10.0原因是, 计算出的是前轮转角,控制量是方向盘转角,中间有一个10倍的传动比
