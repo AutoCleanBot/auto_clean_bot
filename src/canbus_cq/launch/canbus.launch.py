@@ -16,7 +16,7 @@ def generate_launch_description():
     # 将所有参数放在一个字典中
     canbus_params = {
         'can_device': 'can0',
-        'can_baud': 500,
+        'can_baud': 250,
         'control_cmd_topic': '/control/control_cmd',
         'chassis_info_topic': '/chassis_info_topic',
     }

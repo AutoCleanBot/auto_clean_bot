@@ -37,11 +37,16 @@ ControlNode::ControlNode() : Node("control_node") {
     } else {
         RCLCPP_INFO(this->get_logger(), "Debug log file opened: %s", log_file_path_.c_str());
         // 写入CSV文件头（如果文件是新建或空的）
-        debug_log_file_ << "heading_error_deg,angular_error_deg,lat_error,pursuit_control_deg,stanley_control_deg,steer_angle_deg,preview_dist,preview_idx,closest_idx,target_east,target_north,target_yaw_deg,closest_east,closest_north,closest_yaw_deg,cur_east,cur_north,cur_yaw_deg,cur_spd" << std::endl;
+        debug_log_file_ << "heading_error_deg,angular_error_deg,lat_error,pursuit_control_deg,stanley_control_deg,"
+                           "steer_angle_deg,preview_dist,preview_idx,closest_idx,target_east,target_north,target_yaw_"
+                           "deg,closest_east,closest_north,closest_yaw_deg,cur_east,cur_north,cur_yaw_deg,cur_spd"
+                        << std::endl;
     }
 }
 
+
 void ControlNode::LateralController() {
+    const double kMinStanleyControlSpd = 0.5;
     // TODO 注意航向和方位角误差计算时, 需要将角度转换为弧度
     // 检查输入数据是否有效
     if (!adc_trajectory_msg_ || !localization_info_msg_) {
@@ -59,6 +64,7 @@ void ControlNode::LateralController() {
     double cur_east = localization_info_msg_->east;
     // double cur_up = localization_info_msg_->up;
     double cur_spd = localization_info_msg_->vel_speed;
+    double effective_stanley_spd = std::max(cur_spd, kMinStanleyControlSpd);
     double cur_yaw = NormalizeAngle(localization_info_msg_->yaw * M_PI / 180.0); // 当前航向角, 弧度
 
     // 1. 找到当前车辆位置到轨迹上的最近点
@@ -100,9 +106,10 @@ void ControlNode::LateralController() {
     }
 
     // 3. 计算横向控制命令
-    double closest_yaw = NormalizeAngle(adc_trajectory_msg_->points[closest_idx_].yaw * M_PI / 180.0);
-    double closest_north = adc_trajectory_msg_->points[closest_idx_].north;
     double closest_east = adc_trajectory_msg_->points[closest_idx_].east;
+    double closest_north = adc_trajectory_msg_->points[closest_idx_].north;
+    double closest_yaw =
+        NormalizeAngle(adc_trajectory_msg_->points[closest_idx_].yaw * M_PI / 180.0); // 最近点航向角, 弧度
     // 获取预瞄点信息
     double target_north = adc_trajectory_msg_->points[preview_idx].north;
     double target_east = adc_trajectory_msg_->points[preview_idx].east;
@@ -124,8 +131,7 @@ void ControlNode::LateralController() {
         // 使用后向点计算切线
         path_direction = std::atan2(
             adc_trajectory_msg_->points[closest_idx_].east - adc_trajectory_msg_->points[closest_idx_ - 1].east,
-            adc_trajectory_msg_->points[closest_idx_].north - adc_trajectory_msg_->points[closest_idx_ - 1].north
-        );
+            adc_trajectory_msg_->points[closest_idx_].north - adc_trajectory_msg_->points[closest_idx_ - 1].north);
     } else {
         // 只有一个点，使用目标航向
         path_direction = adc_trajectory_msg_->points[closest_idx_].yaw * M_PI / 180.0;
@@ -133,57 +139,45 @@ void ControlNode::LateralController() {
     path_direction = NormalizeAngle(path_direction);
 
     // 计算车辆到最近点的向量
-    double dx = cur_east - closest_east;
-    double dy = cur_north - closest_north;
+    double dx = cur_east - adc_trajectory_msg_->points[closest_idx_].east;
+    double dy = cur_north - adc_trajectory_msg_->points[closest_idx_].north;
 
     // 计算横向误差（向量在垂直于路径方向上的投影）
-     // lat_error 定义为：车辆在路径右侧时为正，左侧时为负。
-    double lat_error = dx * std::cos(path_direction) - dy * std::sin(path_direction);
+    // 使用 (-sin(θ), cos(θ)) 作为法向量进行投影计算
+    double lat_error = -dx * std::sin(path_direction) + dy * std::cos(path_direction);
 
+    // ! 目前计算结果为做左正右负
     // 3.3 使用混合控制器计算转向角
-    double pursuit_control = std::atan2(2 * wheelbase_ * std::sin(angular_error), preview_dist); // 纯追踪控制
-    double stanley_control = heading_error + std::atan(0.2 * lat_error / (cur_spd + 1e-5));      // Stanley控制
+    double pursuit_control = -std::atan2(2 * wheelbase_ * std::sin(angular_error), preview_dist);   // 纯追踪控制
+    double stanley_control = -(heading_error + std::atan(0.2 * lat_error / effective_stanley_spd)); // Stanley控制
 
     // 3.4 计算最终转向角，并限制在合理范围内
-    double front_wheel_rad = pursuit_control_rate_ * pursuit_control 
-                            + stanley_control_rate_ * stanley_control; // 混合控制
 
+    double front_wheel_rad =
+        pursuit_control_rate_ * pursuit_control + stanley_control_rate_ * stanley_control; // 混合控制
+    // 乘以10.0原因是, 计算出的是前轮转角,控制量是方向盘转角,中间有一个10倍的传动比
     double steer_angle = std::max(
         -max_steering_angle_, std::min(max_steering_angle_, front_wheel_rad * 180.0 / M_PI)); // 限制在[-30, 30]度之间
 
     if (g_debug_cnt % 10 == 0) {
         // 输出调试信息
         RCLCPP_INFO(this->get_logger(),
-                    "heading_error,%.2f,angular_error,%.2f,lat_error,%.2f,front_wheel_deg,%.2f,steer_angle,%.2f,"
-                    "preview_dist,%.2f,preview_idx,%zu,closest_idx,%zu,target_north,%.2f,target_east,%.2f,target_yaw,%."
-                    "2f,cur_yaw,%.2f,cur_north,%.2f,cur_east,%.2f,cur_spd,%.2f,closest_east,%.2f,closest_north,%.2f,closest_yaw,%.2f",
-                    heading_error * 180.0 / M_PI, angular_error * 180.0 / M_PI, lat_error,
-                    front_wheel_rad * 180.0 / M_PI, steer_angle, preview_dist, preview_idx, closest_idx_, target_north,
-                    target_east, target_yaw * 180.0 / M_PI, cur_yaw * 180.0 / M_PI, cur_north, cur_east, cur_spd,
-                    closest_east, closest_north, closest_yaw* 180.0 / M_PI );
-
+                    "heading_error,%.2f,angular_error,%.2f,lat_error,%.2f,steer_angle,%.2f,pursuit_control,%.2f,"
+                    "stanley_control,%.2f,preview_dist,%.2f,preview_idx,%zu,closest_idx,%zu,target_north,%.2f,target_east,%.2f,target_yaw,%."
+                    "2f,cur_yaw,%.2f,cur_north,%.2f,cur_east,%.2f,cur_spd,%.2f,closest_east,%.2f,closest_north,%.2f,"
+                    "closest_yaw,%.2f",
+                    heading_error * 180.0 / M_PI, angular_error * 180.0 / M_PI, lat_error, steer_angle,
+                    pursuit_control * 180.0 / M_PI, stanley_control * 180.0 / M_PI, preview_dist, preview_idx,
+                    closest_idx_, target_north, target_east, target_yaw * 180.0 / M_PI, cur_yaw * 180.0 / M_PI,
+                    cur_north, cur_east, cur_spd, closest_east, closest_north, closest_yaw * 180.0 / M_PI);
     }
     if (debug_log_file_.is_open()) {
-        debug_log_file_ << heading_error * 180.0 / M_PI 
-                        << "," << angular_error * 180.0 / M_PI 
-                        << "," << lat_error 
-                         << "," << pursuit_control * 180.0 / M_PI 
-                         << "," << stanley_control * 180.0 / M_PI 
-                         << "," << steer_angle 
-                        << "," << preview_dist 
-                         << "," << preview_idx 
-                        << "," << closest_idx_
-                       << "," << target_east 
-                         << "," << target_north 
-                         << "," << target_yaw * 180.0 / M_PI 
-                        << "," << closest_east
-                        << "," << closest_north
-                        << "," << closest_yaw * 180.0 / M_PI
-                        << "," << cur_east 
-                        << "," << cur_north 
-                        << "," << cur_yaw * 180.0 / M_PI 
-                        << "," << cur_spd 
-                        << std::endl;
+        debug_log_file_ << heading_error * 180.0 / M_PI << "," << angular_error * 180.0 / M_PI << "," << lat_error
+                        << "," << pursuit_control * 180.0 / M_PI << "," << stanley_control * 180.0 / M_PI << ","
+                        << steer_angle << "," << preview_dist << "," << preview_idx << "," << closest_idx_ << ","
+                        << target_east << "," << target_north << "," << target_yaw * 180.0 / M_PI << "," << closest_east
+                        << "," << closest_north << "," << closest_yaw * 180.0 / M_PI << "," << cur_east << ","
+                        << cur_north << "," << cur_yaw * 180.0 / M_PI << "," << cur_spd << std::endl;
     }
 
     // 4. 赋值给控制命令
@@ -191,6 +185,7 @@ void ControlNode::LateralController() {
 }
 
 void ControlNode::LongitudinalController() {
+
     // TODO 重点自动停止的相关代码编写
     // 检查输入数据是否有效
     if (!adc_trajectory_msg_ || !localization_info_msg_) {
