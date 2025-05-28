@@ -37,17 +37,25 @@ ControlNode::ControlNode() : Node("control_node") {
     } else {
         RCLCPP_INFO(this->get_logger(), "Debug log file opened: %s", log_file_path_.c_str());
         // 写入CSV文件头（如果文件是新建或空的）
-        debug_log_file_ << "heading_error_deg,angular_error_deg,lat_error,pursuit_control_deg,stanley_control_deg,"
+        debug_log_file_ << "pursuit_control_rate,stanley_control_rate,sta_lat_rate,heading_error_deg,angular_error_deg,"
+                           "lat_error,pursuit_control_deg,stanley_control_deg,"
                            "steer_angle_deg,preview_dist,preview_idx,closest_idx,target_east,target_north,target_yaw_"
                            "deg,closest_east,closest_north,closest_yaw_deg,cur_east,cur_north,cur_yaw_deg,cur_spd"
                         << std::endl;
     }
-}
 
+    // 初始化PID控制器参数
+
+    // 创建PID控制器
+    speed_pid_controller_ = std::make_unique<PIDController>(speed_pid_kp_, speed_pid_ki_, speed_pid_kd_);
+    speed_pid_controller_->setOutputLimits(-deceleration_limit_, acceleration_limit_);
+
+    // 初始化时间戳
+    last_control_time_ = this->now();
+}
 
 void ControlNode::LateralController() {
     const double kMinStanleyControlSpd = 0.5;
-    // TODO 注意航向和方位角误差计算时, 需要将角度转换为弧度
     // 检查输入数据是否有效
     if (!adc_trajectory_msg_ || !localization_info_msg_) {
         RCLCPP_WARN(this->get_logger(), "LateralController: Missing trajectory or localization data");
@@ -148,8 +156,9 @@ void ControlNode::LateralController() {
     double lat_error = -dx * std::sin(path_direction) + dy * std::cos(path_direction);
     // ! 目前计算结果为左正右负
     // 3.3 使用混合控制器计算转向角
-    double pursuit_control = -std::atan2(2 * wheelbase_ * std::sin(angular_error), preview_dist);   // 纯追踪控制
-    double stanley_control = -(heading_error - std::atan(0.2 * lat_error / effective_stanley_spd)); // Stanley控制
+    double pursuit_control = -std::atan2(2 * wheelbase_ * std::sin(angular_error), preview_dist); // 纯追踪控制
+    double stanley_control =
+        -(heading_error - std::atan(sta_lat_rate_ * lat_error / effective_stanley_spd)); // Stanley控制
 
     // ! 注意如果出现当前的需要控制情况为右转为正左转为负的情况的话pursuit_control和stanley_control去除负号即可
 
@@ -164,7 +173,8 @@ void ControlNode::LateralController() {
         // 输出调试信息
         RCLCPP_INFO(this->get_logger(),
                     "heading_error,%.2f,angular_error,%.2f,lat_error,%.2f,steer_angle,%.2f,pursuit_control,%.2f,"
-                    "stanley_control,%.2f,preview_dist,%.2f,preview_idx,%zu,closest_idx,%zu,target_north,%.2f,target_east,%.2f,target_yaw,%."
+                    "stanley_control,%.2f,preview_dist,%.2f,preview_idx,%zu,closest_idx,%zu,target_north,%.2f,target_"
+                    "east,%.2f,target_yaw,%."
                     "2f,cur_yaw,%.2f,cur_north,%.2f,cur_east,%.2f,cur_spd,%.2f,closest_east,%.2f,closest_north,%.2f,"
                     "closest_yaw,%.2f",
                     heading_error * 180.0 / M_PI, angular_error * 180.0 / M_PI, lat_error, steer_angle,
@@ -173,7 +183,8 @@ void ControlNode::LateralController() {
                     cur_north, cur_east, cur_spd, closest_east, closest_north, closest_yaw * 180.0 / M_PI);
     }
     if (debug_log_file_.is_open()) {
-        debug_log_file_ << heading_error * 180.0 / M_PI << "," << angular_error * 180.0 / M_PI << "," << lat_error
+        debug_log_file_ << pursuit_control_rate_ << "," << stanley_control_rate_ << "," << sta_lat_rate_ << ","
+                        << heading_error * 180.0 / M_PI << "," << angular_error * 180.0 / M_PI << "," << lat_error
                         << "," << pursuit_control * 180.0 / M_PI << "," << stanley_control * 180.0 / M_PI << ","
                         << steer_angle << "," << preview_dist << "," << preview_idx << "," << closest_idx_ << ","
                         << target_east << "," << target_north << "," << target_yaw * 180.0 / M_PI << "," << closest_east
@@ -186,8 +197,6 @@ void ControlNode::LateralController() {
 }
 
 void ControlNode::LongitudinalController() {
-
-    // TODO 重点自动停止的相关代码编写
     // 检查输入数据是否有效
     if (!adc_trajectory_msg_ || !localization_info_msg_) {
         RCLCPP_WARN(this->get_logger(), "LongitudinalController: Missing trajectory or localization data");
@@ -200,28 +209,42 @@ void ControlNode::LongitudinalController() {
         return;
     }
 
-    double cur_spd = localization_info_msg_->vel_speed;
-    // 由于只是速度控制，因此只需要计算速度误差即可
-    // 暂时不需要PID控制，直接赋值给控制命令
-    // 1. 计算纵向控制命令
-    double control_cycle_time = 1.0 / this->publish_rate_; // 控制周期,单位为秒
+    // 获取当前速度和目标速度
+    double current_speed = localization_info_msg_->vel_speed;
     double target_speed = adc_trajectory_msg_->points[closest_idx_].vel_speed;
-    double speed_error = target_speed - cur_spd;
-    double acceleration = std::min(max_linear_velocity_ - cur_spd, acceleration_limit_);
-    double deceleration = std::min(cur_spd - min_linear_velocity_, deceleration_limit_);
-    double speed_cmd =
-        cur_spd + acceleration * control_cycle_time + deceleration * control_cycle_time * control_cycle_time / 2.0;
-    speed_cmd = std::max(std::min(speed_cmd, max_linear_velocity_), min_linear_velocity_);
+
+    // 限制目标速度在合理范围内
+    target_speed = std::max(min_linear_velocity_, std::min(max_linear_velocity_, target_speed));
+
+    // 计算时间间隔
+    rclcpp::Time current_time = this->now();
+    double dt = (current_time - last_control_time_).seconds();
+    last_control_time_ = current_time;
+
+    if (dt <= 0.0) {
+        RCLCPP_WARN(this->get_logger(), "Invalid time interval");
+        return;
+    }
+
+    // 计算速度误差
+    double speed_error = target_speed - current_speed;
+
+    // 使用PID控制器计算加速度命令
+    double acceleration = speed_pid_controller_->compute(speed_error, dt);
+
+    // 将加速度转换为目标速度
+    double target_speed_command = current_speed + acceleration * dt;
+    target_speed_command = std::max(min_linear_velocity_, std::min(max_linear_velocity_, target_speed_command));
+
+    // 更新控制命令
+    control_cmd_msg_.speed = target_speed_command;
 
     // 输出调试信息
-    // RCLCPP_INFO(this->get_logger(), "Speed Error: %.2f meters/second", speed_error);
-    // RCLCPP_INFO(this->get_logger(), "Acceleration: %.2f meters/second^2", acceleration);
-    // RCLCPP_INFO(this->get_logger(), "Deceleration: %.2f meters/second^2", deceleration);
-    // RCLCPP_INFO(this->get_logger(), "Speed Cmd: %.2f meters/second", speed_cmd);
-
-    // 3. 赋值给控制命令
-    control_cmd_msg_.speed = target_speed;
-    // control_cmd_msg_.speed = 1;
+    if (g_debug_cnt % 10 == 0) {
+        RCLCPP_INFO(this->get_logger(),
+                    "Speed Control: target=%.2f, current=%.2f, error=%.2f, acceleration=%.2f, command=%.2f",
+                    target_speed, current_speed, speed_error, acceleration, target_speed_command);
+    }
 }
 
 void ControlNode::ADCTrajectoryCallback(const bot_msg::msg::ADCTrajectory::SharedPtr msg) {
@@ -255,8 +278,14 @@ void ControlNode::TimerCallback() {
     // 2. 发布控制命令
     control_cmd_msg_.header.stamp = this->now();
     control_cmd_msg_.header.frame_id = "base_link";
-    // TODO (yangsh) temporary use the gear forward
-    control_cmd_msg_.gear = 1;
+    if (adc_trajectory_msg_->direction == 0) {
+        control_cmd_msg_.gear = 1;
+    } else if (adc_trajectory_msg_->direction == 1) {
+        control_cmd_msg_.gear = 2;
+    }else{
+        control_cmd_msg_.gear = 1;
+        RCLCPP_WARN(this->get_logger(), "Invalid trajectory direction");
+    }
     this->pub_control_cmd_->publish(control_cmd_msg_);
 
     ++g_debug_cnt;
@@ -283,45 +312,58 @@ void ControlNode::InitParams() {
     this->declare_parameter<double>("deceleration_limit", 0.0);
     this->declare_parameter<double>("pursuit_control_rate", 0.0);
     this->declare_parameter<double>("stanley_control_rate", 0.0);
+    this->declare_parameter<double>("sta_lat_rate", 0.1);
     this->declare_parameter<double>("ratio", 10.0);
+
+    this->declare_parameter("speed_pid_kp", 0.5);
+    this->declare_parameter("speed_pid_ki", 0.1);
+    this->declare_parameter("speed_pid_kd", 0.0);
     this->declare_parameter<std::string>("adc_traj_topic_name", "/planing/adc_traj");
     this->declare_parameter<std::string>("control_cmd_topic_name", "/control/control_cmd");
     this->declare_parameter<std::string>("localization_info_topic_name", "/control/local_info");
     this->declare_parameter<std::string>("log_file_path", "./control_debug.csv");
     // Get parameters
-    this->publish_rate_ = this->get_parameter("publish_rate").get_value<double>();
-    this->preview_time_ = this->get_parameter("preview_time").get_value<double>();
-    this->max_steering_angle_ = this->get_parameter("max_steering_angle").get_value<double>();
-    this->tolerance_distance_ = this->get_parameter("tolerance_distance").get_value<double>();
-    this->wheelbase_ = this->get_parameter("wheelbase").get_value<double>();
-    this->max_linear_velocity_ = this->get_parameter("max_linear_velocity").get_value<double>();
-    this->min_linear_velocity_ = this->get_parameter("min_linear_velocity").get_value<double>();
-    this->acceleration_limit_ = this->get_parameter("acceleration_limit").get_value<double>();
-    this->deceleration_limit_ = this->get_parameter("deceleration_limit").get_value<double>();
-    this->pursuit_control_rate_ = this->get_parameter("pursuit_control_rate").get_value<double>();
-    this->stanley_control_rate_ = this->get_parameter("stanley_control_rate").get_value<double>();
-    this->ratio_ = this->get_parameter("ratio").get_value<double>();
-    this->adc_traj_topic_name_ = this->get_parameter("adc_traj_topic_name").get_value<std::string>();
-    this->control_cmd_topic_name_ = this->get_parameter("control_cmd_topic_name").get_value<std::string>();
-    this->localization_info_topic_name_ = this->get_parameter("localization_info_topic_name").get_value<std::string>();
-    this->log_file_path_ = this->get_parameter("log_file_path").get_value<std::string>();
+    publish_rate_ = this->get_parameter("publish_rate").get_value<double>();
+    preview_time_ = this->get_parameter("preview_time").get_value<double>();
+    max_steering_angle_ = this->get_parameter("max_steering_angle").get_value<double>();
+    tolerance_distance_ = this->get_parameter("tolerance_distance").get_value<double>();
+    wheelbase_ = this->get_parameter("wheelbase").get_value<double>();
+    max_linear_velocity_ = this->get_parameter("max_linear_velocity").get_value<double>();
+    min_linear_velocity_ = this->get_parameter("min_linear_velocity").get_value<double>();
+    acceleration_limit_ = this->get_parameter("acceleration_limit").get_value<double>();
+    deceleration_limit_ = this->get_parameter("deceleration_limit").get_value<double>();
+    pursuit_control_rate_ = this->get_parameter("pursuit_control_rate").get_value<double>();
+    stanley_control_rate_ = this->get_parameter("stanley_control_rate").get_value<double>();
+    sta_lat_rate_ = this->get_parameter("sta_lat_rate").get_value<double>();
+    ratio_ = this->get_parameter("ratio").get_value<double>();
+    adc_traj_topic_name_ = this->get_parameter("adc_traj_topic_name").get_value<std::string>();
+    control_cmd_topic_name_ = this->get_parameter("control_cmd_topic_name").get_value<std::string>();
+    localization_info_topic_name_ = this->get_parameter("localization_info_topic_name").get_value<std::string>();
+    log_file_path_ = this->get_parameter("log_file_path").get_value<std::string>();
+    speed_pid_kp_ = this->get_parameter("speed_pid_kp").as_double();
+    speed_pid_ki_ = this->get_parameter("speed_pid_ki").as_double();
+    speed_pid_kd_ = this->get_parameter("speed_pid_kd").as_double();
     // Print parameters
-    RCLCPP_INFO(this->get_logger(), "Publish rate: %f", this->publish_rate_);
-    RCLCPP_INFO(this->get_logger(), "Max linear velocity: %f", this->max_linear_velocity_);
-    RCLCPP_INFO(this->get_logger(), "Min linear velocity: %f", this->min_linear_velocity_);
-    RCLCPP_INFO(this->get_logger(), "Max steering angle: %f", this->max_steering_angle_);
-    RCLCPP_INFO(this->get_logger(), "ADC traj topic name: %s", this->adc_traj_topic_name_.c_str());
-    RCLCPP_INFO(this->get_logger(), "Control cmd topic name: %s", this->control_cmd_topic_name_.c_str());
-    RCLCPP_INFO(this->get_logger(), "Localization info topic name: %s", this->localization_info_topic_name_.c_str());
-    RCLCPP_INFO(this->get_logger(), "Preview time: %f", this->preview_time_);
-    RCLCPP_INFO(this->get_logger(), "Tolerance distance: %f", this->tolerance_distance_);
-    RCLCPP_INFO(this->get_logger(), "Wheelbase: %f", this->wheelbase_);
-    RCLCPP_INFO(this->get_logger(), "Acceleration limit: %f", this->acceleration_limit_);
-    RCLCPP_INFO(this->get_logger(), "Deceleration limit: %f", this->deceleration_limit_);
-    RCLCPP_INFO(this->get_logger(), "Ratio: %f", this->ratio_);
-    RCLCPP_INFO(this->get_logger(), "Pursuit control rate: %f", this->pursuit_control_rate_);
-    RCLCPP_INFO(this->get_logger(), "Stanley control rate: %f", this->stanley_control_rate_);
-    RCLCPP_INFO(this->get_logger(), "Debug log file path: %s", this->log_file_path_.c_str());
+    RCLCPP_INFO(this->get_logger(), "Publish rate: %f", publish_rate_);
+    RCLCPP_INFO(this->get_logger(), "Max linear velocity: %f", max_linear_velocity_);
+    RCLCPP_INFO(this->get_logger(), "Min linear velocity: %f", min_linear_velocity_);
+    RCLCPP_INFO(this->get_logger(), "Max steering angle: %f", max_steering_angle_);
+    RCLCPP_INFO(this->get_logger(), "ADC traj topic name: %s", adc_traj_topic_name_.c_str());
+    RCLCPP_INFO(this->get_logger(), "Control cmd topic name: %s", control_cmd_topic_name_.c_str());
+    RCLCPP_INFO(this->get_logger(), "Localization info topic name: %s", localization_info_topic_name_.c_str());
+    RCLCPP_INFO(this->get_logger(), "Preview time: %f", preview_time_);
+    RCLCPP_INFO(this->get_logger(), "Tolerance distance: %f", tolerance_distance_);
+    RCLCPP_INFO(this->get_logger(), "Wheelbase: %f", wheelbase_);
+    RCLCPP_INFO(this->get_logger(), "Acceleration limit: %f", acceleration_limit_);
+    RCLCPP_INFO(this->get_logger(), "Deceleration limit: %f", deceleration_limit_);
+    RCLCPP_INFO(this->get_logger(), "Ratio: %f", ratio_);
+    RCLCPP_INFO(this->get_logger(), "Pursuit control rate: %f", pursuit_control_rate_);
+    RCLCPP_INFO(this->get_logger(), "Stanley control rate: %f", stanley_control_rate_);
+    RCLCPP_INFO(this->get_logger(), "Stanley lat control rate: %f", sta_lat_rate_);
+    RCLCPP_INFO(this->get_logger(), "Debug log file path: %s", log_file_path_.c_str());
+    RCLCPP_INFO(this->get_logger(), "Speed pid kp: %f", speed_pid_kp_);
+    RCLCPP_INFO(this->get_logger(), "Speed pid ki: %f", speed_pid_ki_);
+    RCLCPP_INFO(this->get_logger(), "Speed pid kd: %f", speed_pid_kd_);
     return;
 }
 

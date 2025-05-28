@@ -31,7 +31,10 @@ find_package(rclcpp REQUIRED)
 include_directories(include)
 
 
-add_executable(control_node src/control_node.cpp)
+add_executable(control_node 
+  src/control_node.cpp
+  src/pid_controller.cpp
+)
 # Specify libraries to link against
 target_link_libraries(control_node
   ${rclcpp_LIBRARIES}

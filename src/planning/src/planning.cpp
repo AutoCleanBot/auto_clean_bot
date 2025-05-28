@@ -32,6 +32,7 @@ PlanningNode::PlanningNode() : Node("planning_node"), timer_cnt_(0) {
         perc_topic_name_, 10, std::bind(&PlanningNode::ObstaclesCallback, this, std::placeholders::_1));
 
     planning_status_ = PlanningStatus::Planning;
+    reverse_moving_ = false;   // 如果未设置,则默认是前进
 }
 void PlanningNode::InitParams() {
     this->declare_parameter("local_topic_name", "/localization_info");
@@ -55,6 +56,7 @@ void PlanningNode::InitParams() {
     perc_topic_name_ = this->get_parameter("perc_topic_name").as_string();
     planning_spd_ = this->get_parameter("planning_spd").as_double();
     traj_pub_cnt_ = static_cast<int32_t>(traj_pub_interval_ * process_frq_);
+    reverse_moving_ = this->get_parameter("reverse_moving").as_bool();
 
     RCLCPP_INFO(this->get_logger(), "local_topic_name: %s", local_topic_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "service_name: %s", service_name_.c_str());
@@ -65,6 +67,7 @@ void PlanningNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "start_dist: %f", start_dist_);
     RCLCPP_INFO(this->get_logger(), "traj_pub_interval: %f", traj_pub_interval_);
     RCLCPP_INFO(this->get_logger(), "planning_spd_: %f", planning_spd_);
+    RCLCPP_INFO(this->get_logger(), "reverse_moving: %d", reverse_moving_);
 }
 void PlanningNode::InitGlobalPath() {
     auto client = this->create_client<bot_msg::srv::Routing>(service_name_);
@@ -209,6 +212,7 @@ void PlanningNode::TimerCallback() {
     // 发布路径
     pub_traj_path.header.stamp = this->now();
     pub_traj_path.header.frame_id = "map";
+    pub_traj_path.direction = reverse_moving_ ? 1 : 0;
     this->pub_traj_->publish(pub_traj_path);
 }
 

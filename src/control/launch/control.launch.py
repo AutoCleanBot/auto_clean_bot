@@ -43,7 +43,10 @@ def generate_launch_description():
         'deceleration_limit':-1.0,
         'pursuit_control_rate':0.4,
         'stanley_control_rate':0.6,
-        'target_spd': 2, # 期望速度 m/s
+        'sta_lat_rate':0.2, # stanley控制中的横向偏差系数
+        'speed_pid_kp':0.5,
+        'speed_pid_ki':0.1,
+        'speed_pid_kd':0.0,
         'adc_traj_topic_name':'/planning/trajectory',
         'localization_info_topic_name':'/localization/rtk_info',
         'control_cmd_topic_name':'/control/control_cmd',

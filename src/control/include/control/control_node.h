@@ -5,6 +5,7 @@
 #include <bot_msg/msg/localization_info.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <fstream>
+#include "control/pid_controller.h"
 
 namespace control {
 class ControlNode : public rclcpp::Node {
@@ -43,6 +44,7 @@ class ControlNode : public rclcpp::Node {
     double deceleration_limit_;  // in m/s^2
     double pursuit_control_rate_; // 纯追踪控制比例
     double stanley_control_rate_; // Stanley控制比例
+    double sta_lat_rate_;         // stanley控制中的横向偏差系数, 在低速情况下应该加大该算法的系数
     double ratio_;               // 方向盘转角与前轮转角的比例
     // config variables
     std::string adc_traj_topic_name_;
@@ -54,5 +56,16 @@ class ControlNode : public rclcpp::Node {
     size_t closest_idx_; // 当前车辆到轨迹上的最近点
 
     std::ofstream debug_log_file_;
+
+    // PID控制器参数
+    double speed_pid_kp_;
+    double speed_pid_ki_;
+    double speed_pid_kd_;
+    
+    // PID控制器
+    std::unique_ptr<PIDController> speed_pid_controller_;
+
+    // 上一次控制的时间戳
+    rclcpp::Time last_control_time_;
 };
 } // namespace control

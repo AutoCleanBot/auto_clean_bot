@@ -55,5 +55,6 @@ private:
 
     // 临时使用变量
     std::size_t closet_idx_ = 0; // 当前路径下最近点的下标
+    bool reverse_moving_ = false; // 是否反向行驶
 };
 }  // namespace planning
