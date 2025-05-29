@@ -153,25 +153,24 @@ void ControlNode::LateralController() {
     // 计算横向误差（向量在垂直于路径方向上的投影）
     // 使用 (-sin(θ), cos(θ)) 作为法向量进行投影计算
     // 这样计算的结果是在路径的左侧时,横向误差为负; 在路径的右侧时横向误差为正
-    double lat_error = -dx * std::sin(path_direction) + dy * std::cos(path_direction);
-    // ! 目前计算结果为左正右负
+    double lat_error = dx * std::sin(path_direction) - dy * std::cos(path_direction);
     // 3.3 使用混合控制器计算转向角
+    // ! 目前计算结果为左正右负
+    // ! 注意如果出现当前的需要控制情况为右转为正左转为负的情况的话pursuit_control和stanley_control去除负号即可
     double pursuit_control = -std::atan2(2 * wheelbase_ * std::sin(angular_error), preview_dist); // 纯追踪控制
     double stanley_control =
         -(heading_error - std::atan(sta_lat_rate_ * lat_error / effective_stanley_spd)); // Stanley控制
 
-    // ! 注意如果出现当前的需要控制情况为右转为正左转为负的情况的话pursuit_control和stanley_control去除负号即可
-
     // 3.4 计算最终转向角，并限制在合理范围内
     double front_wheel_rad =
         pursuit_control_rate_ * pursuit_control + stanley_control_rate_ * stanley_control; // 混合控制
-    // 乘以10.0原因是, 计算出的是前轮转角,控制量是方向盘转角,中间有一个10倍的传动比
-    double steer_angle = std::max(
-        -max_steering_angle_, std::min(max_steering_angle_, front_wheel_rad * 180.0 / M_PI)); // 限制在[-30, 30]度之间
+
+    double steer_angle = front_wheel_rad * 180.0 / M_PI;
     // 零点漂移处理
     steer_angle += zero_point_draft_;
     // 自行车模型的转角偏差
     steer_angle *= turning_radius_ratio_;
+    steer_angle = std::max(-max_steering_angle_, std::min(max_steering_angle_, steer_angle)); // 限制在[-30, 30]度之间
     if (g_debug_cnt % 10 == 0) {
         // 输出调试信息
         RCLCPP_INFO(this->get_logger(),
@@ -219,10 +218,7 @@ void ControlNode::LongitudinalController() {
     // 限制目标速度在合理范围内
     target_speed = std::max(min_linear_velocity_, std::min(max_linear_velocity_, target_speed));
 
-    // 计算时间间隔
-    rclcpp::Time current_time = this->now();
-    double dt = (current_time - last_control_time_).seconds();
-    last_control_time_ = current_time;
+    double dt = 0.02; // 0.02s
 
     if (dt <= 0.0) {
         RCLCPP_WARN(this->get_logger(), "Invalid time interval");
@@ -232,11 +228,27 @@ void ControlNode::LongitudinalController() {
     // 计算速度误差
     double speed_error = target_speed - current_speed;
 
-    // 使用PID控制器计算加速度命令
-    double acceleration = speed_pid_controller_->compute(speed_error, dt);
+    // 使用带前馈的PID控制器计算加速度命令
+    double acceleration = speed_pid_controller_->computeWithFeedForward(speed_error, target_speed, dt);
 
     // 将加速度转换为目标速度
     double target_speed_command = current_speed + acceleration * dt;
+
+    // 定义最小驱动速度阈值（需要根据实际车辆特性调整）
+    const double MIN_DRIVING_SPEED = 0.5;  // 假设最小驱动速度为0.2m/s
+
+    // 如果目标速度大于0但小于最小驱动速度，则将其设置为最小驱动速度
+    if (target_speed > 0.01 && target_speed_command < MIN_DRIVING_SPEED) {
+        target_speed_command = MIN_DRIVING_SPEED;
+    } else if (target_speed < -0.01 && target_speed_command > -MIN_DRIVING_SPEED) {
+        // 处理反向运动的情况
+        target_speed_command = -MIN_DRIVING_SPEED;
+    } else if (std::abs(target_speed) <= 0.01) {
+        // 如果目标速度接近0，则完全停止
+        target_speed_command = 0.0;
+    }
+
+    // 应用速度限制
     target_speed_command = std::max(min_linear_velocity_, std::min(max_linear_velocity_, target_speed_command));
 
     // 更新控制命令
@@ -245,8 +257,9 @@ void ControlNode::LongitudinalController() {
     // 输出调试信息
     if (g_debug_cnt % 10 == 0) {
         RCLCPP_INFO(this->get_logger(),
-                    "Speed Control: target=%.2f, current=%.2f, error=%.2f, acceleration=%.2f, command=%.2f",
-                    target_speed, current_speed, speed_error, acceleration, target_speed_command);
+                    "Speed Control: target=%.2f, current=%.2f, error=%.2f, acceleration=%.2f, command=%.2f, integral=%.2f",
+                    target_speed, current_speed, speed_error, acceleration, target_speed_command,
+                    speed_pid_controller_->getIntegral());
     }
 }
 
@@ -322,6 +335,7 @@ void ControlNode::InitParams() {
     this->declare_parameter("speed_pid_kp", 0.5);
     this->declare_parameter("speed_pid_ki", 0.1);
     this->declare_parameter("speed_pid_kd", 0.0);
+    this->declare_parameter("speed_pid_kf", 0.5);  // 前馈增益默认值
     this->declare_parameter<std::string>("adc_traj_topic_name", "/planing/adc_traj");
     this->declare_parameter<std::string>("control_cmd_topic_name", "/control/control_cmd");
     this->declare_parameter<std::string>("localization_info_topic_name", "/control/local_info");
@@ -348,6 +362,13 @@ void ControlNode::InitParams() {
     speed_pid_kp_ = this->get_parameter("speed_pid_kp").as_double();
     speed_pid_ki_ = this->get_parameter("speed_pid_ki").as_double();
     speed_pid_kd_ = this->get_parameter("speed_pid_kd").as_double();
+    double speed_pid_kf = this->get_parameter("speed_pid_kf").as_double();
+
+    // 创建PID控制器并设置前馈增益
+    speed_pid_controller_ = std::make_unique<PIDController>(speed_pid_kp_, speed_pid_ki_, speed_pid_kd_);
+    speed_pid_controller_->setFeedForward(speed_pid_kf);
+    speed_pid_controller_->setOutputLimits(-deceleration_limit_, acceleration_limit_);
+
     // Print parameters
     RCLCPP_INFO(this->get_logger(), "Publish rate: %f", publish_rate_);
     RCLCPP_INFO(this->get_logger(), "Max linear velocity: %f", max_linear_velocity_);
@@ -370,6 +391,7 @@ void ControlNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "Speed pid kp: %f", speed_pid_kp_);
     RCLCPP_INFO(this->get_logger(), "Speed pid ki: %f", speed_pid_ki_);
     RCLCPP_INFO(this->get_logger(), "Speed pid kd: %f", speed_pid_kd_);
+    RCLCPP_INFO(this->get_logger(), "Speed pid kf: %f", speed_pid_kf);
     return;
 }
 

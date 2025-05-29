@@ -45,6 +45,7 @@ void PlanningNode::InitParams() {
     this->declare_parameter("start_dist", 5.0);
     this->declare_parameter("traj_pub_interval", 0.1);
     this->declare_parameter("planning_spd", 2.0);
+    this->declare_parameter("reverse_moving", false);
     local_topic_name_ = this->get_parameter("local_topic_name").as_string();
     service_name_ = this->get_parameter("service_name").as_string();
     process_frq_ = this->get_parameter("process_frq").as_double();

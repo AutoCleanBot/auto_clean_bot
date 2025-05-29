@@ -10,7 +10,11 @@ PIDController::PIDController(double kp, double ki, double kd)
     , integral_(0.0)
     , min_output_(-std::numeric_limits<double>::max())
     , max_output_(std::numeric_limits<double>::max())
-    , has_output_limits_(false) {
+    , has_output_limits_(false)
+    , min_integral_(-std::numeric_limits<double>::max())
+    , max_integral_(std::numeric_limits<double>::max())
+    , has_integral_limits_(false)
+    , kf_(0.0) {
 }
 
 void PIDController::setGains(double kp, double ki, double kd) {
