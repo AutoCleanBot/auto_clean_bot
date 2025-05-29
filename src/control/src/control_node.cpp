@@ -153,7 +153,7 @@ void ControlNode::LateralController() {
     // 计算横向误差（向量在垂直于路径方向上的投影）
     // 使用 (-sin(θ), cos(θ)) 作为法向量进行投影计算
     // 这样计算的结果是在路径的左侧时,横向误差为负; 在路径的右侧时横向误差为正
-    double lat_error = dx * std::sin(path_direction) - dy * std::cos(path_direction);
+    double lat_error = dx * std::cos(path_direction) - dy * std::sin(path_direction);
     // 3.3 使用混合控制器计算转向角
     // ! 目前计算结果为左正右负
     // ! 注意如果出现当前的需要控制情况为右转为正左转为负的情况的话pursuit_control和stanley_control去除负号即可
@@ -252,7 +252,7 @@ void ControlNode::LongitudinalController() {
     target_speed_command = std::max(min_linear_velocity_, std::min(max_linear_velocity_, target_speed_command));
 
     // 更新控制命令
-    control_cmd_msg_.speed = target_speed_command;
+    control_cmd_msg_.speed = target_speed;
 
     // 输出调试信息
     if (g_debug_cnt % 10 == 0) {

@@ -12,8 +12,8 @@ void LocalRecordTest::TimerCallback() {
     bot_msg::msg::LocalizationInfo localization_info_msg;
     // localization_info_msg.north = 10.0;
     // localization_info_msg.east = 0.0;
-    localization_info_msg.north =  45.4148;
-    localization_info_msg.east = 18.9324;
+    localization_info_msg.north =  43.4148;
+    localization_info_msg.east = 16.9324;
     localization_info_msg.yaw = 104.354;
     localization_info_msg.vel_speed = 0;
     // localization_info_msg.timestamp = std::chrono::system_clock::now();
