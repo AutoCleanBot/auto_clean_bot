@@ -168,7 +168,10 @@ void ControlNode::LateralController() {
     // 乘以10.0原因是, 计算出的是前轮转角,控制量是方向盘转角,中间有一个10倍的传动比
     double steer_angle = std::max(
         -max_steering_angle_, std::min(max_steering_angle_, front_wheel_rad * 180.0 / M_PI)); // 限制在[-30, 30]度之间
-
+    // 零点漂移处理
+    steer_angle += zero_point_draft_;
+    // 自行车模型的转角偏差
+    steer_angle *= turning_radius_ratio_;
     if (g_debug_cnt % 10 == 0) {
         // 输出调试信息
         RCLCPP_INFO(this->get_logger(),
@@ -313,7 +316,8 @@ void ControlNode::InitParams() {
     this->declare_parameter<double>("pursuit_control_rate", 0.0);
     this->declare_parameter<double>("stanley_control_rate", 0.0);
     this->declare_parameter<double>("sta_lat_rate", 0.1);
-    this->declare_parameter<double>("ratio", 10.0);
+    this->declare_parameter<double>("turning_radius_ratio", 1.0);
+    this->declare_parameter<double>("zero_point_draft", 0.0);
 
     this->declare_parameter("speed_pid_kp", 0.5);
     this->declare_parameter("speed_pid_ki", 0.1);
@@ -335,7 +339,8 @@ void ControlNode::InitParams() {
     pursuit_control_rate_ = this->get_parameter("pursuit_control_rate").get_value<double>();
     stanley_control_rate_ = this->get_parameter("stanley_control_rate").get_value<double>();
     sta_lat_rate_ = this->get_parameter("sta_lat_rate").get_value<double>();
-    ratio_ = this->get_parameter("ratio").get_value<double>();
+    turning_radius_ratio_ = this->get_parameter("turning_radius_ratio").get_value<double>();
+    zero_point_draft_ = this->get_parameter("zero_point_draft").get_value<double>();
     adc_traj_topic_name_ = this->get_parameter("adc_traj_topic_name").get_value<std::string>();
     control_cmd_topic_name_ = this->get_parameter("control_cmd_topic_name").get_value<std::string>();
     localization_info_topic_name_ = this->get_parameter("localization_info_topic_name").get_value<std::string>();
@@ -356,7 +361,8 @@ void ControlNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "Wheelbase: %f", wheelbase_);
     RCLCPP_INFO(this->get_logger(), "Acceleration limit: %f", acceleration_limit_);
     RCLCPP_INFO(this->get_logger(), "Deceleration limit: %f", deceleration_limit_);
-    RCLCPP_INFO(this->get_logger(), "Ratio: %f", ratio_);
+    RCLCPP_INFO(this->get_logger(), "Turning radius ratio: %f", turning_radius_ratio_);
+    RCLCPP_INFO(this->get_logger(), "Zero point draft: %f", zero_point_draft_);
     RCLCPP_INFO(this->get_logger(), "Pursuit control rate: %f", pursuit_control_rate_);
     RCLCPP_INFO(this->get_logger(), "Stanley control rate: %f", stanley_control_rate_);
     RCLCPP_INFO(this->get_logger(), "Stanley lat control rate: %f", sta_lat_rate_);

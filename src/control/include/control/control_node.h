@@ -45,7 +45,8 @@ class ControlNode : public rclcpp::Node {
     double pursuit_control_rate_; // 纯追踪控制比例
     double stanley_control_rate_; // Stanley控制比例
     double sta_lat_rate_;         // stanley控制中的横向偏差系数, 在低速情况下应该加大该算法的系数
-    double ratio_;               // 方向盘转角与前轮转角的比例
+    double turning_radius_ratio_;  // 方向盘转角与前轮转角的比例
+    double zero_point_draft_;      // 零点漂移
     // config variables
     std::string adc_traj_topic_name_;
     std::string localization_info_topic_name_;

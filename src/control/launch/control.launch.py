@@ -36,7 +36,6 @@ def generate_launch_description():
         'tolerance_distance': 4.0,
         'max_steering_angle':50.0,     # 最大前轮转角
         'wheelbase':1.4,
-        'ratio':10.0,
         'max_linear_velocity':10.0,
         'max_angular_velocity':10.0,
         'acceleration_limit':1.0,
@@ -47,6 +46,8 @@ def generate_launch_description():
         'speed_pid_kp':0.5,
         'speed_pid_ki':0.1,
         'speed_pid_kd':0.0,
+        'zero_point_draft':0.0,     # 零点漂移
+        'turing_radius_ratio':1.0,
         'adc_traj_topic_name':'/planning/trajectory',
         'localization_info_topic_name':'/localization/rtk_info',
         'control_cmd_topic_name':'/control/control_cmd',
