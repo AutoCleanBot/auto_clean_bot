@@ -7,6 +7,10 @@
 #include <pwd.h>
 #include <unistd.h>
 #include <iomanip>
+#include <filesystem>
+#include <vector>
+#include <algorithm>
+#include <sys/stat.h>
 
 namespace local_record {
 
@@ -45,43 +49,56 @@ LocalRecordNode::LocalRecordNode() : Node("local_record") {
     // 展开路径中的波浪号
     std::string expanded_path = expandTilde(save_path_);
     
-    // 查找已存在的文件并确定新文件的序号
-    int max_files = 5;  // 保存最近5次的记录
+    // 保存最近5次的记录
+    const int max_files = 5;
     std::string base_path = expanded_path;
     std::string extension = ".csv";
-    
-    // 查找现有文件的最大序号
+
+    // 存储所有已存在的文件信息
+    struct FileInfo {
+        std::string path;
+        time_t mtime;  // 使用time_t替代filesystem的时间类型
+        int index;
+    };
+    std::vector<FileInfo> existing_files;
+
+    // 查找现有文件
     int max_index = 0;
     for (int i = 1; i <= max_files; i++) {
-        std::string test_path = base_path + "_" + std::to_string(i) + extension;
-        std::ifstream test_file(test_path);
-        if (test_file.is_open()) {
-            test_file.close();
-            max_index = i;
+        std::string file_path = base_path + "_" + std::to_string(i) + extension;
+        struct stat file_stat;
+        if (stat(file_path.c_str(), &file_stat) == 0) {  // 使用stat替代filesystem
+            FileInfo info;
+            info.path = file_path;
+            info.mtime = file_stat.st_mtime;
+            info.index = i;
+            existing_files.push_back(info);
+            max_index = std::max(max_index, i);
         }
     }
-    
-    // 如果已经有5个文件，删除最旧的文件（序号最小的）
-    if (max_index == max_files) {
-        std::string oldest_file = base_path + "_1" + extension;
-        std::remove(oldest_file.c_str());
-        // 重命名其他文件（将2-5重命名为1-4）
-        for (int i = 2; i <= max_files; i++) {
-            std::string old_name = base_path + "_" + std::to_string(i) + extension;
-            std::string new_name = base_path + "_" + std::to_string(i-1) + extension;
-            std::rename(old_name.c_str(), new_name.c_str());
-        }
-        max_index = max_files - 1;
-    }
-    
-    // 确定新文件的路径
-    save_path_ = base_path + "_" + std::to_string(max_index + 1) + extension;
-    RCLCPP_INFO(this->get_logger(), "Creating new file: %s", save_path_.c_str());
+
+    // 如果已经有5个文件，删除最旧的文件
+    if (existing_files.size() >= max_files) {
+        // 按修改时间排序
+        std::sort(existing_files.begin(), existing_files.end(),
+                  [](const FileInfo& a, const FileInfo& b) {
+                      return a.mtime < b.mtime;
+                  });
+
+        // 删除最旧的文件
+        std::remove(existing_files[0].path.c_str());
+        max_index = existing_files[0].index;
+        existing_files.erase(existing_files.begin());
+    } 
+
+    // 使用下一个可用的序号创建新文件
+    std::string new_file_path = base_path + "_" + std::to_string(max_index) + extension;
+    RCLCPP_INFO(this->get_logger(), "Creating new file: %s", new_file_path.c_str());
     
     // 打开文件流
-    save_file_.open(save_path_, std::ios::out | std::ios::app);
+    save_file_.open(new_file_path, std::ios::out | std::ios::app);
     if (!save_file_.is_open()) {
-        RCLCPP_ERROR(this->get_logger(), "Failed to open or create file: %s", save_path_.c_str());
+        RCLCPP_ERROR(this->get_logger(), "Failed to open or create file: %s", new_file_path.c_str());
         return;
     }
     
@@ -170,8 +187,8 @@ void LocalRecordNode::LocalizationCallback(
     const bot_msg::msg::LocalizationInfo::SharedPtr msg) {
     localization_info_msg_ = msg;
     localization_info_count_ = 0;
-    RCLCPP_INFO(this->get_logger(),
-                "LocalizationInfo received");
+    // RCLCPP_INFO(this->get_logger(),
+    //             "LocalizationInfo received");
 }
 
 void LocalRecordNode::InitParams() {
