@@ -184,7 +184,8 @@ void ControlNode::LateralController() {
                     closest_idx_, target_north, target_east, target_yaw * 180.0 / M_PI, cur_yaw * 180.0 / M_PI,
                     cur_north, cur_east, cur_spd, closest_east, closest_north, closest_yaw * 180.0 / M_PI);
     }
-    if (debug_log_file_.is_open()) {
+    if (g_debug_cnt % 10 == 0 &&
+        debug_log_file_.is_open()) {
         debug_log_file_ << pursuit_control_rate_ << "," << stanley_control_rate_ << "," << sta_lat_rate_ << ","
                         << heading_error * 180.0 / M_PI << "," << angular_error * 180.0 / M_PI << "," << lat_error
                         << "," << pursuit_control * 180.0 / M_PI << "," << stanley_control * 180.0 / M_PI << ","
