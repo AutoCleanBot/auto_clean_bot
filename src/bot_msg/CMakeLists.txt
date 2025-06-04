@@ -21,6 +21,7 @@ set(msg_files
   "msg/Obstacles.msg"
   "msg/ObstacleInfo.msg"
   "msg/TrajectoryPoint.msg"
+  "msg/RemoteController.msg"
 )
 set(srv_files
   "srv/Routing.srv"

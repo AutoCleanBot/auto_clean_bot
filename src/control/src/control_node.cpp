@@ -40,7 +40,8 @@ ControlNode::ControlNode() : Node("control_node") {
         debug_log_file_ << "pursuit_control_rate,stanley_control_rate,sta_lat_rate,heading_error_deg,angular_error_deg,"
                            "lat_error,pursuit_control_deg,stanley_control_deg,"
                            "steer_angle_deg,preview_dist,preview_idx,closest_idx,target_east,target_north,target_yaw_"
-                           "deg,closest_east,closest_north,closest_yaw_deg,cur_east,cur_north,cur_yaw_deg,cur_spd"
+                           "deg,closest_east,closest_north,closest_yaw_deg,cur_east,cur_north,cur_yaw_deg,"
+                           "target_spd,cur_spd,error,acceleration,cmd_spd,integral"
                         << std::endl;
     }
 
@@ -52,6 +53,25 @@ ControlNode::ControlNode() : Node("control_node") {
 
     // 初始化时间戳
     last_control_time_ = this->now();
+
+    // 声明速度平滑相关参数
+    this->declare_parameter("max_speed_change_rate", 1.0); // 默认最大变化率1m/s^2
+    this->declare_parameter("smooth_window_size", 20);     // 默认平滑窗口大小为20
+
+    // 获取参数
+    max_speed_change_rate_ = this->get_parameter("max_speed_change_rate").as_double();
+    smooth_window_size_ = this->get_parameter("smooth_window_size").as_int();
+
+    // 初始化速度平滑相关变量
+    previous_speed_command_ = 0.0;
+    speed_commands_buffer_.clear();
+
+    // 声明新的参数
+    this->declare_parameter("max_steering_rate", 30.0); // 度/秒
+    max_steering_rate_ = this->get_parameter("max_steering_rate").as_double();
+
+    // 初始化状态变量
+    previous_steering_angle_ = 0.0;
 }
 
 void ControlNode::LateralController() {
@@ -99,18 +119,27 @@ void ControlNode::LateralController() {
         preview_idx = closest_idx_;
         RCLCPP_ERROR(this->get_logger(), "Preview index is out of range");
     } else {
-        double dist = std::sqrt(std::pow(cur_north - adc_trajectory_msg_->points[preview_idx].north, 2) +
-                                std::pow(cur_east - adc_trajectory_msg_->points[preview_idx].east, 2));
-        while (dist < preview_dist) {
-            preview_idx++;
-            if (preview_idx >= adc_trajectory_msg_->points.size()) {
-                preview_idx = closest_idx_;
-                RCLCPP_ERROR(this->get_logger(), "Preview index is out of range");
+        double accumulated_distance = 0.0;
+        // Iterate forward along the trajectory from closest_idx_
+        for (size_t i = closest_idx_; i < adc_trajectory_msg_->points.size() - 1; ++i) {
+            // Calculate distance between point i and point i+1
+            double segment_dist =
+                std::hypot(adc_trajectory_msg_->points[i + 1].east - adc_trajectory_msg_->points[i].east,
+                           adc_trajectory_msg_->points[i + 1].north - adc_trajectory_msg_->points[i].north);
+
+            if (accumulated_distance + segment_dist >= preview_dist) {
+                // Found a segment that contains the preview point.
+                // We can either pick point i+1 or interpolate. For simplicity, pick i+1.
+                // More advanced: interpolate between points[i] and points[i+1]
+                // to get a point exactly at target_preview_distance.
+                preview_idx = i + 1;
                 break;
             }
-            dist = std::sqrt(std::pow(cur_north - adc_trajectory_msg_->points[preview_idx].north, 2) +
-                             std::pow(cur_east - adc_trajectory_msg_->points[preview_idx].east, 2));
+            accumulated_distance += segment_dist;
+            preview_idx = i + 1; // Keep updating preview_idx to the last point checked
         }
+        // If the loop finishes and preview_idx is still not far enough (e.g., end of trajectory reached),
+        // preview_idx will be the last point of the trajectory.
     }
 
     // 3. 计算横向控制命令
@@ -157,20 +186,61 @@ void ControlNode::LateralController() {
     // 3.3 使用混合控制器计算转向角
     // ! 目前计算结果为左正右负
     // ! 注意如果出现当前的需要控制情况为右转为正左转为负的情况的话pursuit_control和stanley_control去除负号即可
-    double pursuit_control = -std::atan2(2 * wheelbase_ * std::sin(angular_error), preview_dist); // 纯追踪控制
-    double stanley_control =
-        -(heading_error - std::atan(sta_lat_rate_ * lat_error / effective_stanley_spd)); // Stanley控制
+
+    // 计算当前路径曲率
+    double path_curvature = CalculatePathCurvature(closest_idx_);
+
+    // 计算自适应预瞄距离
+    double current_speed = localization_info_msg_->vel_speed;
+    double adaptive_preview_dist = CalculateAdaptivePreviewDistance(current_speed, path_curvature);
+
+    // 根据曲率动态调整控制器权重
+    double curvature_based_weight = std::abs(path_curvature);
+    const double CURVATURE_THRESHOLD = 0.1; // 曲率阈值
+
+    // 在直线段增加Stanley控制器的权重，在弯道增加Pure Pursuit的权重
+    double adaptive_pursuit_rate = pursuit_control_rate_;
+    double adaptive_stanley_rate = stanley_control_rate_;
+
+    if (curvature_based_weight < CURVATURE_THRESHOLD) {
+        // 直线段：增加Stanley控制器的权重
+        adaptive_pursuit_rate *= 0.7;
+        adaptive_stanley_rate *= 1.3;
+    } else {
+        // 弯道：增加Pure Pursuit控制器的权重
+        adaptive_pursuit_rate *= 1.3;
+        adaptive_stanley_rate *= 0.7;
+    }
+
+    // 计算横向误差增益
+    double adaptive_lat_rate = sta_lat_rate_;
+    if (std::abs(current_speed) < 0.5) {
+        // 低速时增大横向误差增益
+        adaptive_lat_rate *= 2.0;
+    }
+
+    // 使用自适应参数计算控制输出
+    double pursuit_control = -std::atan2(2 * wheelbase_ * std::sin(angular_error), adaptive_preview_dist);
+    double stanley_control = -(heading_error - std::atan(adaptive_lat_rate * lat_error / effective_stanley_spd));
+
+    // 应用自适应权重
+    double front_wheel_rad = adaptive_pursuit_rate * pursuit_control + adaptive_stanley_rate * stanley_control;
+
+    // 添加前馈控制项
+    double curvature_feedforward = std::atan2(wheelbase_ * path_curvature, 1.0);
+    front_wheel_rad += curvature_feedforward;
 
     // 3.4 计算最终转向角，并限制在合理范围内
-    double front_wheel_rad =
-        pursuit_control_rate_ * pursuit_control + stanley_control_rate_ * stanley_control; // 混合控制
-
     double steer_angle = front_wheel_rad * 180.0 / M_PI;
     // 零点漂移处理
     steer_angle += zero_point_draft_;
     // 自行车模型的转角偏差
     steer_angle *= turning_radius_ratio_;
     steer_angle = std::max(-max_steering_angle_, std::min(max_steering_angle_, steer_angle)); // 限制在[-30, 30]度之间
+
+    // 4. 赋值给控制命令
+    control_cmd_msg_.steer_angle = steer_angle;
+
     if (g_debug_cnt % 10 == 0) {
         // 输出调试信息
         RCLCPP_INFO(this->get_logger(),
@@ -184,19 +254,15 @@ void ControlNode::LateralController() {
                     closest_idx_, target_north, target_east, target_yaw * 180.0 / M_PI, cur_yaw * 180.0 / M_PI,
                     cur_north, cur_east, cur_spd, closest_east, closest_north, closest_yaw * 180.0 / M_PI);
     }
-    if (g_debug_cnt % 10 == 0 &&
-        debug_log_file_.is_open()) {
+    if (g_debug_cnt % 10 == 0 && debug_log_file_.is_open()) {
         debug_log_file_ << pursuit_control_rate_ << "," << stanley_control_rate_ << "," << sta_lat_rate_ << ","
                         << heading_error * 180.0 / M_PI << "," << angular_error * 180.0 / M_PI << "," << lat_error
                         << "," << pursuit_control * 180.0 / M_PI << "," << stanley_control * 180.0 / M_PI << ","
                         << steer_angle << "," << preview_dist << "," << preview_idx << "," << closest_idx_ << ","
                         << target_east << "," << target_north << "," << target_yaw * 180.0 / M_PI << "," << closest_east
                         << "," << closest_north << "," << closest_yaw * 180.0 / M_PI << "," << cur_east << ","
-                        << cur_north << "," << cur_yaw * 180.0 / M_PI << "," << cur_spd << std::endl;
+                        << cur_north << "," << cur_yaw * 180.0 / M_PI;
     }
-
-    // 4. 赋值给控制命令
-    control_cmd_msg_.steer_angle = steer_angle;
 }
 
 void ControlNode::LongitudinalController() {
@@ -236,7 +302,7 @@ void ControlNode::LongitudinalController() {
     double target_speed_command = current_speed + acceleration * dt;
 
     // 定义最小驱动速度阈值（需要根据实际车辆特性调整）
-    const double MIN_DRIVING_SPEED = 0.5;  // 假设最小驱动速度为0.2m/s
+    const double MIN_DRIVING_SPEED = 0.5; // 假设最小驱动速度为0.2m/s
 
     // 如果目标速度大于0但小于最小驱动速度，则将其设置为最小驱动速度
     if (target_speed > 0.01 && target_speed_command < MIN_DRIVING_SPEED) {
@@ -252,15 +318,52 @@ void ControlNode::LongitudinalController() {
     // 应用速度限制
     target_speed_command = std::max(min_linear_velocity_, std::min(max_linear_velocity_, target_speed_command));
 
+    // 应用速度平滑处理
+    target_speed_command = SmoothSpeedCommand(target_speed_command);
+
+    // 定义执行器的速度分辨率
+    const double SPEED_RESOLUTION = 0.1; // 假设执行器速度分辨率为0.1m/s
+
+    // 将速度命令量化到最近的分辨率倍数
+    target_speed_command = std::round(target_speed_command / SPEED_RESOLUTION) * SPEED_RESOLUTION;
+
+    // 如果量化后的速度变化太小，强制使用下一个分辨率级别
+    if (std::abs(target_speed_command - current_speed) < SPEED_RESOLUTION && std::abs(speed_error) > 0.01) {
+        if (speed_error > 0) {
+            target_speed_command = current_speed + SPEED_RESOLUTION;
+        } else {
+            target_speed_command = current_speed - SPEED_RESOLUTION;
+        }
+    }
+
+    // 定义积分饱和阈值
+    const double INTEGRAL_SATURATION_THRESHOLD = 5.0; // 积分项达到5.0时认为饱和
+
+    // 如果积分项饱和且速度误差仍然存在，使用阶跃响应
+    if (std::abs(speed_pid_controller_->getIntegral()) > INTEGRAL_SATURATION_THRESHOLD && std::abs(speed_error) > 0.1) {
+        // 使用更大的速度步长
+        double step_size = MIN_DRIVING_SPEED * 1.5; // 使用比最小驱动速度更大的步长
+        if (speed_error > 0) {
+            target_speed_command = current_speed + step_size;
+        } else {
+            target_speed_command = current_speed - step_size;
+        }
+    }
+
     // 更新控制命令
-    control_cmd_msg_.speed = target_speed;
+    control_cmd_msg_.speed = target_speed_command;
 
     // 输出调试信息
     if (g_debug_cnt % 10 == 0) {
-        RCLCPP_INFO(this->get_logger(),
-                    "Speed Control: target=%.2f, current=%.2f, error=%.2f, acceleration=%.2f, command=%.2f, integral=%.2f",
-                    target_speed, current_speed, speed_error, acceleration, target_speed_command,
-                    speed_pid_controller_->getIntegral());
+        RCLCPP_INFO(
+            this->get_logger(),
+            "Speed Control: target=%.2f, current=%.2f, error=%.2f, acceleration=%.2f, command=%.2f, integral=%.2f",
+            target_speed, current_speed, speed_error, acceleration, target_speed_command,
+            speed_pid_controller_->getIntegral());
+    }
+    if (g_debug_cnt % 10 == 0 && debug_log_file_.is_open()) {
+        debug_log_file_ << "," << target_speed << "," << current_speed << "," << speed_error << "," << acceleration
+                        << "," << target_speed_command << "," << speed_pid_controller_->getIntegral() << std::endl;
     }
 }
 
@@ -299,7 +402,7 @@ void ControlNode::TimerCallback() {
         control_cmd_msg_.gear = 1;
     } else if (adc_trajectory_msg_->direction == 1) {
         control_cmd_msg_.gear = 2;
-    }else{
+    } else {
         control_cmd_msg_.gear = 1;
         RCLCPP_WARN(this->get_logger(), "Invalid trajectory direction");
     }
@@ -336,7 +439,7 @@ void ControlNode::InitParams() {
     this->declare_parameter("speed_pid_kp", 0.5);
     this->declare_parameter("speed_pid_ki", 0.1);
     this->declare_parameter("speed_pid_kd", 0.0);
-    this->declare_parameter("speed_pid_kf", 0.5);  // 前馈增益默认值
+    this->declare_parameter("speed_pid_kf", 0.5); // 前馈增益默认值
     this->declare_parameter<std::string>("adc_traj_topic_name", "/planing/adc_traj");
     this->declare_parameter<std::string>("control_cmd_topic_name", "/control/control_cmd");
     this->declare_parameter<std::string>("localization_info_topic_name", "/control/local_info");
@@ -395,6 +498,150 @@ void ControlNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "Speed pid kf: %f", speed_pid_kf);
     return;
 }
+
+double ControlNode::SmoothSpeedCommand(double raw_speed_command) {
+    const double dt = 0.02; // 控制周期
+
+    // 限制速度变化率
+    double max_speed_change = max_speed_change_rate_ * dt;
+    double speed_change = raw_speed_command - previous_speed_command_;
+
+    if (std::abs(speed_change) > max_speed_change) {
+        if (speed_change > 0) {
+            raw_speed_command = previous_speed_command_ + max_speed_change;
+        } else {
+            raw_speed_command = previous_speed_command_ - max_speed_change;
+        }
+    }
+
+    // 使用滑动窗口平均进行平滑
+    speed_commands_buffer_.push_back(raw_speed_command);
+    if (speed_commands_buffer_.size() > smooth_window_size_) {
+        speed_commands_buffer_.pop_front();
+    }
+
+    // 计算平滑后的速度
+    double smoothed_speed = 0.0;
+    for (const auto &speed : speed_commands_buffer_) {
+        smoothed_speed += speed;
+    }
+    smoothed_speed /= speed_commands_buffer_.size();
+
+    // 更新上一次的速度命令
+    previous_speed_command_ = smoothed_speed;
+
+    return smoothed_speed;
+}
+
+// 修改曲率计算函数，使其返回带符号的曲率
+double ControlNode::CalculatePathCurvature(size_t index) {
+    // 需要至少三个点来计算曲率和方向
+    if (index == 0 || index >= adc_trajectory_msg_->points.size() - 1) {
+        return 0.0; // 无法计算或接近轨迹末端，视为直线
+    }
+
+    // 获取连续三个点
+    const auto& p0 = adc_trajectory_msg_->points[index - 1]; // 前一个点
+    const auto& p1 = adc_trajectory_msg_->points[index];     // 当前点 (closest_idx)
+    const auto& p2 = adc_trajectory_msg_->points[index + 1]; // 后一个点
+
+    // 将点转换为简单的2D向量，以p1为原点
+    double x0 = p0.east - p1.east;
+    double y0 = p0.north - p1.north;
+    double x2 = p2.east - p1.east;
+    double y2 = p2.north - p1.north;
+
+    // 计算向量 P1P0 和 P1P2
+    // P1P0: (x0, y0)
+    // P1P2: (x2, y2)
+
+    // 使用Menger曲率公式的近似 (适用于离散点)
+    // K = 2 * |x1(y2 − y3) + x2(y3 − y1) + x3(y1 − y2)| / (sqrt((x1−x2)^2+(y1−y2)^2) * sqrt((x2−x3)^2+(y2−y3)^2) * sqrt((x3−x1)^2+(y3−y1)^2))
+    // 为了简化并获得符号，我们使用叉积的思想来判断方向
+    // 向量 p1->p0 和 p1->p2
+    // 叉积的 z 分量: (x0 * y2 - y0 * x2)
+    // 如果这个值 > 0，表示从 p1->p0 到 p1->p2 是逆时针（左转弯）
+    // 如果这个值 < 0，表示从 p1->p0 到 p1->p2 是顺时针（右转弯）
+    
+    double cross_product_z = x0 * y2 - x2 * y0;
+
+    // 计算三点构成的三角形面积的两倍（也与叉积相关）
+    // area2 = |x0(y1 - y2) + x1(y2 - y0) + x2(y0 - y1)| where p1 is origin (0,0)
+    // area2 = |x0(0 - y2) + 0 + x2(y0 - 0)| = |-x0y2 + x2y0| = |x2y0 - x0y2|
+    // 上面计算的 cross_product_z 就是 (x2y0 - x0y2) 的相反数，所以符号也是相反的
+
+    double dist_p0_p1 = std::hypot(x0, y0);
+    double dist_p1_p2 = std::hypot(x2, y2);
+    double dist_p0_p2 = std::hypot(p2.east - p0.east, p2.north - p0.north);
+
+    if (dist_p0_p1 < 1e-6 || dist_p1_p2 < 1e-6 || dist_p0_p2 < 1e-6) {
+        return 0.0; // 点重合或非常近，视为直线
+    }
+    
+    // 使用Menger曲率的公式: K = 4 * Area / (a*b*c)
+    // Area 是 p0, p1, p2 构成的三角形面积. 2 * Area = |x0*y2 - x2*y0|
+    double area_triangle_times_2 = std::abs(cross_product_z);
+    double curvature_magnitude = 2.0 * area_triangle_times_2 / (dist_p0_p1 * dist_p1_p2 * dist_p0_p2);
+
+    // 根据叉积的符号确定曲率的符号
+    // 假设左转为正曲率，右转为负曲率
+    // 如果 cross_product_z > 0 (P1P0 到 P1P2 是逆时针)，则认为是左转 (正曲率)
+    // (注意：这取决于坐标系的定义和期望的转向约定，可能需要调整符号)
+    // 通常，如果车辆前进方向为X轴正向，左转弯的航向角增加，对应正的角速度/曲率。
+    // 如果 cross_product_z > 0， (p0-p1) 向量转向 (p2-p1) 向量是逆时针。
+    // 这通常对应于路径向左弯曲。
+    
+    // 我们需要根据车辆的航向来正确定义曲率符号。
+    // 一个更通用的方法是判断中间点p1相对于线段p0p2的位置。
+    // (y2-y0)*p1.x - (x2-x0)*p1.y + x2*y0 - y2*x0
+    // 如果以p1为参考点，可以看 (p2-p1) 相对于 (p1-p0) 的转向
+    // 向量 v1 = p1-p0 = (-x0, -y0)
+    // 向量 v2 = p2-p1 = (x2, y2)
+    // 叉积 v1 x v2 = (-x0)*y2 - (-y0)*x2 = y0*x2 - x0*y2 
+    // 这就是我们之前计算的 cross_product_z
+    
+    double signed_curvature = curvature_magnitude;
+    if (cross_product_z > 0) { 
+        signed_curvature = -curvature_magnitude; // 右转 -> 负曲率
+    } else if (cross_product_z < 0) {
+        signed_curvature = curvature_magnitude;  // 左转 -> 正曲率
+    } else {
+        signed_curvature = 0.0; // 直线
+    }
+    // 注意：如果 curvature_magnitude 已经为0（直线），符号无所谓
+
+    return signed_curvature;
+}
+
+// 计算自适应预瞄距离
+double ControlNode::CalculateAdaptivePreviewDistance(double current_speed, double path_curvature) {
+    // 基础预瞄距离
+    double base_preview = preview_time_ * current_speed;
+
+    // 根据曲率调整预瞄距离
+    const double MIN_PREVIEW_DISTANCE = 1.0; // 最小预瞄距离
+    const double CURVATURE_FACTOR = 5.0;     // 曲率影响因子
+
+    double preview_dist = base_preview / (1.0 + CURVATURE_FACTOR * std::abs(path_curvature));
+    return std::max(MIN_PREVIEW_DISTANCE, preview_dist);
+}
+
+// // 添加转向角平滑函数
+// double ControlNode::SmoothSteeringAngle(double target_angle, double dt) {
+//     double angle_change = target_angle - previous_steering_angle_;
+//     double max_change = max_steering_rate_ * dt;
+
+//     if (std::abs(angle_change) > max_change) {
+//         if (angle_change > 0) {
+//             target_angle = previous_steering_angle_ + max_change;
+//         } else {
+//             target_angle = previous_steering_angle_ - max_change;
+//         }
+//     }
+
+//     previous_steering_angle_ = target_angle;
+//     return target_angle;
+// }
 
 ControlNode::~ControlNode() {
     if (debug_log_file_.is_open()) {

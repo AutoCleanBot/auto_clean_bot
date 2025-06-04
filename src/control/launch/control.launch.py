@@ -40,14 +40,16 @@ def generate_launch_description():
         'max_angular_velocity':10.0,
         'acceleration_limit':5.0,
         'deceleration_limit':-5.0,
-        'pursuit_control_rate':1.0,
-        'stanley_control_rate':0.8,
+        'pursuit_control_rate':0.5,
+        'stanley_control_rate':0.5,
         'sta_lat_rate':0.4, # stanley控制中的横向偏差系数
         'speed_pid_kp':0.5,
         'speed_pid_ki':0.1,
         'speed_pid_kd':0.0,
         'zero_point_draft':0.0,     # 零点漂移
         'turning_radius_ratio':1.0,
+        'max_speed_change_rate':1.0, # 最大速度变化率
+        'smooth_window_size':20,     # 平滑窗口大小
         'adc_traj_topic_name':'/planning/trajectory',
         'localization_info_topic_name':'/localization/rtk_info',
         'control_cmd_topic_name':'/control/control_cmd',

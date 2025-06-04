@@ -6,6 +6,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <fstream>
 #include "control/pid_controller.h"
+#include <deque>
 
 namespace control {
 class ControlNode : public rclcpp::Node {
@@ -18,7 +19,9 @@ class ControlNode : public rclcpp::Node {
     void LocalizationInfoCallback(const bot_msg::msg::LocalizationInfo::SharedPtr msg);
     void LateralController();
     void LongitudinalController();
-
+    double SmoothSpeedCommand(double raw_speed_command);
+    double CalculatePathCurvature(size_t index);
+    double CalculateAdaptivePreviewDistance(double current_speed, double path_curvature);
   private:
     // subscribers and publishers
     rclcpp::TimerBase::SharedPtr timer_;
@@ -68,5 +71,13 @@ class ControlNode : public rclcpp::Node {
 
     // 上一次控制的时间戳
     rclcpp::Time last_control_time_;
+
+    // 速度平滑相关参数
+    double previous_speed_command_;  // 上一次的速度命令
+    double max_speed_change_rate_;   // 最大速度变化率 (m/s^2)
+    int smooth_window_size_;      // 平滑窗口大小
+    std::deque<double> speed_commands_buffer_;  // 速度命令缓存
+    double max_steering_rate_; // 最大转向角速度 (度/秒)
+    double previous_steering_angle_; // 上一次的转向角
 };
 } // namespace control

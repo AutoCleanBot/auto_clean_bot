@@ -206,7 +206,7 @@ void PlanningNode::TimerCallback() {
         if (planning_status_ == PlanningStatus::Stop) {
             pub_traj_path.points[i].vel_speed = 0.0;
         } else {
-            pub_traj_path.points[i].vel_speed = planning_spd_; // 速度2m/s
+            pub_traj_path.points[i].vel_speed = planning_spd_;
         }
     }
 

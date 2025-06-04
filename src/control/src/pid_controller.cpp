@@ -35,8 +35,25 @@ double PIDController::compute(double error, double dt) {
         return 0.0;
     }
 
-    // 计算积分项
-    integral_ += error * dt;
+    // 定义误差死区
+    const double ERROR_DEADBAND = 0.05;
+    
+    // 增加积分增益系数（当误差持续存在时）
+    const double INTEGRAL_BOOST_THRESHOLD = 1.0;  // 1秒
+    static double error_duration = 0.0;
+    
+    if (std::abs(error) > ERROR_DEADBAND) {
+        // 计算误差持续时间
+        error_duration += dt;
+        
+        // 如果误差持续时间超过阈值，增加积分增益
+        double integral_boost = (error_duration > INTEGRAL_BOOST_THRESHOLD) ? 2.0 : 1.0;
+        
+        // 增强积分作用
+        integral_ += error * dt * integral_boost;
+    } else {
+        error_duration = 0.0;
+    }
 
     // 计算微分项
     double derivative = (error - previous_error_) / dt;

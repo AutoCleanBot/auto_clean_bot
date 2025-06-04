@@ -9,13 +9,20 @@ LocalRecordTest::LocalRecordTest():Node("local_record_test"){
 
 void LocalRecordTest::TimerCallback() {
     static int count = 0;
+    static int count_10 = 0;
     bot_msg::msg::LocalizationInfo localization_info_msg;
     // localization_info_msg.north = 10.0;
     // localization_info_msg.east = 0.0;
-    localization_info_msg.north =  37.4148;
-    localization_info_msg.east = -1.324;
-    localization_info_msg.yaw = 36.721;
-    localization_info_msg.vel_speed = 0;
+    localization_info_msg.north =  43.184;
+    localization_info_msg.east = 8.613;
+    localization_info_msg.yaw = 63.127;
+    if(count % 20 == 0){
+        count_10++;
+    }
+    localization_info_msg.vel_speed = static_cast<float>(count_10)*0.1;
+    if(localization_info_msg.vel_speed >= 3.0){
+        localization_info_msg.vel_speed = 3.0;
+    }
     // localization_info_msg.timestamp = std::chrono::system_clock::now();
     pub_localization_info_->publish(localization_info_msg);
     count++; 
