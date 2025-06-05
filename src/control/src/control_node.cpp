@@ -45,10 +45,10 @@ ControlNode::ControlNode() : Node("control_node") {
                         << std::endl;
     }
 
-    // 初始化PID控制器参数
 
-    // 创建PID控制器
+    // 创建PID控制器并设置前馈增益
     speed_pid_controller_ = std::make_unique<PIDController>(speed_pid_kp_, speed_pid_ki_, speed_pid_kd_);
+    speed_pid_controller_->setFeedForward(speed_pid_kf_);
     speed_pid_controller_->setOutputLimits(-deceleration_limit_, acceleration_limit_);
 
     // 初始化时间戳
@@ -228,7 +228,10 @@ void ControlNode::LateralController() {
 
     // 添加前馈控制项
     double curvature_feedforward = std::atan2(wheelbase_ * path_curvature, 1.0);
-    front_wheel_rad += curvature_feedforward;
+    if(front_wheel_rad > 0)
+        front_wheel_rad += curvature_feedforward;
+    else
+        front_wheel_rad -= curvature_feedforward;
 
     // 3.4 计算最终转向角，并限制在合理范围内
     double steer_angle = front_wheel_rad * 180.0 / M_PI;
@@ -296,7 +299,8 @@ void ControlNode::LongitudinalController() {
     double speed_error = target_speed - current_speed;
 
     // 使用带前馈的PID控制器计算加速度命令
-    double acceleration = speed_pid_controller_->computeWithFeedForward(speed_error, target_speed, dt);
+    // double acceleration = speed_pid_controller_->computeWithFeedForward(speed_error, target_speed, dt);
+    double acceleration = speed_pid_controller_->compute(speed_error, dt);
 
     // 将加速度转换为目标速度
     double target_speed_command = current_speed + acceleration * dt;
@@ -319,36 +323,36 @@ void ControlNode::LongitudinalController() {
     target_speed_command = std::max(min_linear_velocity_, std::min(max_linear_velocity_, target_speed_command));
 
     // 应用速度平滑处理
-    target_speed_command = SmoothSpeedCommand(target_speed_command);
+    // target_speed_command = SmoothSpeedCommand(target_speed_command);
 
     // 定义执行器的速度分辨率
-    const double SPEED_RESOLUTION = 0.1; // 假设执行器速度分辨率为0.1m/s
+    // const double SPEED_RESOLUTION = 0.1; // 假设执行器速度分辨率为0.1m/s
 
-    // 将速度命令量化到最近的分辨率倍数
-    target_speed_command = std::round(target_speed_command / SPEED_RESOLUTION) * SPEED_RESOLUTION;
+    // // 将速度命令量化到最近的分辨率倍数
+    // target_speed_command = std::round(target_speed_command / SPEED_RESOLUTION) * SPEED_RESOLUTION;
 
-    // 如果量化后的速度变化太小，强制使用下一个分辨率级别
-    if (std::abs(target_speed_command - current_speed) < SPEED_RESOLUTION && std::abs(speed_error) > 0.01) {
-        if (speed_error > 0) {
-            target_speed_command = current_speed + SPEED_RESOLUTION;
-        } else {
-            target_speed_command = current_speed - SPEED_RESOLUTION;
-        }
-    }
+    // // 如果量化后的速度变化太小，强制使用下一个分辨率级别
+    // if (std::abs(target_speed_command - current_speed) < SPEED_RESOLUTION && std::abs(speed_error) > 0.01) {
+    //     if (speed_error > 0) {
+    //         target_speed_command = current_speed + SPEED_RESOLUTION;
+    //     } else {
+    //         target_speed_command = current_speed - SPEED_RESOLUTION;
+    //     }
+    // }
 
-    // 定义积分饱和阈值
-    const double INTEGRAL_SATURATION_THRESHOLD = 5.0; // 积分项达到5.0时认为饱和
+    // // 定义积分饱和阈值
+    // const double INTEGRAL_SATURATION_THRESHOLD = 5.0; // 积分项达到5.0时认为饱和
 
-    // 如果积分项饱和且速度误差仍然存在，使用阶跃响应
-    if (std::abs(speed_pid_controller_->getIntegral()) > INTEGRAL_SATURATION_THRESHOLD && std::abs(speed_error) > 0.1) {
-        // 使用更大的速度步长
-        double step_size = MIN_DRIVING_SPEED * 1.5; // 使用比最小驱动速度更大的步长
-        if (speed_error > 0) {
-            target_speed_command = current_speed + step_size;
-        } else {
-            target_speed_command = current_speed - step_size;
-        }
-    }
+    // // 如果积分项饱和且速度误差仍然存在，使用阶跃响应
+    // if (std::abs(speed_pid_controller_->getIntegral()) > INTEGRAL_SATURATION_THRESHOLD && std::abs(speed_error) > 0.1) {
+    //     // 使用更大的速度步长
+    //     double step_size = MIN_DRIVING_SPEED * 1.5; // 使用比最小驱动速度更大的步长
+    //     if (speed_error > 0) {
+    //         target_speed_command = current_speed + step_size;
+    //     } else {
+    //         target_speed_command = current_speed - step_size;
+    //     }
+    // }
 
     // 更新控制命令
     control_cmd_msg_.speed = target_speed_command;
@@ -466,12 +470,9 @@ void ControlNode::InitParams() {
     speed_pid_kp_ = this->get_parameter("speed_pid_kp").as_double();
     speed_pid_ki_ = this->get_parameter("speed_pid_ki").as_double();
     speed_pid_kd_ = this->get_parameter("speed_pid_kd").as_double();
-    double speed_pid_kf = this->get_parameter("speed_pid_kf").as_double();
+     speed_pid_kf_ = this->get_parameter("speed_pid_kf").as_double();
 
-    // 创建PID控制器并设置前馈增益
-    speed_pid_controller_ = std::make_unique<PIDController>(speed_pid_kp_, speed_pid_ki_, speed_pid_kd_);
-    speed_pid_controller_->setFeedForward(speed_pid_kf);
-    speed_pid_controller_->setOutputLimits(-deceleration_limit_, acceleration_limit_);
+
 
     // Print parameters
     RCLCPP_INFO(this->get_logger(), "Publish rate: %f", publish_rate_);
@@ -495,7 +496,7 @@ void ControlNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "Speed pid kp: %f", speed_pid_kp_);
     RCLCPP_INFO(this->get_logger(), "Speed pid ki: %f", speed_pid_ki_);
     RCLCPP_INFO(this->get_logger(), "Speed pid kd: %f", speed_pid_kd_);
-    RCLCPP_INFO(this->get_logger(), "Speed pid kf: %f", speed_pid_kf);
+    RCLCPP_INFO(this->get_logger(), "Speed pid kf: %f", speed_pid_kf_);
     return;
 }
 
@@ -600,17 +601,17 @@ double ControlNode::CalculatePathCurvature(size_t index) {
     // 叉积 v1 x v2 = (-x0)*y2 - (-y0)*x2 = y0*x2 - x0*y2 
     // 这就是我们之前计算的 cross_product_z
     
-    double signed_curvature = curvature_magnitude;
-    if (cross_product_z > 0) { 
-        signed_curvature = -curvature_magnitude; // 右转 -> 负曲率
-    } else if (cross_product_z < 0) {
-        signed_curvature = curvature_magnitude;  // 左转 -> 正曲率
-    } else {
-        signed_curvature = 0.0; // 直线
-    }
-    // 注意：如果 curvature_magnitude 已经为0（直线），符号无所谓
+    // double signed_curvature = curvature_magnitude;
+    // if (cross_product_z > 0) { 
+    //     signed_curvature = -curvature_magnitude; // 右转 -> 负曲率
+    // } else if (cross_product_z < 0) {
+    //     signed_curvature = curvature_magnitude;  // 左转 -> 正曲率
+    // } else {
+    //     signed_curvature = 0.0; // 直线
+    // }
+    // // 注意：如果 curvature_magnitude 已经为0（直线），符号无所谓
 
-    return signed_curvature;
+    return curvature_magnitude;
 }
 
 // 计算自适应预瞄距离

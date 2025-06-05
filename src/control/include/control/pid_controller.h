@@ -47,7 +47,10 @@ public:
     /**
      * @brief 设置前馈增益
      */
-    void setFeedForward(double kf) { kf_ = kf; }
+    void setFeedForward(double kf) { 
+        this->kf_ = kf; 
+
+    }
 
     /**
      * @brief 计算控制输出（带前馈）
@@ -57,7 +60,7 @@ public:
      * @return 控制输出
      */
     double computeWithFeedForward(double error, double target, double dt) {
-        return compute(error, dt) + kf_ * target;
+        return compute(error, dt) + this->kf_ * target;
     }
 
 private:

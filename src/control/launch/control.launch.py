@@ -42,7 +42,7 @@ def generate_launch_description():
         'deceleration_limit':-5.0,
         'pursuit_control_rate':0.5,
         'stanley_control_rate':0.5,
-        'sta_lat_rate':0.4, # stanley控制中的横向偏差系数
+        'sta_lat_rate':0.3, # stanley控制中的横向偏差系数
         'speed_pid_kp':0.5,
         'speed_pid_ki':0.1,
         'speed_pid_kd':0.0,

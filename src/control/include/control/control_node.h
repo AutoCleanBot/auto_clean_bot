@@ -65,6 +65,7 @@ class ControlNode : public rclcpp::Node {
     double speed_pid_kp_;
     double speed_pid_ki_;
     double speed_pid_kd_;
+    double speed_pid_kf_;
     
     // PID控制器
     std::unique_ptr<PIDController> speed_pid_controller_;
