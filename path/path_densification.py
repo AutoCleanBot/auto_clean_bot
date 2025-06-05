@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
+import os
+import shutil
 
 def calculate_distance(x1, y1, x2, y2):
     """计算两点之间的距离"""
@@ -72,30 +74,39 @@ def verify_distances(df):
         distances.append(d)
     return max(distances), np.mean(distances)
 
-def plot_path_comparison(original_df, dense_df):
-    """绘制原始路径和加密后的路径对比图"""
-    plt.figure(figsize=(12, 8))
+def safe_file_replace(source_file, target_file):
+    """
+    安全地替换文件，包含备份机制
+    """
+    # 创建备份文件
+    backup_file = target_file + '.bak'
+    try:
+        # 如果存在旧的备份文件，先删除
+        if os.path.exists(backup_file):
+            os.remove(backup_file)
+        
+        # 将原文件重命名为备份文件
+        if os.path.exists(target_file):
+            os.rename(target_file, backup_file)
+        
+        # 将新文件移动到目标位置
+        shutil.move(source_file, target_file)
+        
+        print(f"File replacement successful. Original file backed up as: {backup_file}")
+        return True
     
-    # 绘制原始路径
-    plt.plot(original_df['east'].to_numpy(), 
-             original_df['north'].to_numpy(), 
-             'b.-', label='原始路径', markersize=8)
-    
-    # 绘制加密后的路径
-    plt.plot(dense_df['east'].to_numpy(), 
-             dense_df['north'].to_numpy(), 
-             'r.-', label='加密后的路径', markersize=4)
-    
-    plt.title('路径对比图')
-    plt.xlabel('East (m)')
-    plt.ylabel('North (m)')
-    plt.legend()
-    plt.grid(True)
-    plt.axis('equal')
-    
-    # 保存图片
-    plt.savefig('path_comparison.png')
-    plt.close()
+    except Exception as e:
+        print(f"Error during file replacement: {str(e)}")
+        # 如果出错，尝试恢复原文件
+        if os.path.exists(backup_file):
+            try:
+                if os.path.exists(target_file):
+                    os.remove(target_file)
+                os.rename(backup_file, target_file)
+                print("Original file has been restored")
+            except Exception as restore_error:
+                print(f"Failed to restore original file: {str(restore_error)}")
+        return False
 
 def main():
     try:
@@ -105,38 +116,38 @@ def main():
         
         # 输出原始路径的统计信息
         max_dist_original, mean_dist_original = verify_distances(df)
-        print(f"原始路径统计:")
-        print(f"点数: {len(df)}")
-        print(f"最大间距: {max_dist_original:.3f}m")
-        print(f"平均间距: {mean_dist_original:.3f}m")
+        print(f"Original path statistics:")
+        print(f"Number of points: {len(df)}")
+        print(f"Maximum distance: {max_dist_original:.3f}m")
+        print(f"Average distance: {mean_dist_original:.3f}m")
         
         # 进行路径加密
         dense_df = densify_path(df, max_distance=0.2)
         
         # 输出加密后的路径统计信息
         max_dist_dense, mean_dist_dense = verify_distances(dense_df)
-        print(f"\n加密后的路径统计:")
-        print(f"点数: {len(dense_df)}")
-        print(f"最大间距: {max_dist_dense:.3f}m")
-        print(f"平均间距: {mean_dist_dense:.3f}m")
+        print(f"\nDensified path statistics:")
+        print(f"Number of points: {len(dense_df)}")
+        print(f"Maximum distance: {max_dist_dense:.3f}m")
+        print(f"Average distance: {mean_dist_dense:.3f}m")
         
-        # 保存加密后的路径，保持与输入文件相同的格式
-        output_file = 'dense_path.csv'
-        # 使用与输入文件相同的格式保存
-        dense_df.to_csv(output_file, 
+        # 首先保存到临时文件
+        temp_file = 'temp_dense_path.csv'
+        dense_df.to_csv(temp_file, 
                        index=False, 
                        float_format='%.8f',  # 保持足够的精度
                        columns=df.columns)   # 保持原始列的顺序
-        print(f"\n加密后的路径已保存到: {output_file}")
         
-        # 绘制对比图
-        # plot_path_comparison(df, dense_df)
-        # print("路径对比图已保存到: path_comparison.png")
+        # 安全地替换原文件
+        if safe_file_replace(temp_file, input_file):
+            print(f"\nOriginal file {input_file} has been successfully updated with densified path")
+        else:
+            print(f"\nFile replacement failed, please check error messages")
         
     except FileNotFoundError:
-        print(f"错误：找不到输入文件 {input_file}")
+        print(f"Error: Input file {input_file} not found")
     except Exception as e:
-        print(f"处理过程中出现错误：{str(e)}")
+        print(f"Error occurred during processing: {str(e)}")
 
 if __name__ == "__main__":
     main() 
