@@ -50,6 +50,8 @@ ControlNode::ControlNode() : Node("control_node") {
     speed_pid_controller_ = std::make_unique<PIDController>(speed_pid_kp_, speed_pid_ki_, speed_pid_kd_);
     speed_pid_controller_->setFeedForward(speed_pid_kf_);
     speed_pid_controller_->setOutputLimits(-deceleration_limit_, acceleration_limit_);
+    speed_pid_controller_->setIntegralLimits(-1.5, 1.5);  // 可以根据实际情况调整为-1.0到-2.0之间
+
 
     // 初始化时间戳
     last_control_time_ = this->now();
@@ -228,10 +230,12 @@ void ControlNode::LateralController() {
 
     // 添加前馈控制项
     double curvature_feedforward = std::atan2(wheelbase_ * path_curvature, 1.0);
-    if(front_wheel_rad > 0)
-        front_wheel_rad += curvature_feedforward;
-    else
-        front_wheel_rad -= curvature_feedforward;
+    // if(curvature_feedforward > 0.1){
+    //     if(front_wheel_rad > 0)
+    //         front_wheel_rad += curvature_feedforward;
+    //     else
+    //         front_wheel_rad -= curvature_feedforward;
+    // }
 
     // 3.4 计算最终转向角，并限制在合理范围内
     double steer_angle = front_wheel_rad * 180.0 / M_PI;
@@ -268,7 +272,16 @@ void ControlNode::LateralController() {
     }
 }
 
+/**
+ * @brief 基于阶梯阶跃响应的纵向控制器
+ * 
+ */
 void ControlNode::LongitudinalController() {
+    static bool first_run = true;
+    static double step_target_speed = 0.0;
+    const double koffset = 0.2;
+    const double SPEED_THRESHOLD = 0.01;
+    const double STEP_SIZE = 0.5;
     // 检查输入数据是否有效
     if (!adc_trajectory_msg_ || !localization_info_msg_) {
         RCLCPP_WARN(this->get_logger(), "LongitudinalController: Missing trajectory or localization data");
@@ -281,95 +294,155 @@ void ControlNode::LongitudinalController() {
         return;
     }
 
-    // 获取当前速度和目标速度
+     // 获取当前速度和目标速度
     double current_speed = localization_info_msg_->vel_speed;
-    double target_speed = adc_trajectory_msg_->points[closest_idx_].vel_speed;
-
-    // 限制目标速度在合理范围内
-    target_speed = std::max(min_linear_velocity_, std::min(max_linear_velocity_, target_speed));
-
-    double dt = 0.02; // 0.02s
-
-    if (dt <= 0.0) {
-        RCLCPP_WARN(this->get_logger(), "Invalid time interval");
-        return;
+    double final_target_speed = adc_trajectory_msg_->points[closest_idx_].vel_speed;
+    
+    // 限制最终目标速度在合理范围内
+    final_target_speed = std::max(min_linear_velocity_, std::min(max_linear_velocity_, final_target_speed));
+    
+    // 初始化阶梯目标速度
+    if (first_run) {
+        step_target_speed = 0.5;
+        first_run = false;
     }
-
-    // 计算速度误差
-    double speed_error = target_speed - current_speed;
-
-    // 使用带前馈的PID控制器计算加速度命令
-    // double acceleration = speed_pid_controller_->computeWithFeedForward(speed_error, target_speed, dt);
-    double acceleration = speed_pid_controller_->compute(speed_error, dt);
-
-    // 将加速度转换为目标速度
-    double target_speed_command = current_speed + acceleration * dt;
-
-    // 定义最小驱动速度阈值（需要根据实际车辆特性调整）
-    const double MIN_DRIVING_SPEED = 0.5; // 假设最小驱动速度为0.2m/s
-
-    // 如果目标速度大于0但小于最小驱动速度，则将其设置为最小驱动速度
-    if (target_speed > 0.01 && target_speed_command < MIN_DRIVING_SPEED) {
-        target_speed_command = MIN_DRIVING_SPEED;
-    } else if (target_speed < -0.01 && target_speed_command > -MIN_DRIVING_SPEED) {
-        // 处理反向运动的情况
-        target_speed_command = -MIN_DRIVING_SPEED;
-    } else if (std::abs(target_speed) <= 0.01) {
-        // 如果目标速度接近0，则完全停止
-        target_speed_command = 0.0;
+    
+    // 阶梯目标速度更新逻辑
+    if (final_target_speed > step_target_speed) {
+        // 目标速度高于当前阶梯目标 - 需要加速
+        if (current_speed >= step_target_speed - SPEED_THRESHOLD) {
+            // 当前速度已达到阶梯目标，增加阶梯
+            step_target_speed = std::min(step_target_speed + STEP_SIZE, final_target_speed);
+        }
+    } else if (final_target_speed < step_target_speed) {
+        // 目标速度低于当前阶梯目标 - 需要减速
+        if (current_speed <= step_target_speed + SPEED_THRESHOLD) {
+            // 当前速度已降至阶梯目标，降低阶梯
+            step_target_speed = std::max(step_target_speed - STEP_SIZE, final_target_speed);
+        }
+    } else {
+        // 最终目标速度等于当前阶梯目标，无需调整
+        step_target_speed = final_target_speed;
     }
-
-    // 应用速度限制
-    target_speed_command = std::max(min_linear_velocity_, std::min(max_linear_velocity_, target_speed_command));
-
-    // 应用速度平滑处理
-    // target_speed_command = SmoothSpeedCommand(target_speed_command);
-
-    // 定义执行器的速度分辨率
-    // const double SPEED_RESOLUTION = 0.1; // 假设执行器速度分辨率为0.1m/s
-
-    // // 将速度命令量化到最近的分辨率倍数
-    // target_speed_command = std::round(target_speed_command / SPEED_RESOLUTION) * SPEED_RESOLUTION;
-
-    // // 如果量化后的速度变化太小，强制使用下一个分辨率级别
-    // if (std::abs(target_speed_command - current_speed) < SPEED_RESOLUTION && std::abs(speed_error) > 0.01) {
-    //     if (speed_error > 0) {
-    //         target_speed_command = current_speed + SPEED_RESOLUTION;
-    //     } else {
-    //         target_speed_command = current_speed - SPEED_RESOLUTION;
-    //     }
-    // }
-
-    // // 定义积分饱和阈值
-    // const double INTEGRAL_SATURATION_THRESHOLD = 5.0; // 积分项达到5.0时认为饱和
-
-    // // 如果积分项饱和且速度误差仍然存在，使用阶跃响应
-    // if (std::abs(speed_pid_controller_->getIntegral()) > INTEGRAL_SATURATION_THRESHOLD && std::abs(speed_error) > 0.1) {
-    //     // 使用更大的速度步长
-    //     double step_size = MIN_DRIVING_SPEED * 1.5; // 使用比最小驱动速度更大的步长
-    //     if (speed_error > 0) {
-    //         target_speed_command = current_speed + step_size;
-    //     } else {
-    //         target_speed_command = current_speed - step_size;
-    //     }
-    // }
 
     // 更新控制命令
-    control_cmd_msg_.speed = target_speed_command;
-
-    // 输出调试信息
-    if (g_debug_cnt % 10 == 0) {
-        RCLCPP_INFO(
-            this->get_logger(),
-            "Speed Control: target=%.2f, current=%.2f, error=%.2f, acceleration=%.2f, command=%.2f, integral=%.2f",
-            target_speed, current_speed, speed_error, acceleration, target_speed_command,
-            speed_pid_controller_->getIntegral());
+    if(final_target_speed > 0.0){
+        control_cmd_msg_.speed = step_target_speed + koffset;
+    }else{
+        control_cmd_msg_.speed = step_target_speed;
     }
     if (g_debug_cnt % 10 == 0 && debug_log_file_.is_open()) {
-        debug_log_file_ << "," << target_speed << "," << current_speed << "," << speed_error << "," << acceleration
-                        << "," << target_speed_command << "," << speed_pid_controller_->getIntegral() << std::endl;
+        debug_log_file_ << "," << final_target_speed << "," << current_speed << "," << final_target_speed - current_speed << "," << 0
+                        << "," << step_target_speed << "," << speed_pid_controller_->getIntegral() << std::endl;
     }
 }
+
+// void ControlNode::LongitudinalController() {
+//     // 检查输入数据是否有效
+//     if (!adc_trajectory_msg_ || !localization_info_msg_) {
+//         RCLCPP_WARN(this->get_logger(), "LongitudinalController: Missing trajectory or localization data");
+//         return;
+//     }
+
+//     // 检查轨迹点是否为空
+//     if (adc_trajectory_msg_->points.empty()) {
+//         RCLCPP_WARN(this->get_logger(), "LongitudinalController: Empty trajectory points");
+//         return;
+//     }
+
+//     // 获取当前速度和目标速度
+//     double current_speed = localization_info_msg_->vel_speed;
+//     double target_speed = adc_trajectory_msg_->points[closest_idx_].vel_speed;
+
+//     // 限制目标速度在合理范围内
+//     target_speed = std::max(min_linear_velocity_, std::min(max_linear_velocity_, target_speed));
+
+//     double dt = 0.02; // 0.02s
+
+//     if (dt <= 0.0) {
+//         RCLCPP_WARN(this->get_logger(), "Invalid time interval");
+//         return;
+//     }
+
+//     // 计算速度误差
+//     double speed_error = target_speed - current_speed;
+
+//     // 使用带前馈的PID控制器计算加速度命令
+//     double acceleration = speed_pid_controller_->computeWithFeedForward(speed_error, target_speed, dt);
+//     // double acceleration = speed_pid_controller_->compute(speed_error, dt);
+
+//     // 将加速度转换为目标速度
+//     double target_speed_command = current_speed + acceleration * dt;
+
+//     // 定义最小驱动速度阈值（需要根据实际车辆特性调整）
+//     const double MIN_DRIVING_SPEED = 0.5; // 假设最小驱动速度为0.2m/s
+
+//     // 如果目标速度大于0但小于最小驱动速度，则将其设置为最小驱动速度
+//     if (target_speed > 0.01 && target_speed_command < MIN_DRIVING_SPEED) {
+//         target_speed_command = MIN_DRIVING_SPEED;
+//     } else if (target_speed < -0.01 && target_speed_command > -MIN_DRIVING_SPEED) {
+//         // 处理反向运动的情况
+//         target_speed_command = -MIN_DRIVING_SPEED;
+//     } else if (std::abs(target_speed) <= 0.01) {
+//         // 如果目标速度接近0，则完全停止
+//         target_speed_command = 0.0;
+//     }
+
+//     // 应用速度限制
+//     target_speed_command = std::max(min_linear_velocity_, std::min(max_linear_velocity_, target_speed_command));
+
+//     // 应用速度平滑处理
+//     // target_speed_command = SmoothSpeedCommand(target_speed_command);
+
+//     // 定义执行器的速度分辨率
+//     // const double SPEED_RESOLUTION = 0.1; // 假设执行器速度分辨率为0.1m/s
+
+//     // // 将速度命令量化到最近的分辨率倍数
+//     // target_speed_command = std::round(target_speed_command / SPEED_RESOLUTION) * SPEED_RESOLUTION;
+
+//     // // 如果量化后的速度变化太小，强制使用下一个分辨率级别
+//     // if (std::abs(target_speed_command - current_speed) < SPEED_RESOLUTION && std::abs(speed_error) > 0.01) {
+//     //     if (speed_error > 0) {
+//     //         target_speed_command = current_speed + SPEED_RESOLUTION;
+//     //     } else {
+//     //         target_speed_command = current_speed - SPEED_RESOLUTION;
+//     //     }
+//     // }
+
+//     // // 定义积分饱和阈值
+//     // const double INTEGRAL_SATURATION_THRESHOLD = 5.0; // 积分项达到5.0时认为饱和
+
+//     // // 如果积分项饱和且速度误差仍然存在，使用阶跃响应
+//     // if (std::abs(speed_pid_controller_->getIntegral()) > INTEGRAL_SATURATION_THRESHOLD && std::abs(speed_error) > 0.1) {
+//     //     // 使用更大的速度步长
+//     //     double step_size = MIN_DRIVING_SPEED * 1.5; // 使用比最小驱动速度更大的步长
+//     //     if (speed_error > 0) {
+//     //         target_speed_command = current_speed + step_size;
+//     //     } else {
+//     //         target_speed_command = current_speed - step_size;
+//     //     }
+//     // }
+
+//     // 更新控制命令
+//     control_cmd_msg_.speed = target_speed_command;
+
+//     // 输出调试信息
+//     if (g_debug_cnt % 10 == 0) {
+//         RCLCPP_INFO(
+//             this->get_logger(),
+//             "Speed Control: target=%.2f, current=%.2f, error=%.2f, acceleration=%.2f, command=%.2f, integral=%.2f",
+//             target_speed, current_speed, speed_error, acceleration, target_speed_command,
+//             speed_pid_controller_->getIntegral());
+//     }
+//     if (g_debug_cnt % 10 == 0 && debug_log_file_.is_open()) {
+//         debug_log_file_ << "," << target_speed << "," << current_speed << "," << speed_error << "," << acceleration
+//                         << "," << target_speed_command << "," << speed_pid_controller_->getIntegral() << std::endl;
+//     }
+// }
+
+
+
+
 
 void ControlNode::ADCTrajectoryCallback(const bot_msg::msg::ADCTrajectory::SharedPtr msg) {
     RCLCPP_INFO(this->get_logger(), "Received trajectory with %zu points", msg->points.size());
@@ -470,7 +543,7 @@ void ControlNode::InitParams() {
     speed_pid_kp_ = this->get_parameter("speed_pid_kp").as_double();
     speed_pid_ki_ = this->get_parameter("speed_pid_ki").as_double();
     speed_pid_kd_ = this->get_parameter("speed_pid_kd").as_double();
-     speed_pid_kf_ = this->get_parameter("speed_pid_kf").as_double();
+    speed_pid_kf_ = this->get_parameter("speed_pid_kf").as_double();
 
 
 

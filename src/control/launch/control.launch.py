@@ -33,16 +33,16 @@ def generate_launch_description():
     control_params = {
         'publish_rate': 50.0,
         'preview_time': 0.5,            # 预瞄时间
-        'tolerance_distance': 2.0,      # 预瞄距离
+        'tolerance_distance': 4.0,      # 预瞄距离
         'max_steering_angle':50.0,      # 最大前轮转角
         'wheelbase':1.4,
         'max_linear_velocity':10.0,
         'max_angular_velocity':10.0,
-        'acceleration_limit':5.0,
-        'deceleration_limit':-5.0,
-        'pursuit_control_rate':0.5,
-        'stanley_control_rate':0.5,
-        'sta_lat_rate':0.3, # stanley控制中的横向偏差系数
+        'acceleration_limit':20.0,
+        'deceleration_limit':-20.0,
+        'pursuit_control_rate':0.7,
+        'stanley_control_rate':0.3,
+        'sta_lat_rate':0.4, # stanley控制中的横向偏差系数
         'speed_pid_kp':0.5,
         'speed_pid_ki':0.1,
         'speed_pid_kd':0.0,

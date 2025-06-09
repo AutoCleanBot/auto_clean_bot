@@ -53,6 +53,11 @@ public:
     }
 
     /**
+     * @brief 设置积分限制
+     */
+    void setIntegralLimits(double min_integral, double max_integral);
+
+    /**
      * @brief 计算控制输出（带前馈）
      * @param error 当前误差
      * @param target 目标值

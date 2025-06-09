@@ -24,6 +24,12 @@ void PIDController::setGains(double kp, double ki, double kd) {
     reset();
 }
 
+void PIDController::setIntegralLimits(double min_integral, double max_integral) {
+    min_integral_ = min_integral;
+    max_integral_ = max_integral;
+    has_integral_limits_ = true;
+}
+
 void PIDController::setOutputLimits(double min_output, double max_output) {
     min_output_ = min_output;
     max_output_ = max_output;
@@ -42,6 +48,12 @@ double PIDController::compute(double error, double dt) {
     const double INTEGRAL_BOOST_THRESHOLD = 1.0;  // 1秒
     static double error_duration = 0.0;
     
+
+   // 误差变号时减小积分项
+    if (error * previous_error_ < 0 && std::abs(previous_error_) > 0.1) {
+        integral_ *= 0.5;
+    }
+
     if (std::abs(error) > ERROR_DEADBAND) {
         // 计算误差持续时间
         error_duration += dt;
@@ -51,8 +63,19 @@ double PIDController::compute(double error, double dt) {
         
         // 增强积分作用
         integral_ += error * dt * integral_boost;
+
+
     } else {
         error_duration = 0.0;
+    }
+
+        // 应用积分限制
+    if (has_integral_limits_) {
+        if (integral_ > max_integral_) {
+            integral_ = max_integral_;
+        } else if (integral_ < min_integral_) {
+            integral_ = min_integral_;
+        }
     }
 
     // 计算微分项
