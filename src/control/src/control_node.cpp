@@ -230,12 +230,12 @@ void ControlNode::LateralController() {
 
     // 添加前馈控制项
     double curvature_feedforward = std::atan2(wheelbase_ * path_curvature, 1.0);
-    // if(curvature_feedforward > 0.1){
-    //     if(front_wheel_rad > 0)
-    //         front_wheel_rad += curvature_feedforward;
-    //     else
-    //         front_wheel_rad -= curvature_feedforward;
-    // }
+    if(curvature_feedforward > 0.08){
+        if(front_wheel_rad > 0)
+            front_wheel_rad += feedforward_rate_ * curvature_feedforward;
+        else
+            front_wheel_rad -= feedforward_rate_ * curvature_feedforward;
+    }
 
     // 3.4 计算最终转向角，并限制在合理范围内
     double steer_angle = front_wheel_rad * 180.0 / M_PI;
@@ -243,7 +243,7 @@ void ControlNode::LateralController() {
     steer_angle += zero_point_draft_;
     // 自行车模型的转角偏差
     steer_angle *= turning_radius_ratio_;
-    steer_angle = std::max(-max_steering_angle_, std::min(max_steering_angle_, steer_angle)); // 限制在[-30, 30]度之间
+    steer_angle = std::max(-max_steering_angle_, std::min(max_steering_angle_, steer_angle)); // 限制在[-50, 50]度之间
 
     // 4. 赋值给控制命令
     control_cmd_msg_.steer_angle = steer_angle;
@@ -509,6 +509,7 @@ void ControlNode::InitParams() {
     this->declare_parameter<double>("deceleration_limit", 0.0);
     this->declare_parameter<double>("pursuit_control_rate", 0.0);
     this->declare_parameter<double>("stanley_control_rate", 0.0);
+    this->declare_parameter<double>("feedforward_rate", 0.0);
     this->declare_parameter<double>("sta_lat_rate", 0.1);
     this->declare_parameter<double>("turning_radius_ratio", 1.0);
     this->declare_parameter<double>("zero_point_draft", 0.0);
@@ -534,6 +535,7 @@ void ControlNode::InitParams() {
     pursuit_control_rate_ = this->get_parameter("pursuit_control_rate").get_value<double>();
     stanley_control_rate_ = this->get_parameter("stanley_control_rate").get_value<double>();
     sta_lat_rate_ = this->get_parameter("sta_lat_rate").get_value<double>();
+    feedforward_rate_ = this->get_parameter("feedforward_rate").get_value<double>();
     turning_radius_ratio_ = this->get_parameter("turning_radius_ratio").get_value<double>();
     zero_point_draft_ = this->get_parameter("zero_point_draft").get_value<double>();
     adc_traj_topic_name_ = this->get_parameter("adc_traj_topic_name").get_value<std::string>();
@@ -565,6 +567,7 @@ void ControlNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "Pursuit control rate: %f", pursuit_control_rate_);
     RCLCPP_INFO(this->get_logger(), "Stanley control rate: %f", stanley_control_rate_);
     RCLCPP_INFO(this->get_logger(), "Stanley lat control rate: %f", sta_lat_rate_);
+    RCLCPP_INFO(this->get_logger(), "Feedforward rate: %f", feedforward_rate_);
     RCLCPP_INFO(this->get_logger(), "Debug log file path: %s", log_file_path_.c_str());
     RCLCPP_INFO(this->get_logger(), "Speed pid kp: %f", speed_pid_kp_);
     RCLCPP_INFO(this->get_logger(), "Speed pid ki: %f", speed_pid_ki_);
