@@ -22,14 +22,11 @@ def densify_path(df, max_distance=0.2):
     east = df['east'].to_numpy()
     north = df['north'].to_numpy()
     
-    # 计算路径的累计距离
-    distances = [0]
-    total_distance = 0
-    for i in range(1, len(east)):
-        d = calculate_distance(east[i-1], north[i-1], east[i], north[i])
-        total_distance += d
-        distances.append(total_distance)
-    distances = np.array(distances)
+    # --- 优化: 使用Numpy进行矢量化计算，速度更快 ---
+    distances = np.zeros(len(east))
+    distances[1:] = np.sqrt(np.diff(east)**2 + np.diff(north)**2)
+    cumulative_distances = np.cumsum(distances)
+    total_distance = cumulative_distances[-1]
     
     # 创建新的距离序列，确保点间距不超过max_distance
     num_points = int(np.ceil(total_distance / max_distance)) + 1
@@ -38,14 +35,39 @@ def densify_path(df, max_distance=0.2):
     # 创建存储插值结果的字典
     interpolated_data = {}
     
-    # 对所有列进行插值，保持原始列的顺序
+    # --- 关键补充: 处理航向角 (yaw) ---
+    # 检查是否存在yaw列
+    yaw_column_name = None
+    if 'yaw' in df.columns:
+        yaw_column_name = 'yaw'
+    elif 'heading' in df.columns: # 兼容不同的列名
+        yaw_column_name = 'heading'
+
+    if yaw_column_name:
+        # 1. 将角度从度转换为弧度
+        yaw_rad = np.deg2rad(df[yaw_column_name].to_numpy())
+        # 2. 解算角度，使其连续
+        unwrapped_yaw = np.unwrap(yaw_rad)
+        # 3. 对解算后的角度进行三次样条插值
+        yaw_interpolator = interp1d(cumulative_distances, unwrapped_yaw, kind='cubic')
+        new_unwrapped_yaw = yaw_interpolator(new_distances)
+        # 4. 将插值后的角度重新卷绕到 [-pi, pi]
+        new_yaw_rad = (new_unwrapped_yaw + np.pi) % (2 * np.pi) - np.pi
+        # 5. 转换回度数并存储
+        interpolated_data[yaw_column_name] = np.rad2deg(new_yaw_rad)
+    
+    # 对所有其他列进行插值
     for column in df.columns:
-        # 对经纬度和位置相关的列使用三次样条插值
-        if column in ['east', 'north', 'longitude', 'latitude', 'longtitude']:
-            interpolator = interp1d(distances, df[column].to_numpy(), kind='cubic')
-        # 对其他列使用线性插值
+        # 如果是已经处理过的yaw列，则跳过
+        if column == yaw_column_name:
+            continue
+        
+        # 检查列名中是否有拼写错误，并统一处理
+        col_lower = column.lower()
+        if col_lower in ['east', 'north', 'longitude', 'latitude', 'longtitude']: # 修正可能的拼写错误
+            interpolator = interp1d(cumulative_distances, df[column].to_numpy(), kind='cubic')
         else:
-            interpolator = interp1d(distances, df[column].to_numpy(), kind='linear')
+            interpolator = interp1d(cumulative_distances, df[column].to_numpy(), kind='linear')
         interpolated_data[column] = interpolator(new_distances)
     
     # 创建新的DataFrame，保持原始列的顺序
@@ -72,6 +94,10 @@ def verify_distances(df):
             east_array[i], north_array[i]
         )
         distances.append(d)
+        
+    if not distances:
+        return 0, 0
+        
     return max(distances), np.mean(distances)
 
 def safe_file_replace(source_file, target_file):
@@ -122,7 +148,7 @@ def main():
         print(f"Average distance: {mean_dist_original:.3f}m")
         
         # 进行路径加密
-        dense_df = densify_path(df, max_distance=0.2)
+        dense_df = densify_path(df, max_distance=0.1) # 建议使用更小的距离，如0.1米，以获得更平滑的曲率
         
         # 输出加密后的路径统计信息
         max_dist_dense, mean_dist_dense = verify_distances(dense_df)
@@ -135,8 +161,8 @@ def main():
         temp_file = 'temp_dense_path.csv'
         dense_df.to_csv(temp_file, 
                        index=False, 
-                       float_format='%.8f',  # 保持足够的精度
-                       columns=df.columns)   # 保持原始列的顺序
+                       float_format='%.8f',
+                       columns=df.columns)
         
         # 安全地替换原文件
         if safe_file_replace(temp_file, input_file):
@@ -150,4 +176,4 @@ def main():
         print(f"Error occurred during processing: {str(e)}")
 
 if __name__ == "__main__":
-    main() 
+    main()
