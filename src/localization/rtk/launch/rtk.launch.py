@@ -24,13 +24,13 @@ def generate_launch_description():
         
         'local_topic_name' : 'localization/rtk_info',
         'local_frame_id' : 'rtk_link',
-        'local_publish_rate' : 10.0,  # 频率为10Hz
+        'local_publish_rate' : 50.0,  # 频率为50Hz
         'imu_topic_name' : 'imu/pose',
         'imu_frame_id' : 'imu_link',
         'imu_publish_rate' : 50.0,  # 频率为50Hz
         'gnss_topic_name' : 'gnss/pose',
         'gnss_frame_id' : 'gnss_link',
-        'gnss_publish_rate' : 10.0,  # 频率为10Hz
+        'gnss_publish_rate' : 50.0,  # 频率为50Hz
         'enable_debug_log': True,
         'heading_offset':-90.0         # 航向偏移量,° 
     }

@@ -37,10 +37,10 @@ ControlNode::ControlNode() : Node("control_node") {
     } else {
         RCLCPP_INFO(this->get_logger(), "Debug log file opened: %s", log_file_path_.c_str());
         // 写入CSV文件头（如果文件是新建或空的）
-        debug_log_file_ << "pursuit_control_rate,stanley_control_rate,sta_lat_rate,heading_error_deg,angular_error_deg,"
+        debug_log_file_ << "timestamp,pursuit_control_rate,stanley_control_rate,sta_lat_rate,heading_error_deg,angular_error_deg,"
                            "lat_error,pursuit_control_deg,stanley_control_deg,"
                            "steer_angle_deg,preview_dist,preview_idx,closest_idx,target_east,target_north,target_yaw_"
-                           "deg,closest_east,closest_north,closest_yaw_deg,cur_east,cur_north,cur_yaw_deg,"
+                           "deg,closest_east,closest_north,closest_yaw_deg,closest_curvature,cur_east,cur_north,cur_yaw_deg,curvature_feedforward"
                            "target_spd,cur_spd,error,acceleration,cmd_spd,integral"
                         << std::endl;
     }
@@ -194,7 +194,7 @@ void ControlNode::LateralController() {
 
     // 计算自适应预瞄距离
     double current_speed = localization_info_msg_->vel_speed;
-    double adaptive_preview_dist = CalculateAdaptivePreviewDistance(current_speed, path_curvature);
+    // double adaptive_preview_dist = CalculateAdaptivePreviewDistance(current_speed, path_curvature);
 
     // 根据曲率动态调整控制器权重
     double curvature_based_weight = std::abs(path_curvature);
@@ -222,7 +222,7 @@ void ControlNode::LateralController() {
     }
 
     // 使用自适应参数计算控制输出
-    double pursuit_control = -std::atan2(2 * wheelbase_ * std::sin(angular_error), adaptive_preview_dist);
+    double pursuit_control = -std::atan2(2 * wheelbase_ * std::sin(angular_error), preview_dist);
     double stanley_control = -(heading_error - std::atan(adaptive_lat_rate * lat_error / effective_stanley_spd));
 
     // 应用自适应权重
@@ -262,13 +262,13 @@ void ControlNode::LateralController() {
                     cur_north, cur_east, cur_spd, closest_east, closest_north, closest_yaw * 180.0 / M_PI);
     }
     if (g_debug_cnt % 10 == 0 && debug_log_file_.is_open()) {
-        debug_log_file_ << pursuit_control_rate_ << "," << stanley_control_rate_ << "," << sta_lat_rate_ << ","
+        debug_log_file_ << this->now().seconds() << "," << pursuit_control_rate_ << "," << stanley_control_rate_ << "," << sta_lat_rate_ << ","
                         << heading_error * 180.0 / M_PI << "," << angular_error * 180.0 / M_PI << "," << lat_error
                         << "," << pursuit_control * 180.0 / M_PI << "," << stanley_control * 180.0 / M_PI << ","
                         << steer_angle << "," << preview_dist << "," << preview_idx << "," << closest_idx_ << ","
                         << target_east << "," << target_north << "," << target_yaw * 180.0 / M_PI << "," << closest_east
-                        << "," << closest_north << "," << closest_yaw * 180.0 / M_PI << "," << cur_east << ","
-                        << cur_north << "," << cur_yaw * 180.0 / M_PI;
+                        << "," << closest_north << "," << closest_yaw * 180.0 / M_PI << "," << path_curvature << "," << cur_east << ","
+                        << cur_north << "," << cur_yaw * 180.0 / M_PI << "," << feedforward_rate_;
     }
 }
 
