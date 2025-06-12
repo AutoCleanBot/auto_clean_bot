@@ -79,7 +79,7 @@ void CanbusNode::TimerCallback() {
     FillChassisInfo(msg);
     pub_chassis_info_->publish(*msg);
 
-    if(control_cmd_cnt_ > 0){ // 保持无人驾驶的控制连接
+    if(control_cmd_cnt_ > 10){ // 保持无人驾驶的控制连接
         SendCtrlMsg(0.0, 0.2, 0, 0);
     }
 

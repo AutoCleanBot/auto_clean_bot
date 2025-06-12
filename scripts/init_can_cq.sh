@@ -25,3 +25,18 @@ ip -details link show can0
 
 # 显示启动成功信息
 echo "CAN0 interface has been initialized"
+
+# 关闭CAN0接口
+ip link set can1 down
+
+# 设置CAN0接口波特率（这里设置为500kbps）
+ip link set can1 type can bitrate 250000
+
+# 启动CAN0接口
+ip link set can1 up
+
+# 检查CAN0接口状态
+ip -details link show can1
+
+# 显示启动成功信息
+echo "CAN1 interface has been initialized"

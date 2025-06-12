@@ -19,13 +19,14 @@ def generate_launch_description():
         'service_name' : '/routing_service',
         'traj_topic_name' : '/planning/trajectory',
         'perc_topic_name' : '/perception/obstacles',
-        'path_type' : 3,
+        'path_type' : 5,
         'process_frq' : 10.0,    # 处理频率, Hz
         'preview_dist' : 12.0,   # 预览距离, m
         'preview_time' : 1.0,     # 预瞄时间, s
         'start_dist' : 5.0,      # 起始距离, m
         'traj_pub_interval' : 0.1, # 路径发布间隔, 秒
-        'planning_spd' : 1.0     # 规划速度, m/s
+        'planning_spd' : 3.0,     # 规划速度, m/s
+        'reverse_moving' : False  # 是否反向行驶
     }
     
     # 配置节点，并将参数字典直接传递给参数字段

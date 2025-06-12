@@ -27,6 +27,8 @@ public:
     void ObstaclesCallback(const bot_msg::msg::Obstacles::SharedPtr msg);
     void UpdatePlanningStatus();
     void UpdateObstacleInfo();
+    void FillPubTraj(bot_msg::msg::ADCTrajectory& pub_traj);
+    bool IsPathTail();
 private:
     rclcpp::TimerBase::SharedPtr timer_;
     bot_msg::msg::LocalizationInfo cur_local_;
@@ -50,5 +52,9 @@ private:
     uint8_t planning_status_ ;     // 规划状态
     bot_msg::msg::Obstacles obstacles_ ; // 当前感知信息
     std::array<int, 3> obstacle_info_ ; // 障碍物信息 0: 左前,1 正前方,2 右前, 存储的是障碍物的标号
+
+    // 临时使用变量
+    std::size_t closet_idx_ = 0; // 当前路径下最近点的下标
+    bool reverse_moving_ = false; // 是否反向行驶
 };
 }  // namespace planning
