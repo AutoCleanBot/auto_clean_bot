@@ -246,7 +246,7 @@ void ControlNode::LateralController() {
 
     // 根据速度动态调整heading_error_rate_
     heading_error_rate_ = CalculateAdaptiveHeadingErrorRate(current_speed);
-
+    effective_stanley_spd = 1;
     // 使用自适应参数计算控制输出
     double pursuit_control = -std::atan2(2 * wheelbase_ * std::sin(angular_error), preview_dist);
     double stanley_control = -(heading_error_rate_ * heading_error - std::atan(adaptive_lat_rate * lat_error / effective_stanley_spd));

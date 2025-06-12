@@ -33,7 +33,7 @@ def generate_launch_description():
     control_params = {
         'publish_rate': 50.0,
         'preview_time': 2.0,            # 预瞄时间
-        'tolerance_distance': 1.0,      # 预瞄距离
+        'tolerance_distance': 1.5,      # 预瞄距离
         'max_steering_angle':50.0,      # 最大前轮转角
         'wheelbase':1.3,
         'max_linear_velocity':10.0,
@@ -47,7 +47,7 @@ def generate_launch_description():
         'speed_pid_kp':0.5,
         'speed_pid_ki':0.1,
         'speed_pid_kd':0.0,
-        'zero_point_draft':-4.0,     # 零点漂移
+        'zero_point_draft':-3.0,     # 零点漂移
         'turning_radius_ratio':1.0,
         'max_speed_change_rate':1.0, # 最大速度变化率
         'smooth_window_size':20,     # 平滑窗口大小
