@@ -7,6 +7,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <fstream>
 #include "control/pid_controller.h"
+#include "control/lqr_controller.h"
 #include <deque>
 
 namespace control {
@@ -25,6 +26,12 @@ class ControlNode : public rclcpp::Node {
     double CalculatePathCurvature(size_t index);
     double CalculateAdaptivePreviewDistance(double current_speed, double path_curvature);
     double CalculateAdaptiveHeadingErrorRate(double current_speed);
+    
+    // LQR相关方法
+    VehicleState ComputeVehicleState();
+    double ComputeLateralErrorRate(double lateral_error);
+    double ComputeHeadingErrorRate(double heading_error);
+    
   private:
     // subscribers and publishers
     rclcpp::TimerBase::SharedPtr timer_;
@@ -87,5 +94,23 @@ class ControlNode : public rclcpp::Node {
     std::deque<double> speed_commands_buffer_;  // 速度命令缓存
     double max_steering_rate_; // 最大转向角速度 (度/秒)
     double previous_steering_angle_; // 上一次的转向角
+    
+    // LQR控制器
+    LQRController lqr_controller_;
+    
+    // LQR参数
+    double cf_;  // 前轮侧偏刚度
+    double cr_;  // 后轮侧偏刚度
+    double mass_;  // 车辆质量
+    double iz_;    // 车辆转动惯量
+    int lqr_max_iterations_;  // LQR最大迭代次数
+    double lqr_eps_;  // LQR收敛容差
+    
+    // 上一次的误差值，用于计算误差变化率
+    double previous_lateral_error_;
+    double previous_heading_error_;
+    
+    // 控制模式选择
+    bool use_lqr_controller_;  // 是否使用LQR控制器
 };
 } // namespace control

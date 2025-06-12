@@ -24,16 +24,19 @@ find_package(ament_cmake REQUIRED)
 find_package(bot_msg REQUIRED)
 # find_package(serial REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(Eigen3 REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 
 include_directories(include)
+include_directories(${EIGEN3_INCLUDE_DIRS})
 
 
 add_executable(control_node 
   src/control_node.cpp
   src/pid_controller.cpp
+  src/lqr_controller.cpp
 )
 # Specify libraries to link against
 target_link_libraries(control_node
@@ -52,6 +55,8 @@ launch DESTINATION share/${PROJECT_NAME})
 # Export dependencies and package
 ament_target_dependencies(control_node
   bot_msg
+  rclcpp
+  Eigen3
 )
 
 

@@ -38,6 +38,50 @@ namespace control {
 ControlNode::ControlNode() : Node("control_node") {
     // Initialize subscribers and publishers
     InitParams();
+
+    // 初始化LQR控制器参数
+    this->declare_parameter("use_lqr_controller", false);  // 默认不使用LQR控制器
+    this->declare_parameter("cf", 155494.663);  // 前轮侧偏刚度
+    this->declare_parameter("cr", 155494.663);  // 后轮侧偏刚度
+    this->declare_parameter("mass", 1500.0);    // 车辆质量
+    this->declare_parameter("iz", 2500.0);      // 车辆转动惯量
+    this->declare_parameter("lqr_max_iterations", 150);  // LQR最大迭代次数
+    this->declare_parameter("lqr_eps", 0.01);   // LQR收敛容差
+
+    // 获取LQR参数
+    use_lqr_controller_ = this->get_parameter("use_lqr_controller").as_bool();
+    cf_ = this->get_parameter("cf").as_double();
+    cr_ = this->get_parameter("cr").as_double();
+    mass_ = this->get_parameter("mass").as_double();
+    iz_ = this->get_parameter("iz").as_double();
+    lqr_max_iterations_ = this->get_parameter("lqr_max_iterations").as_int();
+    lqr_eps_ = this->get_parameter("lqr_eps").as_double();
+
+    // 初始化LQR控制器
+    if (use_lqr_controller_) {
+        // 设置LQR控制器的车辆参数
+        lqr_controller_.SetVehicleParams(wheelbase_, cf_, cr_, mass_, iz_);
+        lqr_controller_.SetSolverParams(lqr_max_iterations_, lqr_eps_);
+        
+        // 设置状态权重矩阵Q和控制权重矩阵R
+        Eigen::MatrixXd Q = Eigen::MatrixXd::Zero(4, 4);
+        Q(0, 0) = 40.0;  // 横向误差权重
+        Q(1, 1) = 5.0;   // 横向误差变化率权重
+        Q(2, 2) = 30.0;  // 航向误差权重
+        Q(3, 3) = 2.0;   // 航向误差变化率权重
+        
+        Eigen::MatrixXd R = Eigen::MatrixXd::Identity(1, 1);
+        R(0, 0) = 30.0;  // 控制输入权重
+        
+        lqr_controller_.Init(Q, R);
+        
+        RCLCPP_INFO(this->get_logger(), "LQR controller initialized");
+    }
+
+    // 初始化误差变化率计算的历史值
+    previous_lateral_error_ = 0.0;
+    previous_heading_error_ = 0.0;
+
     this->sub_adc_trajectory_ = this->create_subscription<bot_msg::msg::ADCTrajectory>(
         this->adc_traj_topic_name_, 10, std::bind(&ControlNode::ADCTrajectoryCallback, this, std::placeholders::_1));
     this->sub_localization_info_ = this->create_subscription<bot_msg::msg::LocalizationInfo>(
@@ -122,7 +166,7 @@ void ControlNode::LateralController() {
 
     // 1. 找到当前车辆位置到轨迹上的最近点
     double min_dist = 1000000.0;
-    size_t closest_idx_ = 0;
+    closest_idx_ = 0;
     for (size_t i = 0; i < adc_trajectory_msg_->points.size(); i++) {
         double dist = std::sqrt(std::pow(cur_north - adc_trajectory_msg_->points[i].north, 2) +
                                 std::pow(cur_east - adc_trajectory_msg_->points[i].east, 2));
@@ -167,101 +211,152 @@ void ControlNode::LateralController() {
         // preview_idx will be the last point of the trajectory.
     }
 
-    // 3. 计算横向控制命令
-    double closest_east = adc_trajectory_msg_->points[closest_idx_].east;
-    double closest_north = adc_trajectory_msg_->points[closest_idx_].north;
-    double closest_yaw =
-        NormalizeAngle(adc_trajectory_msg_->points[closest_idx_].yaw * M_PI / 180.0); // 最近点航向角, 弧度
-    // 获取预瞄点信息
-    double target_north = adc_trajectory_msg_->points[preview_idx].north;
-    double target_east = adc_trajectory_msg_->points[preview_idx].east;
-    double target_yaw = NormalizeAngle(adc_trajectory_msg_->points[preview_idx].yaw * M_PI / 180.0); // 目标航向角, 弧度
-    // 3.1 计算航向误差和方位角误差
-    double heading_error = NormalizeAngle(target_yaw - cur_yaw);                       // 航向误差
-    double deg_angular = std::atan2(target_east - cur_east, target_north - cur_north); // 方位角误差
-    double angular_error = NormalizeAngle(deg_angular - cur_yaw);
-
-    // 3.2 计算横向误差
-    // 计算路径切线方向
-    double path_direction;
-    if (closest_idx_ + 1 < adc_trajectory_msg_->points.size()) {
-        // 使用前向点计算切线
-        path_direction = std::atan2(
-            adc_trajectory_msg_->points[closest_idx_ + 1].east - adc_trajectory_msg_->points[closest_idx_].east,
-            adc_trajectory_msg_->points[closest_idx_ + 1].north - adc_trajectory_msg_->points[closest_idx_].north);
-    } else if (closest_idx_ > 0) {
-        // 使用后向点计算切线
-        path_direction = std::atan2(
-            adc_trajectory_msg_->points[closest_idx_].east - adc_trajectory_msg_->points[closest_idx_ - 1].east,
-            adc_trajectory_msg_->points[closest_idx_].north - adc_trajectory_msg_->points[closest_idx_ - 1].north);
+    double steer_angle = 0.0;
+    
+    // 使用LQR控制器
+    if (use_lqr_controller_) {
+        // 计算当前车辆状态
+        VehicleState vehicle_state = ComputeVehicleState();
+        
+        // 更新LQR系统矩阵
+        lqr_controller_.UpdateSystemMatrix(vehicle_state.velocity);
+        
+        // 求解Riccati方程
+        lqr_controller_.SolveRiccatiEquation();
+        
+        // 计算控制命令
+        double lqr_steering_rad = lqr_controller_.ComputeControlCommand(vehicle_state);
+        
+        // 转换为角度
+        steer_angle = lqr_steering_rad * 180.0 / M_PI;
+        
+        // 计算当前路径曲率，用于前馈控制
+        double path_curvature = CalculatePathCurvature(closest_idx_);
+        
+        // 添加前馈控制项
+        double curvature_feedforward = std::atan2(wheelbase_ * path_curvature, 1.0) * 180.0 / M_PI;
+        steer_angle += feedforward_rate_ * curvature_feedforward;
+        
+        if (g_debug_cnt % 10 == 0) {
+            RCLCPP_INFO(this->get_logger(),
+                        "LQR Control: lat_error=%.2f, heading_error=%.2f, lat_error_rate=%.2f, heading_error_rate=%.2f, "
+                        "steer_angle=%.2f, curvature_feedforward=%.2f",
+                        vehicle_state.lateral_error, vehicle_state.heading_error * 180.0 / M_PI, 
+                        vehicle_state.lateral_error_rate, vehicle_state.heading_error_rate * 180.0 / M_PI,
+                        steer_angle, curvature_feedforward);
+        }
     } else {
-        // 只有一个点，使用目标航向
-        path_direction = adc_trajectory_msg_->points[closest_idx_].yaw * M_PI / 180.0;
+        // 3. 计算横向控制命令
+        double closest_east = adc_trajectory_msg_->points[closest_idx_].east;
+        double closest_north = adc_trajectory_msg_->points[closest_idx_].north;
+        double closest_yaw =
+            NormalizeAngle(adc_trajectory_msg_->points[closest_idx_].yaw * M_PI / 180.0); // 最近点航向角, 弧度
+        // 获取预瞄点信息
+        double target_north = adc_trajectory_msg_->points[preview_idx].north;
+        double target_east = adc_trajectory_msg_->points[preview_idx].east;
+        double target_yaw = NormalizeAngle(adc_trajectory_msg_->points[preview_idx].yaw * M_PI / 180.0); // 目标航向角, 弧度
+        // 3.1 计算航向误差和方位角误差
+        double heading_error = NormalizeAngle(target_yaw - cur_yaw);                       // 航向误差
+        double deg_angular = std::atan2(target_east - cur_east, target_north - cur_north); // 方位角误差
+        double angular_error = NormalizeAngle(deg_angular - cur_yaw);
+
+        // 3.2 计算横向误差
+        // 计算路径切线方向
+        double path_direction;
+        if (closest_idx_ + 1 < adc_trajectory_msg_->points.size()) {
+            // 使用前向点计算切线
+            path_direction = std::atan2(
+                adc_trajectory_msg_->points[closest_idx_ + 1].east - adc_trajectory_msg_->points[closest_idx_].east,
+                adc_trajectory_msg_->points[closest_idx_ + 1].north - adc_trajectory_msg_->points[closest_idx_].north);
+        } else if (closest_idx_ > 0) {
+            // 使用后向点计算切线
+            path_direction = std::atan2(
+                adc_trajectory_msg_->points[closest_idx_].east - adc_trajectory_msg_->points[closest_idx_ - 1].east,
+                adc_trajectory_msg_->points[closest_idx_].north - adc_trajectory_msg_->points[closest_idx_ - 1].north);
+        } else {
+            // 只有一个点，使用目标航向
+            path_direction = adc_trajectory_msg_->points[closest_idx_].yaw * M_PI / 180.0;
+        }
+        path_direction = NormalizeAngle(path_direction);
+
+        // 计算车辆到最近点的向量
+        double dx = cur_east - adc_trajectory_msg_->points[closest_idx_].east;
+        double dy = cur_north - adc_trajectory_msg_->points[closest_idx_].north;
+
+        // 计算横向误差（向量在垂直于路径方向上的投影）
+        // 使用 (-sin(θ), cos(θ)) 作为法向量进行投影计算
+        // 这样计算的结果是在路径的左侧时,横向误差为负; 在路径的右侧时横向误差为正
+        double lat_error = dx * std::cos(path_direction) - dy * std::sin(path_direction);
+        // 3.3 使用混合控制器计算转向角
+        // ! 目前计算结果为左正右负
+        // ! 注意如果出现当前的需要控制情况为右转为正左转为负的情况的话pursuit_control和stanley_control去除负号即可
+
+        // 计算当前路径曲率
+        double path_curvature = CalculatePathCurvature(closest_idx_);
+
+        // 计算自适应预瞄距离
+        double current_speed = localization_info_msg_->vel_speed;
+        // double adaptive_preview_dist = CalculateAdaptivePreviewDistance(current_speed, path_curvature);
+
+        // 根据曲率动态调整控制器权重
+        double curvature_based_weight = std::abs(path_curvature);
+        const double CURVATURE_THRESHOLD = 0.05; // 曲率阈值
+
+        // 在直线段增加Stanley控制器的权重，在弯道增加Pure Pursuit的权重
+        double adaptive_pursuit_rate = pursuit_control_rate_;
+        double adaptive_stanley_rate = stanley_control_rate_;
+        if (curvature_based_weight < CURVATURE_THRESHOLD) {
+            adaptive_pursuit_rate *= 0.7;
+            adaptive_stanley_rate *= 1.3;
+        } else {
+            adaptive_pursuit_rate *= 1.3;
+            adaptive_stanley_rate *= 0.7;
+        }
+
+        // 计算横向误差增益
+        double adaptive_lat_rate = sta_lat_rate_;
+        // if (std::abs(current_speed) < 0.5) {
+        //     // 低速时增大横向误差增益
+        //     adaptive_lat_rate *= 2.0;
+        // }
+
+        // 根据速度动态调整heading_error_rate_
+        heading_error_rate_ = CalculateAdaptiveHeadingErrorRate(current_speed);
+        effective_stanley_spd = 1;
+        // 使用自适应参数计算控制输出
+        double pursuit_control = -std::atan2(2 * wheelbase_ * std::sin(angular_error), preview_dist);
+        double stanley_control =
+            -(heading_error_rate_ * heading_error - std::atan(adaptive_lat_rate * lat_error / effective_stanley_spd));
+
+        // 应用自适应权重
+        double front_wheel_rad = adaptive_pursuit_rate * pursuit_control + adaptive_stanley_rate * stanley_control;
+
+        // 添加前馈控制项
+        double curvature_feedforward = std::atan2(wheelbase_ * path_curvature, 1.0);
+
+        if (front_wheel_rad > 0)
+            front_wheel_rad += feedforward_rate_ * curvature_feedforward;
+        else
+            front_wheel_rad -= feedforward_rate_ * curvature_feedforward;
+
+        // 3.4 计算最终转向角，并限制在合理范围内
+        steer_angle = front_wheel_rad * 180.0 / M_PI;
+        
+        if (g_debug_cnt % 10 == 0) {
+            // 输出调试信息
+            RCLCPP_INFO(this->get_logger(),
+                        "heading_error,%.2f,angular_error,%.2f,lat_error,%.2f,steer_angle,%.2f,pursuit_control,%.2f,"
+                        "stanley_control,%.2f,preview_dist,%.2f,preview_idx,%zu,closest_idx,%zu,target_north,%.2f,target_"
+                        "east,%.2f,target_yaw,%.2f,cur_yaw,%.2f,cur_north,%.2f,cur_east,%.2f,cur_spd,%.2f,closest_east,%."
+                        "2f,closest_north,%.2f,"
+                        "closest_yaw,%.2f",
+                        heading_error * 180.0 / M_PI, angular_error * 180.0 / M_PI, lat_error, steer_angle,
+                        pursuit_control * 180.0 / M_PI, stanley_control * 180.0 / M_PI, preview_dist, preview_idx,
+                        closest_idx_, target_north, target_east, target_yaw * 180.0 / M_PI, cur_yaw * 180.0 / M_PI,
+                        cur_north, cur_east, cur_spd, closest_east, closest_north, closest_yaw * 180.0 / M_PI);
+        }
     }
-    path_direction = NormalizeAngle(path_direction);
-
-    // 计算车辆到最近点的向量
-    double dx = cur_east - adc_trajectory_msg_->points[closest_idx_].east;
-    double dy = cur_north - adc_trajectory_msg_->points[closest_idx_].north;
-
-    // 计算横向误差（向量在垂直于路径方向上的投影）
-    // 使用 (-sin(θ), cos(θ)) 作为法向量进行投影计算
-    // 这样计算的结果是在路径的左侧时,横向误差为负; 在路径的右侧时横向误差为正
-    double lat_error = dx * std::cos(path_direction) - dy * std::sin(path_direction);
-    // 3.3 使用混合控制器计算转向角
-    // ! 目前计算结果为左正右负
-    // ! 注意如果出现当前的需要控制情况为右转为正左转为负的情况的话pursuit_control和stanley_control去除负号即可
-
-    // 计算当前路径曲率
-    double path_curvature = CalculatePathCurvature(closest_idx_);
-
-    // 计算自适应预瞄距离
-    double current_speed = localization_info_msg_->vel_speed;
-    // double adaptive_preview_dist = CalculateAdaptivePreviewDistance(current_speed, path_curvature);
-
-    // 根据曲率动态调整控制器权重
-    double curvature_based_weight = std::abs(path_curvature);
-    const double CURVATURE_THRESHOLD = 0.05; // 曲率阈值
-
-    // 在直线段增加Stanley控制器的权重，在弯道增加Pure Pursuit的权重
-    double adaptive_pursuit_rate = pursuit_control_rate_;
-    double adaptive_stanley_rate = stanley_control_rate_;
-    if (curvature_based_weight < CURVATURE_THRESHOLD) {
-        adaptive_pursuit_rate *= 0.7;
-        adaptive_stanley_rate *= 1.3;
-    } else {
-        adaptive_pursuit_rate *= 1.3;
-        adaptive_stanley_rate *= 0.7;
-    }
-
-    // 计算横向误差增益
-    double adaptive_lat_rate = sta_lat_rate_;
-    // if (std::abs(current_speed) < 0.5) {
-    //     // 低速时增大横向误差增益
-    //     adaptive_lat_rate *= 2.0;
-    // }
-
-    // 根据速度动态调整heading_error_rate_
-    heading_error_rate_ = CalculateAdaptiveHeadingErrorRate(current_speed);
-    effective_stanley_spd = 1;
-    // 使用自适应参数计算控制输出
-    double pursuit_control = -std::atan2(2 * wheelbase_ * std::sin(angular_error), preview_dist);
-    double stanley_control =
-        -(heading_error_rate_ * heading_error - std::atan(adaptive_lat_rate * lat_error / effective_stanley_spd));
-
-    // 应用自适应权重
-    double front_wheel_rad = adaptive_pursuit_rate * pursuit_control + adaptive_stanley_rate * stanley_control;
-
-    // 添加前馈控制项
-    double curvature_feedforward = std::atan2(wheelbase_ * path_curvature, 1.0);
-
-    if (front_wheel_rad > 0)
-        front_wheel_rad += feedforward_rate_ * curvature_feedforward;
-    else
-        front_wheel_rad -= feedforward_rate_ * curvature_feedforward;
-
-    // 3.4 计算最终转向角，并限制在合理范围内
-    double steer_angle = front_wheel_rad * 180.0 / M_PI;
+    
     // 零点漂移处理
     steer_angle += zero_point_draft_;
     // 自行车模型的转角偏差
@@ -271,31 +366,29 @@ void ControlNode::LateralController() {
     // 4. 赋值给控制命令
     control_cmd_msg_.steer_angle = steer_angle;
 
-    if (g_debug_cnt % 10 == 0) {
-        // 输出调试信息
-        RCLCPP_INFO(this->get_logger(),
-                    "heading_error,%.2f,angular_error,%.2f,lat_error,%.2f,steer_angle,%.2f,pursuit_control,%.2f,"
-                    "stanley_control,%.2f,preview_dist,%.2f,preview_idx,%zu,closest_idx,%zu,target_north,%.2f,target_"
-                    "east,%.2f,target_yaw,%.2f,cur_yaw,%.2f,cur_north,%.2f,cur_east,%.2f,cur_spd,%.2f,closest_east,%."
-                    "2f,closest_north,%.2f,"
-                    "closest_yaw,%.2f",
-                    heading_error * 180.0 / M_PI, angular_error * 180.0 / M_PI, lat_error, steer_angle,
-                    pursuit_control * 180.0 / M_PI, stanley_control * 180.0 / M_PI, preview_dist, preview_idx,
-                    closest_idx_, target_north, target_east, target_yaw * 180.0 / M_PI, cur_yaw * 180.0 / M_PI,
-                    cur_north, cur_east, cur_spd, closest_east, closest_north, closest_yaw * 180.0 / M_PI);
-    }
     if (g_debug_cnt % 5 == 0 && debug_log_file_.is_open()) {
         auto time_str = TimeToHumanReadable(this->now());
         auto feedback_steer_angle = chassis_info_msg_.steer_angle;
+        
+        // 获取当前车辆状态，用于记录日志
+        VehicleState vehicle_state = ComputeVehicleState();
+        double lat_error = vehicle_state.lateral_error;
+        double heading_error = vehicle_state.heading_error * 180.0 / M_PI; // 转换为度
+        
         debug_log_file_ << time_str << "," << pursuit_control_rate_ << "," << stanley_control_rate_ << ","
-                        << sta_lat_rate_ << "," << heading_error * 180.0 / M_PI << "," << angular_error * 180.0 / M_PI
-                        << "," << lat_error << "," << pursuit_control * 180.0 / M_PI << ","
-                        << stanley_control * 180.0 / M_PI << "," << steer_angle << "," << feedback_steer_angle << ","
-                        << preview_dist << "," << preview_idx << "," << closest_idx_ << "," << target_east << ","
-                        << target_north << "," << target_yaw * 180.0 / M_PI << "," << closest_east << ","
-                        << closest_north << "," << closest_yaw * 180.0 / M_PI << "," << path_curvature << ","
-                        << cur_east << "," << cur_north << "," << cur_yaw * 180.0 / M_PI << "," << feedforward_rate_
-                        << "," << zero_point_draft_;
+                        << sta_lat_rate_ << "," << heading_error << "," << 0.0 // 方位角误差不再使用
+                        << "," << lat_error << "," << 0.0 << "," // pursuit_control和stanley_control不再使用
+                        << 0.0 << "," << steer_angle << "," << feedback_steer_angle << ","
+                        << preview_dist << "," << preview_idx << "," << closest_idx_ << "," 
+                        << adc_trajectory_msg_->points[preview_idx].east << ","
+                        << adc_trajectory_msg_->points[preview_idx].north << "," 
+                        << adc_trajectory_msg_->points[preview_idx].yaw << "," 
+                        << adc_trajectory_msg_->points[closest_idx_].east << ","
+                        << adc_trajectory_msg_->points[closest_idx_].north << "," 
+                        << adc_trajectory_msg_->points[closest_idx_].yaw << "," 
+                        << CalculatePathCurvature(closest_idx_) << ","
+                        << cur_east << "," << cur_north << "," << localization_info_msg_->yaw << "," 
+                        << (use_lqr_controller_ ? "LQR" : "Hybrid") << "," << zero_point_draft_;
     }
 }
 
@@ -779,6 +872,91 @@ ControlNode::~ControlNode() {
         RCLCPP_INFO(this->get_logger(), "Debug log file closed: %s", log_file_path_.c_str());
     }
     RCLCPP_INFO(this->get_logger(), "control node shutting down");
+}
+
+// 计算车辆状态，用于LQR控制器
+VehicleState ControlNode::ComputeVehicleState() {
+    VehicleState state;
+    
+    // 获取当前车辆位置、航向和速度
+    state.x = localization_info_msg_->east;
+    state.y = localization_info_msg_->north;
+    state.yaw = localization_info_msg_->yaw * M_PI / 180.0; // 转换为弧度
+    state.velocity = localization_info_msg_->vel_speed;
+    
+    // 计算横向误差和航向误差
+    if (adc_trajectory_msg_->points.empty() || closest_idx_ >= adc_trajectory_msg_->points.size()) {
+        state.lateral_error = 0.0;
+        state.heading_error = 0.0;
+        state.lateral_error_rate = 0.0;
+        state.heading_error_rate = 0.0;
+        return state;
+    }
+    
+    // 获取轨迹上的最近点
+    const auto &closest_point = adc_trajectory_msg_->points[closest_idx_];
+    
+    // 计算路径切线方向
+    double path_direction;
+    if (closest_idx_ + 1 < adc_trajectory_msg_->points.size()) {
+        // 使用前向点计算切线
+        path_direction = std::atan2(
+            adc_trajectory_msg_->points[closest_idx_ + 1].east - closest_point.east,
+            adc_trajectory_msg_->points[closest_idx_ + 1].north - closest_point.north);
+    } else if (closest_idx_ > 0) {
+        // 使用后向点计算切线
+        path_direction = std::atan2(
+            closest_point.east - adc_trajectory_msg_->points[closest_idx_ - 1].east,
+            closest_point.north - adc_trajectory_msg_->points[closest_idx_ - 1].north);
+    } else {
+        // 只有一个点，使用目标航向
+        path_direction = closest_point.yaw * M_PI / 180.0;
+    }
+    path_direction = NormalizeAngle(path_direction);
+    
+    // 计算车辆到最近点的向量
+    double dx = state.x - closest_point.east;
+    double dy = state.y - closest_point.north;
+    
+    // 计算横向误差（向量在垂直于路径方向上的投影）
+    state.lateral_error = dx * std::cos(path_direction) - dy * std::sin(path_direction);
+    
+    // 计算航向误差
+    double target_yaw = closest_point.yaw * M_PI / 180.0; // 转换为弧度
+    state.heading_error = NormalizeAngle(target_yaw - state.yaw);
+    
+    // 计算横向误差变化率和航向误差变化率
+    state.lateral_error_rate = ComputeLateralErrorRate(state.lateral_error);
+    state.heading_error_rate = ComputeHeadingErrorRate(state.heading_error);
+    
+    return state;
+}
+
+// 计算横向误差变化率
+double ControlNode::ComputeLateralErrorRate(double lateral_error) {
+    // 使用当前误差和上一次误差计算变化率
+    double dt = 0.02; // 控制周期，默认20ms
+    double error_rate = (lateral_error - previous_lateral_error_) / dt;
+    
+    // 更新上一次误差
+    previous_lateral_error_ = lateral_error;
+    
+    return error_rate;
+}
+
+// 计算航向误差变化率
+double ControlNode::ComputeHeadingErrorRate(double heading_error) {
+    // 使用当前误差和上一次误差计算变化率
+    double dt = 0.02; // 控制周期，默认20ms
+    
+    // 需要处理角度跨越±π的情况
+    double error_diff = NormalizeAngle(heading_error - previous_heading_error_);
+    double error_rate = error_diff / dt;
+    
+    // 更新上一次误差
+    previous_heading_error_ = heading_error;
+    
+    return error_rate;
 }
 } // namespace control
 // 节点注册
