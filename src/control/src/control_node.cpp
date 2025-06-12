@@ -11,29 +11,28 @@ double NormalizeAngle(double angle) {
     return angle;
 }
 // 将ROS 2时间点转换为时分秒毫秒格式的字符串
-std::string TimeToHumanReadable(const rclcpp::Time& time) {
+std::string TimeToHumanReadable(const rclcpp::Time &time) {
     // 获取总秒数
     double seconds_since_epoch = time.seconds();
-    
+
     // 将秒数转换为time_t (整数部分)
     std::time_t time_t_seconds = static_cast<std::time_t>(seconds_since_epoch);
-    
+
     // 计算毫秒部分
     int milliseconds = static_cast<int>((seconds_since_epoch - time_t_seconds) * 1000);
-    
+
     // 使用localtime将time_t转换为本地时间
-    std::tm* local_time = std::localtime(&time_t_seconds);
-    
+    std::tm *local_time = std::localtime(&time_t_seconds);
+
     // 格式化时间为字符串
     char buffer[100];
     std::strftime(buffer, sizeof(buffer), "%H:%M:%S", local_time); // 时:分:秒
-    
+
     // 添加毫秒部分并返回完整字符串
     std::ostringstream oss;
     oss << buffer << "." << std::setfill('0') << std::setw(3) << milliseconds;
     return oss.str();
 }
-
 
 namespace control {
 ControlNode::ControlNode() : Node("control_node") {
@@ -61,21 +60,21 @@ ControlNode::ControlNode() : Node("control_node") {
     } else {
         RCLCPP_INFO(this->get_logger(), "Debug log file opened: %s", log_file_path_.c_str());
         // 写入CSV文件头（如果文件是新建或空的）
-        debug_log_file_ << "timestamp,pursuit_control_rate,stanley_control_rate,sta_lat_rate,heading_error_deg,angular_error_deg,"
-                           "lat_error,pursuit_control_deg,stanley_control_deg,"
-                           "steer_angle_deg,preview_dist,preview_idx,closest_idx,target_east,target_north,target_yaw_"
-                           "deg,closest_east,closest_north,closest_yaw_deg,closest_curvature,cur_east,cur_north,cur_yaw_deg,curvature_feedforward,"
-                           "target_spd,cur_spd,error,acceleration,cmd_spd,integral"
-                        << std::endl;
+        debug_log_file_
+            << "timestamp,pursuit_control_rate,stanley_control_rate,sta_lat_rate,heading_error_deg,angular_error_deg,"
+               "lat_error,pursuit_control_deg,stanley_control_deg,steer_angle_deg, feedback_steer_deg,"
+               "preview_dist,preview_idx,closest_idx,target_east,target_north,target_yaw_"
+               "deg,closest_east,closest_north,closest_yaw_deg,closest_curvature,cur_east,cur_north,cur_yaw_deg,"
+               "curvature_feedforward,"
+               "target_spd,cur_spd,error,acceleration,cmd_spd,integral"
+            << std::endl;
     }
-
 
     // 创建PID控制器并设置前馈增益
     speed_pid_controller_ = std::make_unique<PIDController>(speed_pid_kp_, speed_pid_ki_, speed_pid_kd_);
     speed_pid_controller_->setFeedForward(speed_pid_kf_);
     speed_pid_controller_->setOutputLimits(-deceleration_limit_, acceleration_limit_);
-    speed_pid_controller_->setIntegralLimits(-1.5, 1.5);  // 可以根据实际情况调整为-1.0到-2.0之间
-
+    speed_pid_controller_->setIntegralLimits(-1.5, 1.5); // 可以根据实际情况调整为-1.0到-2.0之间
 
     // 初始化时间戳
     last_control_time_ = this->now();
@@ -120,8 +119,6 @@ void ControlNode::LateralController() {
     double cur_spd = localization_info_msg_->vel_speed;
     double effective_stanley_spd = std::max(cur_spd, kMinStanleyControlSpd);
     double cur_yaw = NormalizeAngle(localization_info_msg_->yaw * M_PI / 180.0); // 当前航向角, 弧度
-
-
 
     // 1. 找到当前车辆位置到轨迹上的最近点
     double min_dist = 1000000.0;
@@ -229,10 +226,10 @@ void ControlNode::LateralController() {
     // 在直线段增加Stanley控制器的权重，在弯道增加Pure Pursuit的权重
     double adaptive_pursuit_rate = pursuit_control_rate_;
     double adaptive_stanley_rate = stanley_control_rate_;
-    if(curvature_based_weight < CURVATURE_THRESHOLD){
+    if (curvature_based_weight < CURVATURE_THRESHOLD) {
         adaptive_pursuit_rate *= 0.7;
         adaptive_stanley_rate *= 1.3;
-    }else{
+    } else {
         adaptive_pursuit_rate *= 1.3;
         adaptive_stanley_rate *= 0.7;
     }
@@ -249,7 +246,8 @@ void ControlNode::LateralController() {
     effective_stanley_spd = 1;
     // 使用自适应参数计算控制输出
     double pursuit_control = -std::atan2(2 * wheelbase_ * std::sin(angular_error), preview_dist);
-    double stanley_control = -(heading_error_rate_ * heading_error - std::atan(adaptive_lat_rate * lat_error / effective_stanley_spd));
+    double stanley_control =
+        -(heading_error_rate_ * heading_error - std::atan(adaptive_lat_rate * lat_error / effective_stanley_spd));
 
     // 应用自适应权重
     double front_wheel_rad = adaptive_pursuit_rate * pursuit_control + adaptive_stanley_rate * stanley_control;
@@ -257,7 +255,7 @@ void ControlNode::LateralController() {
     // 添加前馈控制项
     double curvature_feedforward = std::atan2(wheelbase_ * path_curvature, 1.0);
 
-    if(front_wheel_rad > 0)
+    if (front_wheel_rad > 0)
         front_wheel_rad += feedforward_rate_ * curvature_feedforward;
     else
         front_wheel_rad -= feedforward_rate_ * curvature_feedforward;
@@ -278,8 +276,8 @@ void ControlNode::LateralController() {
         RCLCPP_INFO(this->get_logger(),
                     "heading_error,%.2f,angular_error,%.2f,lat_error,%.2f,steer_angle,%.2f,pursuit_control,%.2f,"
                     "stanley_control,%.2f,preview_dist,%.2f,preview_idx,%zu,closest_idx,%zu,target_north,%.2f,target_"
-                    "east,%.2f,target_yaw,%."
-                    "2f,cur_yaw,%.2f,cur_north,%.2f,cur_east,%.2f,cur_spd,%.2f,closest_east,%.2f,closest_north,%.2f,"
+                    "east,%.2f,target_yaw,%.2f,cur_yaw,%.2f,cur_north,%.2f,cur_east,%.2f,cur_spd,%.2f,closest_east,%."
+                    "2f,closest_north,%.2f,"
                     "closest_yaw,%.2f",
                     heading_error * 180.0 / M_PI, angular_error * 180.0 / M_PI, lat_error, steer_angle,
                     pursuit_control * 180.0 / M_PI, stanley_control * 180.0 / M_PI, preview_dist, preview_idx,
@@ -288,19 +286,24 @@ void ControlNode::LateralController() {
     }
     if (g_debug_cnt % 5 == 0 && debug_log_file_.is_open()) {
         auto time_str = TimeToHumanReadable(this->now());
-        debug_log_file_ << time_str << "," << pursuit_control_rate_ << "," << stanley_control_rate_ << "," << sta_lat_rate_ << ","
-                        << heading_error * 180.0 / M_PI << "," << angular_error * 180.0 / M_PI << "," << lat_error
-                        << "," << pursuit_control * 180.0 / M_PI << "," << stanley_control * 180.0 / M_PI << ","
-                        << steer_angle << "," << preview_dist << "," << preview_idx << "," << closest_idx_ << ","
-                        << target_east << "," << target_north << "," << target_yaw * 180.0 / M_PI << "," << closest_east
-                        << "," << closest_north << "," << closest_yaw * 180.0 / M_PI << "," << path_curvature << "," << cur_east << ","
-                        << cur_north << "," << cur_yaw * 180.0 / M_PI << "," << feedforward_rate_;
+        auto feedback_steer_angle = chassis_info_msg_.steer_angle;
+        debug_log_file_ << time_str << "," << pursuit_control_rate_ << "," << stanley_control_rate_ << ","
+                        << sta_lat_rate_ << "," << heading_error * 180.0 / M_PI << "," << angular_error * 180.0 / M_PI
+                        << "," << lat_error << "," << pursuit_control * 180.0 / M_PI << ","
+                        << stanley_control * 180.0 / M_PI << "," << steer_angle << "," << feedback_steer_angle << ","
+                        << preview_dist << "," << preview_idx << "," << closest_idx_ << "," << target_east << ","
+                        << target_north << "," << target_yaw * 180.0 / M_PI << "," << closest_east << ","
+                        << closest_north << "," << closest_yaw * 180.0 / M_PI << "," << path_curvature << ","
+                        << cur_east << "," << cur_north << "," << cur_yaw * 180.0 / M_PI << "," << feedforward_rate_
+                        << "," << zero_point_draft_;
     }
 }
 
+void ControlNode::ChassisInfoCallback(const bot_msg::msg::ChassisInfo::SharedPtr msg) { chassis_info_msg_ = *msg; }
+
 /**
  * @brief 基于阶梯阶跃响应的纵向控制器
- * 
+ *
  */
 void ControlNode::LongitudinalController() {
     static bool first_run = true;
@@ -320,19 +323,19 @@ void ControlNode::LongitudinalController() {
         return;
     }
 
-     // 获取当前速度和目标速度
+    // 获取当前速度和目标速度
     double current_speed = localization_info_msg_->vel_speed;
     double final_target_speed = adc_trajectory_msg_->points[closest_idx_].vel_speed;
-    
+
     // 限制最终目标速度在合理范围内
     final_target_speed = std::max(min_linear_velocity_, std::min(max_linear_velocity_, final_target_speed));
-    
+
     // 初始化阶梯目标速度
     if (first_run) {
         step_target_speed = 0.5;
         first_run = false;
     }
-    
+
     // 阶梯目标速度更新逻辑
     if (final_target_speed > step_target_speed) {
         // 目标速度高于当前阶梯目标 - 需要加速
@@ -344,7 +347,7 @@ void ControlNode::LongitudinalController() {
         // 目标速度低于当前阶梯目标 - 需要减速
         if (current_speed <= step_target_speed + SPEED_THRESHOLD) {
             // 当前速度已降至阶梯目标，降低阶梯
-            step_target_speed = std::max(step_target_speed - 3*STEP_SIZE, final_target_speed);
+            step_target_speed = std::max(step_target_speed - 3 * STEP_SIZE, final_target_speed);
         }
     } else {
         // 最终目标速度等于当前阶梯目标，无需调整
@@ -352,14 +355,15 @@ void ControlNode::LongitudinalController() {
     }
 
     // 更新控制命令
-    if(final_target_speed > 0.0){
+    if (final_target_speed > 0.0) {
         control_cmd_msg_.speed = step_target_speed + koffset;
-    }else{
+    } else {
         control_cmd_msg_.speed = step_target_speed;
     }
     if (g_debug_cnt % 5 == 0 && debug_log_file_.is_open()) {
-        debug_log_file_ << "," << final_target_speed << "," << current_speed << "," << final_target_speed - current_speed << "," << 0
-                        << "," << step_target_speed << "," << speed_pid_controller_->getIntegral() << std::endl;
+        debug_log_file_ << "," << final_target_speed << "," << current_speed << ","
+                        << final_target_speed - current_speed << "," << 0 << "," << step_target_speed << ","
+                        << speed_pid_controller_->getIntegral() << std::endl;
     }
 }
 
@@ -439,7 +443,8 @@ void ControlNode::LongitudinalController() {
 //     // const double INTEGRAL_SATURATION_THRESHOLD = 5.0; // 积分项达到5.0时认为饱和
 
 //     // // 如果积分项饱和且速度误差仍然存在，使用阶跃响应
-//     // if (std::abs(speed_pid_controller_->getIntegral()) > INTEGRAL_SATURATION_THRESHOLD && std::abs(speed_error) > 0.1) {
+//     // if (std::abs(speed_pid_controller_->getIntegral()) > INTEGRAL_SATURATION_THRESHOLD && std::abs(speed_error) >
+//     0.1) {
 //     //     // 使用更大的速度步长
 //     //     double step_size = MIN_DRIVING_SPEED * 1.5; // 使用比最小驱动速度更大的步长
 //     //     if (speed_error > 0) {
@@ -466,34 +471,32 @@ void ControlNode::LongitudinalController() {
 //     }
 // }
 
-
-
 // 根据速度动态调整heading_error_rate_
 double ControlNode::CalculateAdaptiveHeadingErrorRate(double current_speed) {
     // 定义速度范围和对应的比率范围
-    const double MIN_SPEED = 0.5;    // 最低速度阈值，低于此速度使用最大比率
-    const double MAX_SPEED = 5.0;    // 最高速度阈值，高于此速度使用最小比率
-    const double MIN_RATE = 0.4;     // 最小比率
-    const double MAX_RATE = 1.0;     // 最大比率
-    
+    const double MIN_SPEED = 0.5; // 最低速度阈值，低于此速度使用最大比率
+    const double MAX_SPEED = 5.0; // 最高速度阈值，高于此速度使用最小比率
+    const double MIN_RATE = 0.4;  // 最小比率
+    const double MAX_RATE = 1.0;  // 最大比率
+
     // 如果速度小于最低阈值，使用最大比率
     if (current_speed <= MIN_SPEED) {
         return MAX_RATE;
     }
-    
+
     // 如果速度大于最高阈值，使用最小比率
     if (current_speed >= MAX_SPEED) {
         return MIN_RATE;
     }
-    
+
     // 在速度范围内进行线性插值
     // 插值公式: rate = MAX_RATE - (current_speed - MIN_SPEED) * (MAX_RATE - MIN_RATE) / (MAX_SPEED - MIN_SPEED)
     double rate_range = MAX_RATE - MIN_RATE;
     double speed_range = MAX_SPEED - MIN_SPEED;
     double speed_factor = (current_speed - MIN_SPEED) / speed_range;
-    
+
     double adaptive_rate = MAX_RATE - speed_factor * rate_range;
-    
+
     return adaptive_rate;
 }
 
@@ -600,8 +603,6 @@ void ControlNode::InitParams() {
     speed_pid_kd_ = this->get_parameter("speed_pid_kd").as_double();
     speed_pid_kf_ = this->get_parameter("speed_pid_kf").as_double();
 
-
-
     // Print parameters
     RCLCPP_INFO(this->get_logger(), "Publish rate: %f", publish_rate_);
     RCLCPP_INFO(this->get_logger(), "Max linear velocity: %f", max_linear_velocity_);
@@ -672,9 +673,9 @@ double ControlNode::CalculatePathCurvature(size_t index) {
     }
 
     // 获取连续三个点
-    const auto& p0 = adc_trajectory_msg_->points[index - 1]; // 前一个点
-    const auto& p1 = adc_trajectory_msg_->points[index];     // 当前点 (closest_idx)
-    const auto& p2 = adc_trajectory_msg_->points[index + 1]; // 后一个点
+    const auto &p0 = adc_trajectory_msg_->points[index - 1]; // 前一个点
+    const auto &p1 = adc_trajectory_msg_->points[index];     // 当前点 (closest_idx)
+    const auto &p2 = adc_trajectory_msg_->points[index + 1]; // 后一个点
 
     // 将点转换为简单的2D向量，以p1为原点
     double x0 = p0.east - p1.east;
@@ -687,13 +688,11 @@ double ControlNode::CalculatePathCurvature(size_t index) {
     // P1P2: (x2, y2)
 
     // 使用Menger曲率公式的近似 (适用于离散点)
-    // K = 2 * |x1(y2 − y3) + x2(y3 − y1) + x3(y1 − y2)| / (sqrt((x1−x2)^2+(y1−y2)^2) * sqrt((x2−x3)^2+(y2−y3)^2) * sqrt((x3−x1)^2+(y3−y1)^2))
-    // 为了简化并获得符号，我们使用叉积的思想来判断方向
-    // 向量 p1->p0 和 p1->p2
-    // 叉积的 z 分量: (x0 * y2 - y0 * x2)
-    // 如果这个值 > 0，表示从 p1->p0 到 p1->p2 是逆时针（左转弯）
-    // 如果这个值 < 0，表示从 p1->p0 到 p1->p2 是顺时针（右转弯）
-    
+    // K = 2 * |x1(y2 − y3) + x2(y3 − y1) + x3(y1 − y2)| / (sqrt((x1−x2)^2+(y1−y2)^2) * sqrt((x2−x3)^2+(y2−y3)^2) *
+    // sqrt((x3−x1)^2+(y3−y1)^2)) 为了简化并获得符号，我们使用叉积的思想来判断方向 向量 p1->p0 和 p1->p2 叉积的 z 分量:
+    // (x0 * y2 - y0 * x2) 如果这个值 > 0，表示从 p1->p0 到 p1->p2 是逆时针（左转弯） 如果这个值 < 0，表示从 p1->p0 到
+    // p1->p2 是顺时针（右转弯）
+
     double cross_product_z = x0 * y2 - x2 * y0;
 
     // 计算三点构成的三角形面积的两倍（也与叉积相关）
@@ -708,7 +707,7 @@ double ControlNode::CalculatePathCurvature(size_t index) {
     if (dist_p0_p1 < 1e-6 || dist_p1_p2 < 1e-6 || dist_p0_p2 < 1e-6) {
         return 0.0; // 点重合或非常近，视为直线
     }
-    
+
     // 使用Menger曲率的公式: K = 4 * Area / (a*b*c)
     // Area 是 p0, p1, p2 构成的三角形面积. 2 * Area = |x0*y2 - x2*y0|
     double area_triangle_times_2 = std::abs(cross_product_z);
@@ -721,18 +720,18 @@ double ControlNode::CalculatePathCurvature(size_t index) {
     // 通常，如果车辆前进方向为X轴正向，左转弯的航向角增加，对应正的角速度/曲率。
     // 如果 cross_product_z > 0， (p0-p1) 向量转向 (p2-p1) 向量是逆时针。
     // 这通常对应于路径向左弯曲。
-    
+
     // 我们需要根据车辆的航向来正确定义曲率符号。
     // 一个更通用的方法是判断中间点p1相对于线段p0p2的位置。
     // (y2-y0)*p1.x - (x2-x0)*p1.y + x2*y0 - y2*x0
     // 如果以p1为参考点，可以看 (p2-p1) 相对于 (p1-p0) 的转向
     // 向量 v1 = p1-p0 = (-x0, -y0)
     // 向量 v2 = p2-p1 = (x2, y2)
-    // 叉积 v1 x v2 = (-x0)*y2 - (-y0)*x2 = y0*x2 - x0*y2 
+    // 叉积 v1 x v2 = (-x0)*y2 - (-y0)*x2 = y0*x2 - x0*y2
     // 这就是我们之前计算的 cross_product_z
-    
+
     // double signed_curvature = curvature_magnitude;
-    // if (cross_product_z > 0) { 
+    // if (cross_product_z > 0) {
     //     signed_curvature = -curvature_magnitude; // 右转 -> 负曲率
     // } else if (cross_product_z < 0) {
     //     signed_curvature = curvature_magnitude;  // 左转 -> 正曲率

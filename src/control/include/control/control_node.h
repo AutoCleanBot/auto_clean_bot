@@ -3,6 +3,7 @@
 #include <bot_msg/msg/adc_trajectory.hpp>
 #include <bot_msg/msg/control_cmd.hpp>
 #include <bot_msg/msg/localization_info.hpp>
+#include <bot_msg/msg/chassis_info.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <fstream>
 #include "control/pid_controller.h"
@@ -17,6 +18,7 @@ class ControlNode : public rclcpp::Node {
     void TimerCallback();
     void ADCTrajectoryCallback(const bot_msg::msg::ADCTrajectory::SharedPtr msg);
     void LocalizationInfoCallback(const bot_msg::msg::LocalizationInfo::SharedPtr msg);
+    void ChassisInfoCallback(const bot_msg::msg::ChassisInfo::SharedPtr msg);
     void LateralController();
     void LongitudinalController();
     double SmoothSpeedCommand(double raw_speed_command);
@@ -28,12 +30,14 @@ class ControlNode : public rclcpp::Node {
     rclcpp::TimerBase::SharedPtr timer_;
     rclcpp::Subscription<bot_msg::msg::ADCTrajectory>::SharedPtr sub_adc_trajectory_;
     rclcpp::Subscription<bot_msg::msg::LocalizationInfo>::SharedPtr sub_localization_info_;
+    rclcpp::Subscription<bot_msg::msg::ChassisInfo>::SharedPtr sub_chassis_info_;
     rclcpp::Publisher<bot_msg::msg::ControlCmd>::SharedPtr pub_control_cmd_;
 
     // variables
     bot_msg::msg::ADCTrajectory::SharedPtr adc_trajectory_msg_;
     bot_msg::msg::LocalizationInfo::SharedPtr localization_info_msg_;
     bot_msg::msg::ControlCmd control_cmd_msg_;
+    bot_msg::msg::ChassisInfo chassis_info_msg_;
 
     // parameters
     double publish_rate_;       // in milliseconds
