@@ -22,6 +22,7 @@ class ControlNode : public rclcpp::Node {
     double SmoothSpeedCommand(double raw_speed_command);
     double CalculatePathCurvature(size_t index);
     double CalculateAdaptivePreviewDistance(double current_speed, double path_curvature);
+    double CalculateAdaptiveHeadingErrorRate(double current_speed);
   private:
     // subscribers and publishers
     rclcpp::TimerBase::SharedPtr timer_;
@@ -49,6 +50,7 @@ class ControlNode : public rclcpp::Node {
     double stanley_control_rate_; // Stanley控制比例
     double sta_lat_rate_;         // stanley控制中的横向偏差系数, 在低速情况下应该加大该算法的系数
     double feedforward_rate_;     // 前馈控制比例
+    double heading_error_rate_;   // 航向误差比例
     double turning_radius_ratio_;  // 方向盘转角与前轮转角的比例
     double zero_point_draft_;      // 零点漂移
     // config variables
