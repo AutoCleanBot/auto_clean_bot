@@ -70,7 +70,7 @@ def calculate_curvature(east, north):
 def main():
     # 读取CSV文件
     try:
-        df = pd.read_csv('local_record_5.csv')
+        df = pd.read_csv('local_record_2.csv')
         
         # 计算原始曲率
         curvature = calculate_curvature(df['east'].values, df['north'].values)
