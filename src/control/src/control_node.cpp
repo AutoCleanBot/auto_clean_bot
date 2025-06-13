@@ -106,10 +106,10 @@ ControlNode::ControlNode() : Node("control_node") {
         // 写入CSV文件头（如果文件是新建或空的）
         debug_log_file_
             << "timestamp,pursuit_control_rate,stanley_control_rate,sta_lat_rate,heading_error_deg,angular_error_deg,"
-               "lat_error,pursuit_control_deg,stanley_control_deg,steer_angle_deg, feedback_steer_deg,"
+               "lat_error,pursuit_control_deg,stanley_control_deg,steer_angle_deg,feedback_steer_deg,"
                "preview_dist,preview_idx,closest_idx,target_east,target_north,target_yaw_"
                "deg,closest_east,closest_north,closest_yaw_deg,closest_curvature,cur_east,cur_north,cur_yaw_deg,"
-               "curvature_feedforward,"
+               "controller_type,"  // 增加控制器类型列
                "target_spd,cur_spd,error,acceleration,cmd_spd,integral"
             << std::endl;
     }
@@ -375,10 +375,18 @@ void ControlNode::LateralController() {
         double lat_error = vehicle_state.lateral_error;
         double heading_error = vehicle_state.heading_error * 180.0 / M_PI; // 转换为度
         
+        // 为了保持日志格式一致，无论使用哪种控制器，我们都使用相同的列格式
+        double pursuit_control_val = 0.0;
+        double stanley_control_val = 0.0;
+
+        
+        // 获取当前的控制器类型标识
+        std::string controller_type = use_lqr_controller_ ? "LQR" : "Hybrid";
+        
         debug_log_file_ << time_str << "," << pursuit_control_rate_ << "," << stanley_control_rate_ << ","
-                        << sta_lat_rate_ << "," << heading_error << "," << 0.0 // 方位角误差不再使用
-                        << "," << lat_error << "," << 0.0 << "," // pursuit_control和stanley_control不再使用
-                        << 0.0 << "," << steer_angle << "," << feedback_steer_angle << ","
+                        << sta_lat_rate_ << "," << heading_error << "," << 0.0  // 方位角误差不再使用
+                        << "," << lat_error << "," << pursuit_control_val << "," // 保持格式一致
+                        << stanley_control_val << "," << steer_angle << "," << feedback_steer_angle << ","
                         << preview_dist << "," << preview_idx << "," << closest_idx_ << "," 
                         << adc_trajectory_msg_->points[preview_idx].east << ","
                         << adc_trajectory_msg_->points[preview_idx].north << "," 
@@ -388,7 +396,8 @@ void ControlNode::LateralController() {
                         << adc_trajectory_msg_->points[closest_idx_].yaw << "," 
                         << CalculatePathCurvature(closest_idx_) << ","
                         << cur_east << "," << cur_north << "," << localization_info_msg_->yaw << "," 
-                        << (use_lqr_controller_ ? "LQR" : "Hybrid") << "," << zero_point_draft_;
+                        << controller_type;  // 使用控制器类型替代前馈控制项
+        // 注意：不要在这里结束行，因为纵向控制器会追加更多数据
     }
 }
 
@@ -454,6 +463,7 @@ void ControlNode::LongitudinalController() {
         control_cmd_msg_.speed = step_target_speed;
     }
     if (g_debug_cnt % 5 == 0 && debug_log_file_.is_open()) {
+        // 纵向控制器只负责追加速度相关数据，并结束行
         debug_log_file_ << "," << final_target_speed << "," << current_speed << ","
                         << final_target_speed - current_speed << "," << 0 << "," << step_target_speed << ","
                         << speed_pid_controller_->getIntegral() << std::endl;
