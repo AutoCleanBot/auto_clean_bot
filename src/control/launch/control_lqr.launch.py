@@ -35,7 +35,7 @@ def generate_launch_description():
         'preview_time': 2.5,            # 增加预瞄时间
         'tolerance_distance': 2.0,      # 增加预瞄距离容差
         'max_steering_angle': 40.0,     # 减小最大前轮转角
-        'wheelbase': 1.94,              # 设置为估计轴距
+        'wheelbase': 1.99,              # 设置为估计轴距
         'max_linear_velocity': 8.0,     # 减小最大线速度
         'max_angular_velocity': 8.0,    # 减小最大角速度
         'acceleration_limit': 15.0,     # 减小加速度限制
