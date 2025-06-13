@@ -65,7 +65,7 @@ ControlNode::ControlNode() : Node("control_node") {
                "lat_error,pursuit_control_deg,stanley_control_deg,steer_angle_deg, feedback_steer_deg,"
                "preview_dist,preview_idx,closest_idx,target_east,target_north,target_yaw_"
                "deg,closest_east,closest_north,closest_yaw_deg,closest_curvature,cur_east,cur_north,cur_yaw_deg,"
-               "curvature_feedforward,"
+               "curvature_feedforward,zero_point_draft"
                "target_spd,cur_spd,error,acceleration,cmd_spd,integral"
             << std::endl;
     }
@@ -245,7 +245,7 @@ void ControlNode::LateralController() {
 
     // 根据速度动态调整heading_error_rate_
     heading_error_rate_ = CalculateAdaptiveHeadingErrorRate(current_speed);
-    effective_stanley_spd = 1;
+
     // 使用自适应参数计算控制输出
     double pursuit_control = -std::atan2(2 * wheelbase_ * std::sin(angular_error), preview_dist);
     double stanley_control =
@@ -257,10 +257,7 @@ void ControlNode::LateralController() {
     // 添加前馈控制项
     double curvature_feedforward = std::atan2(wheelbase_ * path_curvature, 1.0);
 
-    if (front_wheel_rad > 0)
-        front_wheel_rad += feedforward_rate_ * curvature_feedforward;
-    else
-        front_wheel_rad -= feedforward_rate_ * curvature_feedforward;
+    front_wheel_rad += feedforward_rate_ * curvature_feedforward;
 
     // 3.4 计算最终转向角，并限制在合理范围内
     double steer_angle = front_wheel_rad * 180.0 / M_PI;
@@ -732,17 +729,17 @@ double ControlNode::CalculatePathCurvature(size_t index) {
     // 叉积 v1 x v2 = (-x0)*y2 - (-y0)*x2 = y0*x2 - x0*y2
     // 这就是我们之前计算的 cross_product_z
 
-    // double signed_curvature = curvature_magnitude;
-    // if (cross_product_z > 0) {
-    //     signed_curvature = -curvature_magnitude; // 右转 -> 负曲率
-    // } else if (cross_product_z < 0) {
-    //     signed_curvature = curvature_magnitude;  // 左转 -> 正曲率
-    // } else {
-    //     signed_curvature = 0.0; // 直线
-    // }
+    double signed_curvature = curvature_magnitude;
+    if (cross_product_z > 0) {
+        signed_curvature = -curvature_magnitude; // 右转 -> 负曲率
+    } else if (cross_product_z < 0) {
+        signed_curvature = curvature_magnitude;  // 左转 -> 正曲率
+    } else {
+        signed_curvature = 0.0; // 直线
+    }
     // // 注意：如果 curvature_magnitude 已经为0（直线），符号无所谓
 
-    return curvature_magnitude;
+    return signed_curvature;
 }
 
 // 计算自适应预瞄距离
