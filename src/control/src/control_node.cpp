@@ -226,12 +226,14 @@ void ControlNode::LateralController() {
     // 在直线段增加Stanley控制器的权重，在弯道增加Pure Pursuit的权重
     double adaptive_pursuit_rate = pursuit_control_rate_;
     double adaptive_stanley_rate = stanley_control_rate_;
-    if (curvature_based_weight < CURVATURE_THRESHOLD) {
-        adaptive_pursuit_rate *= 0.7;
-        adaptive_stanley_rate *= 1.3;
-    } else {
-        adaptive_pursuit_rate *= 1.3;
-        adaptive_stanley_rate *= 0.7;
+    if(pursuit_control_rate_ != 1.0 && stanley_control_rate_ != 1.0){
+        if (curvature_based_weight < CURVATURE_THRESHOLD) {
+            adaptive_pursuit_rate *= 0.7;
+            adaptive_stanley_rate *= 1.3;
+        } else {
+            adaptive_pursuit_rate *= 1.3;
+            adaptive_stanley_rate *= 0.7;
+        }
     }
 
     // 计算横向误差增益

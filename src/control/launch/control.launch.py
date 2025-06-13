@@ -40,10 +40,10 @@ def generate_launch_description():
         'max_angular_velocity':10.0,
         'acceleration_limit':20.0,
         'deceleration_limit':-20.0,
-        'pursuit_control_rate':0.5,
-        'stanley_control_rate':0.5,
+        'pursuit_control_rate':0.8,
+        'stanley_control_rate':0.2,
         'sta_lat_rate':0.5, # stanley控制中的横向偏差系数
-        'feedforward_rate':0.8,
+        'feedforward_rate':0.6,
         'speed_pid_kp':0.5,
         'speed_pid_ki':0.1,
         'speed_pid_kd':0.0,
