@@ -35,7 +35,7 @@ def generate_launch_description():
         'preview_time': 2.0,            # 预瞄时间
         'tolerance_distance': 1.5,      # 预瞄距离
         'max_steering_angle':50.0,      # 最大前轮转角
-        'wheelbase':1.3,
+        'wheelbase':1.99,
         'max_linear_velocity':10.0,
         'max_angular_velocity':10.0,
         'acceleration_limit':20.0,
