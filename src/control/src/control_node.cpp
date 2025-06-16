@@ -228,7 +228,7 @@ void ControlNode::LateralController() {
         double lqr_steering_rad = lqr_controller_.ComputeControlCommand(vehicle_state);
         
         // 转换为角度
-        steer_angle = -lqr_steering_rad * 180.0 / M_PI;
+        steer_angle = lqr_steering_rad * 180.0 / M_PI;
         
         // 计算当前路径曲率，用于前馈控制
         double path_curvature = CalculatePathCurvature(closest_idx_);
@@ -819,7 +819,7 @@ VehicleState ControlNode::ComputeVehicleState() {
     double dy = state.y - closest_point.north;
     
     // 计算横向误差（向量在垂直于路径方向上的投影）
-    state.lateral_error = dx * std::cos(path_direction) - dy * std::sin(path_direction);
+    state.lateral_error = std::sin(target_yaw_rad) * dy - std::cos(target_yaw_rad) * dx;
     
     // 计算航向误差
     double target_yaw = closest_point.yaw * M_PI / 180.0; // 转换为弧度
