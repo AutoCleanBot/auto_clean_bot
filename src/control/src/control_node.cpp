@@ -48,6 +48,8 @@ ControlNode::ControlNode() : Node("control_node") {
     int control_cycle_time = static_cast<int>(1000.0 / this->publish_rate_); // 毫秒
     this->timer_ = this->create_wall_timer(std::chrono::milliseconds(control_cycle_time),
                                            std::bind(&ControlNode::TimerCallback, this));
+    this->sub_chassis_info_ = this->create_subscription<bot_msg::msg::ChassisInfo>(
+        this->chassis_info_topic_name_, 10, std::bind(&ControlNode::ChassisInfoCallback, this, std::placeholders::_1));
 
     // 使用参数读取到的日志文件路径打开文件
     // 确保目录存在
@@ -576,6 +578,7 @@ void ControlNode::InitParams() {
     this->declare_parameter<std::string>("adc_traj_topic_name", "/planing/adc_traj");
     this->declare_parameter<std::string>("control_cmd_topic_name", "/control/control_cmd");
     this->declare_parameter<std::string>("localization_info_topic_name", "/control/local_info");
+    this->declare_parameter<std::string>("chassis_info_topic_name", "/control/chassis_info");
     this->declare_parameter<std::string>("log_file_path", "./control_debug.csv");
     // Get parameters
     publish_rate_ = this->get_parameter("publish_rate").get_value<double>();
@@ -596,10 +599,11 @@ void ControlNode::InitParams() {
     adc_traj_topic_name_ = this->get_parameter("adc_traj_topic_name").get_value<std::string>();
     control_cmd_topic_name_ = this->get_parameter("control_cmd_topic_name").get_value<std::string>();
     localization_info_topic_name_ = this->get_parameter("localization_info_topic_name").get_value<std::string>();
+    chassis_info_topic_name_ = this->get_parameter("chassis_info_topic_name").get_value<std::string>();
     log_file_path_ = this->get_parameter("log_file_path").get_value<std::string>();
     speed_pid_kp_ = this->get_parameter("speed_pid_kp").as_double();
     speed_pid_ki_ = this->get_parameter("speed_pid_ki").as_double();
-    speed_pid_kd_ = this->get_parameter("speed_pid_kd").as_double();
+    speed_pid_kd_ = this->get_parameter("speed_pid_kd").as_double();    
     speed_pid_kf_ = this->get_parameter("speed_pid_kf").as_double();
 
     // Print parameters
@@ -621,6 +625,7 @@ void ControlNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "Stanley control rate: %f", stanley_control_rate_);
     RCLCPP_INFO(this->get_logger(), "Stanley lat control rate: %f", sta_lat_rate_);
     RCLCPP_INFO(this->get_logger(), "Feedforward rate: %f", feedforward_rate_);
+    RCLCPP_INFO(this->get_logger(), "Chassis info topic name: %s", chassis_info_topic_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "Debug log file path: %s", log_file_path_.c_str());
     RCLCPP_INFO(this->get_logger(), "Speed pid kp: %f", speed_pid_kp_);
     RCLCPP_INFO(this->get_logger(), "Speed pid ki: %f", speed_pid_ki_);
@@ -730,10 +735,13 @@ double ControlNode::CalculatePathCurvature(size_t index) {
     // 这就是我们之前计算的 cross_product_z
 
     double signed_curvature = curvature_magnitude;
+    // 修正后的正确代码
     if (cross_product_z > 0) {
-        signed_curvature = -curvature_magnitude; // 右转 -> 负曲率
+        // 向量 P1P0 -> P1P2 是逆时针，对应左转
+        signed_curvature = -curvature_magnitude;  // 右转 -> 负曲率
     } else if (cross_product_z < 0) {
-        signed_curvature = curvature_magnitude;  // 左转 -> 正曲率
+        // 向量 P1P0 -> P1P2 是顺时针，对应右转
+        signed_curvature = curvature_magnitude; // 左转 -> 正曲率
     } else {
         signed_curvature = 0.0; // 直线
     }
