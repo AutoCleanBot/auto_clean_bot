@@ -1,0 +1,18 @@
+map_node:
+  ros__parameters:
+    # 地图文件目录
+    map_files_dir: "/home/limer/auto_clean_bot/map_files"
+    
+    # 边界文件名
+    left_boundary_file: "local_record_5_left_boundary.csv"
+    right_boundary_file: "local_record_5_right_boundary.csv"
+    
+    # 边界名称
+    left_boundary_name: "left_boundary"
+    right_boundary_name: "right_boundary"
+    
+    # 边界长度
+    boundary_length: 50.0
+    
+    # 发布频率
+    publish_frequency: 10.0 

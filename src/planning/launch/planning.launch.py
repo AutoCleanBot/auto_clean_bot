@@ -25,7 +25,7 @@ def generate_launch_description():
         'preview_time' : 1.0,     # 预瞄时间, s
         'start_dist' : 5.0,      # 起始距离, m
         'traj_pub_interval' : 0.1, # 路径发布间隔, 秒
-        'planning_spd' : 3.0,     # 规划速度, m/s
+        'planning_spd' : 2.0,     # 规划速度, m/s
         'reverse_moving' : False  # 是否反向行驶
     }
     

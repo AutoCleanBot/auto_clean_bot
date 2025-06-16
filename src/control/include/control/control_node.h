@@ -68,6 +68,7 @@ class ControlNode : public rclcpp::Node {
     std::string adc_traj_topic_name_;
     std::string localization_info_topic_name_;
     std::string control_cmd_topic_name_;
+    std::string chassis_info_topic_name_;
     std::string log_file_path_;
 
     // 运行中的信息
