@@ -4,6 +4,11 @@
 #include <rclcpp/executors/multi_threaded_executor.hpp>
 #include <thread>
 
+
+/*
+* *TODO 边界点的接受和处理
+*/
+
 namespace planning {
 PlanningNode::PlanningNode() : Node("planning_node"), timer_cnt_(0) {
     InitParams();

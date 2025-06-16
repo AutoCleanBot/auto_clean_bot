@@ -13,6 +13,8 @@ find_package(std_msgs REQUIRED)
 
 set(msg_files
   "msg/ADCTrajectory.msg"
+  "msg/Boundary.msg"
+  "msg/BoundaryPoint.msg"
   "msg/ChassisInfo.msg"
   "msg/ControlCmd.msg"
   "msg/LaneInfo.msg"
