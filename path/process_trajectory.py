@@ -159,7 +159,7 @@ def visualize_and_save_results(original_df, processed_df, output_image_file):
     print(f"Image successfully saved to {output_image_file}")
 
 def main():
-    INPUT_FILE = 'local_record_2.csv'
+    INPUT_FILE = 'local_record_1.csv'
     TEMP_FILE = 'temp_processed_path.csv'
     OUTPUT_IMAGE = 'processing_result.png'
     DENSIFY_MAX_DISTANCE, SAVGOL_WINDOW, SAVGOL_POLYORDER = 0.1, 101, 3
