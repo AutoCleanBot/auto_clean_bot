@@ -13,13 +13,13 @@ void LocalRecordTest::TimerCallback() {
     bot_msg::msg::LocalizationInfo localization_info_msg;
     // localization_info_msg.north = 10.0;
     // localization_info_msg.east = 0.0;
-    localization_info_msg.north =  43.184;
-    localization_info_msg.east = 8.613;
-    localization_info_msg.yaw = 63.127;
+    localization_info_msg.east =  4.66374;
+    localization_info_msg.north = 40.0285;
+    localization_info_msg.yaw = 42.274;
     if(count % 20 == 0){
         count_10++;
     }
-    localization_info_msg.vel_speed = static_cast<float>(count_10)*0.1;
+    localization_info_msg.vel_speed = 2.08139;
     if(localization_info_msg.vel_speed >= 3.0){
         localization_info_msg.vel_speed = 3.0;
     }
