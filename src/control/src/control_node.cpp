@@ -67,7 +67,7 @@ ControlNode::ControlNode() : Node("control_node") {
                "lat_error,pursuit_control_deg,stanley_control_deg,steer_angle_deg, feedback_steer_deg,"
                "preview_dist,preview_idx,closest_idx,target_east,target_north,target_yaw_"
                "deg,closest_east,closest_north,closest_yaw_deg,closest_curvature,cur_east,cur_north,cur_yaw_deg,"
-               "curvature_feedforward,zero_point_draft"
+               "curvature_feedforward,zero_point_draft,"
                "target_spd,cur_spd,error,acceleration,cmd_spd,integral"
             << std::endl;
     }
@@ -94,7 +94,7 @@ ControlNode::ControlNode() : Node("control_node") {
     speed_commands_buffer_.clear();
 
     // 声明新的参数
-    this->declare_parameter("max_steering_rate", 30.0); // 度/秒
+    this->declare_parameter("max_steering_rate", 15.0); // 度/秒
     max_steering_rate_ = this->get_parameter("max_steering_rate").as_double();
 
     // 初始化状态变量
@@ -263,6 +263,7 @@ void ControlNode::LateralController() {
 
     // 3.4 计算最终转向角，并限制在合理范围内
     double steer_angle = front_wheel_rad * 180.0 / M_PI;
+    steer_angle = SmoothSteeringAngle(steer_angle, 0.02);
     // 零点漂移处理
     steer_angle += zero_point_draft_;
     // 自行车模型的转角偏差
@@ -763,22 +764,45 @@ double ControlNode::CalculateAdaptivePreviewDistance(double current_speed, doubl
     return std::max(MIN_PREVIEW_DISTANCE, preview_dist);
 }
 
-// // 添加转向角平滑函数
-// double ControlNode::SmoothSteeringAngle(double target_angle, double dt) {
-//     double angle_change = target_angle - previous_steering_angle_;
-//     double max_change = max_steering_rate_ * dt;
+// 添加转向角平滑函数
 
-//     if (std::abs(angle_change) > max_change) {
-//         if (angle_change > 0) {
-//             target_angle = previous_steering_angle_ + max_change;
-//         } else {
-//             target_angle = previous_steering_angle_ - max_change;
-//         }
-//     }
+double ControlNode::SmoothSteeringAngle(double target_angle, double dt) {
+    // 1. 首先进行速率限制，和之前一样
+    double max_angle_change = max_steering_rate_ * dt;
+    double angle_change = target_angle - previous_steering_angle_;
 
-//     previous_steering_angle_ = target_angle;
-//     return target_angle;
-// }
+    if (std::abs(angle_change) > max_angle_change) {
+        if (angle_change > 0) {
+            target_angle = previous_steering_angle_ + max_angle_change;
+        } else {
+            target_angle = previous_steering_angle_ - max_angle_change;
+        }
+    }
+
+    // 2. 新增逻辑：处理死区和分辨率问题
+    // 计算最终指令与上一个指令的实际差值
+    double final_angle_change = target_angle - previous_steering_angle_;
+
+    // 定义最小有效变化量，这是一个需要实验标定的重要参数
+    const double MIN_EFFECTIVE_ANGLE_CHANGE = 0.8; // 单位：度
+
+    // 如果变化量大于0，但小于最小有效变化量
+    if (std::abs(final_angle_change) > 1e-6 && std::abs(final_angle_change) < MIN_EFFECTIVE_ANGLE_CHANGE) {
+        // 决策：是保持不动，还是强制增加到最小有效值？
+        // 强制增加到最小有效值，可以更快地克服死区
+        if (final_angle_change > 0) {
+            target_angle = previous_steering_angle_ + MIN_EFFECTIVE_ANGLE_CHANGE;
+        } else {
+            target_angle = previous_steering_angle_ - MIN_EFFECTIVE_ANGLE_CHANGE;
+        }
+    }
+
+
+
+    // 更新状态
+    previous_steering_angle_ = target_angle;
+    return target_angle;
+}
 
 ControlNode::~ControlNode() {
     if (debug_log_file_.is_open()) {

@@ -50,6 +50,7 @@ private:
     int traj_pub_cnt_ ;            // 路径发布计数
     int timer_cnt_ ;               // 计时器计数
     uint8_t planning_status_ ;     // 规划状态
+    double path_end_dist_ ;        // 路径结束距离
     bot_msg::msg::Obstacles obstacles_ ; // 当前感知信息
     std::array<int, 3> obstacle_info_ ; // 障碍物信息 0: 左前,1 正前方,2 右前, 存储的是障碍物的标号
 

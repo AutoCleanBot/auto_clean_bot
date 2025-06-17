@@ -63,7 +63,7 @@ void PlanningNode::InitParams() {
     planning_spd_ = this->get_parameter("planning_spd").as_double();
     traj_pub_cnt_ = static_cast<int32_t>(traj_pub_interval_ * process_frq_);
     reverse_moving_ = this->get_parameter("reverse_moving").as_bool();
-
+    path_end_dist_ = this->get_parameter("path_end_dist").as_double();
     RCLCPP_INFO(this->get_logger(), "local_topic_name: %s", local_topic_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "service_name: %s", service_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "traj_topic_name: %s", traj_topic_name_.c_str());
@@ -74,6 +74,7 @@ void PlanningNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "traj_pub_interval: %f", traj_pub_interval_);
     RCLCPP_INFO(this->get_logger(), "planning_spd_: %f", planning_spd_);
     RCLCPP_INFO(this->get_logger(), "reverse_moving: %d", reverse_moving_);
+    RCLCPP_INFO(this->get_logger(), "path_end_dist: %f", path_end_dist_);
 }
 void PlanningNode::InitGlobalPath() {
     auto client = this->create_client<bot_msg::srv::Routing>(service_name_);
@@ -142,7 +143,7 @@ bool PlanningNode::IsPathTail() {
     auto cur_east = cur_local_.east;
     auto cur_north = cur_local_.north;
     double dis = sqrt(pow(tail_east - cur_east, 2) + pow(tail_north - cur_north, 2));
-    if (dis < 1 || closet_idx_ == path_len - 1) {
+    if (dis <  path_end_dist_ || closet_idx_ == path_len - 1) {
         return true;
     }
     return false;

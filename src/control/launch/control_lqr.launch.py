@@ -40,6 +40,7 @@ def generate_launch_description():
         'max_angular_velocity': 8.0,    # 减小最大角速度
         'acceleration_limit': 15.0,     # 减小加速度限制
         'deceleration_limit': -15.0,    # 减小减速度限制
+        'max_steering_rate': 15.0,      # 减小最大转向角速度
         'pursuit_control_rate': 0.6,    # 增加纯追踪控制比例
         'stanley_control_rate': 0.4,    # 减少Stanley控制比例
         'sta_lat_rate': 0.4,            # 减小横向误差系数

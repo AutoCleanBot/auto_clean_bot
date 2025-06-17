@@ -25,6 +25,7 @@ class ControlNode : public rclcpp::Node {
     double CalculatePathCurvature(size_t index);
     double CalculateAdaptivePreviewDistance(double current_speed, double path_curvature);
     double CalculateAdaptiveHeadingErrorRate(double current_speed);
+    double SmoothSteeringAngle(double target_angle, double dt);
   private:
     // subscribers and publishers
     rclcpp::TimerBase::SharedPtr timer_;
@@ -57,6 +58,7 @@ class ControlNode : public rclcpp::Node {
     double heading_error_rate_;   // 航向误差比例
     double turning_radius_ratio_;  // 方向盘转角与前轮转角的比例
     double zero_point_draft_;      // 零点漂移
+    
     // config variables
     std::string adc_traj_topic_name_;
     std::string localization_info_topic_name_;
