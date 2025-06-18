@@ -349,7 +349,7 @@ void ControlNode::LongitudinalController() {
         // 目标速度低于当前阶梯目标 - 需要减速
         if (current_speed <= step_target_speed + SPEED_THRESHOLD) {
             // 当前速度已降至阶梯目标，降低阶梯
-            step_target_speed = std::max(step_target_speed - 3 * STEP_SIZE, final_target_speed);
+            step_target_speed = std::max(step_target_speed - 4 * STEP_SIZE, final_target_speed);
         }
     } else {
         // 最终目标速度等于当前阶梯目标，无需调整

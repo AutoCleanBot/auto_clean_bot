@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -10,15 +13,7 @@ from matplotlib import font_manager
 
 class PathVisualizer:
     def __init__(self, data_file, output_file=None, arrow_density=10, label_density=2):
-        """
-        初始化路径可视化器
-        
-        参数:
-            data_file: CSV文件路径
-            output_file: 输出图片文件路径，如果为None则只显示不保存
-            arrow_density: 航向箭头的密度，表示每隔多少个点绘制一次箭头
-            label_density: 标签密度，表示在箭头点中每隔多少个添加标签
-        """
+
         self.data = pd.read_csv(data_file)
         self.output_file = output_file
         self.arrow_density = arrow_density
@@ -26,18 +21,39 @@ class PathVisualizer:
         self.fig = None
         self.ax = None
         
-        # 设置中文字体
         self.setup_chinese_font()
     
     def setup_chinese_font(self):
-        """配置中文字体显示"""
         # 尝试设置中文字体
         try:
-            # 尝试使用微软雅黑
-            plt.rcParams['font.family'] = ['Microsoft YaHei', 'SimHei', 'sans-serif']
+            # 尝试多种常见中文字体
+            available_fonts = font_manager.findSystemFonts()
+            chinese_fonts = []
+            
+            # 检查常见的中文字体名称
+            for font_path in available_fonts:
+                try:
+                    if any(name in font_path.lower() for name in 
+                           ['simhei', 'simsun', 'msyh', 'wqy', 'droid', 'noto', 'wenquanyi', 'microsoft']):
+                        chinese_fonts.append(font_manager.FontProperties(fname=font_path).get_name())
+                except Exception:
+                    pass
+            
+            # 添加一些常用中文字体名称
+            fallback_fonts = ['Microsoft YaHei', 'SimHei', 'SimSun', 'WenQuanYi Micro Hei', 
+                             'Droid Sans Fallback', 'Noto Sans CJK SC', 'Arial Unicode MS', 'sans-serif']
+            
+            # 合并找到的字体和常用字体
+            font_list = list(set(chinese_fonts + fallback_fonts))
+            
+            # 设置字体
+            plt.rcParams['font.family'] = font_list
             plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
-        except:
-            print("警告: 未能完全配置中文字体，可能会导致中文显示为方块")
+            
+            print(f"中文字体设置成功，将尝试使用: {', '.join(font_list[:3])}...")
+        except Exception as e:
+            print(f"警告: 设置中文字体时出现错误: {str(e)}")
+            print("中文可能无法正常显示，请安装中文字体如'WenQuanYi Micro Hei'或'Noto Sans CJK SC'")
     
     def setup_plot(self, figsize=(15, 12)):
         """设置绘图区域"""
@@ -218,7 +234,7 @@ class PathVisualizer:
 def parse_arguments():
     """解析命令行参数"""
     parser = argparse.ArgumentParser(description='可视化车辆路径与航向')
-    parser.add_argument('--data', type=str, default='control_debug_20250617_185255.csv', help='数据文件路径')
+    parser.add_argument('--data', type=str, default='control_debug_20250618_180008.csv', help='数据文件路径')
     parser.add_argument('--output', type=str, default='path_visualization.png', help='输出图像文件路径')
     parser.add_argument('--arrow-density', type=int, default=10, help='箭头密度(每隔多少个点绘制一次箭头)')
     parser.add_argument('--label-density', type=int, default=2, help='标签密度(每隔多少个箭头添加一个标签)')

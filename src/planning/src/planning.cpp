@@ -255,7 +255,7 @@ void PlanningNode::TimerCallback() {
  * @brief 更新障碍物信息
  */
 void PlanningNode::UpdateObstacleInfo() {
-    // obstacle_info_.fill(-1);
+    obstacle_info_.fill(-1);
     // for (std::size_t i = 0; i < obstacles_.obstacles.size(); i++) {
     //     auto &&obstacle = obstacles_.obstacles[i];
     //     // 障碍物在当前车辆正前方
