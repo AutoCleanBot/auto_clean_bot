@@ -477,9 +477,9 @@ void ControlNode::LongitudinalController() {
 double ControlNode::CalculateAdaptiveHeadingErrorRate(double current_speed) {
     // 定义速度范围和对应的比率范围
     const double MIN_SPEED = 0.5; // 最低速度阈值，低于此速度使用最大比率
-    const double MAX_SPEED = 5.0; // 最高速度阈值，高于此速度使用最小比率
+    const double MAX_SPEED = 4.2; // 最高速度阈值，高于此速度使用最小比率
     const double MIN_RATE = 0.4;  // 最小比率
-    const double MAX_RATE = 1.0;  // 最大比率
+    const double MAX_RATE = 0.8;  // 最大比率
 
     // 如果速度小于最低阈值，使用最大比率
     if (current_speed <= MIN_SPEED) {
@@ -779,23 +779,23 @@ double ControlNode::SmoothSteeringAngle(double target_angle, double dt) {
         }
     }
 
-    // 2. 新增逻辑：处理死区和分辨率问题
-    // 计算最终指令与上一个指令的实际差值
-    double final_angle_change = target_angle - previous_steering_angle_;
+    // // 2. 新增逻辑：处理死区和分辨率问题
+    // // 计算最终指令与上一个指令的实际差值
+    // double final_angle_change = target_angle - previous_steering_angle_;
 
-    // 定义最小有效变化量，这是一个需要实验标定的重要参数
-    const double MIN_EFFECTIVE_ANGLE_CHANGE = 0.8; // 单位：度
+    // // 定义最小有效变化量，这是一个需要实验标定的重要参数
+    // const double MIN_EFFECTIVE_ANGLE_CHANGE = 0.8; // 单位：度
 
-    // 如果变化量大于0，但小于最小有效变化量
-    if (std::abs(final_angle_change) > 1e-6 && std::abs(final_angle_change) < MIN_EFFECTIVE_ANGLE_CHANGE) {
-        // 决策：是保持不动，还是强制增加到最小有效值？
-        // 强制增加到最小有效值，可以更快地克服死区
-        if (final_angle_change > 0) {
-            target_angle = previous_steering_angle_ + MIN_EFFECTIVE_ANGLE_CHANGE;
-        } else {
-            target_angle = previous_steering_angle_ - MIN_EFFECTIVE_ANGLE_CHANGE;
-        }
-    }
+    // // 如果变化量大于0，但小于最小有效变化量
+    // if (std::abs(final_angle_change) > 1e-6 && std::abs(final_angle_change) < MIN_EFFECTIVE_ANGLE_CHANGE) {
+    //     // 决策：是保持不动，还是强制增加到最小有效值？
+    //     // 强制增加到最小有效值，可以更快地克服死区
+    //     if (final_angle_change > 0) {
+    //         target_angle = previous_steering_angle_ + MIN_EFFECTIVE_ANGLE_CHANGE;
+    //     } else {
+    //         target_angle = previous_steering_angle_ - MIN_EFFECTIVE_ANGLE_CHANGE;
+    //     }
+    // }
 
 
 
