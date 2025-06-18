@@ -48,7 +48,7 @@ def generate_launch_description():
         'speed_pid_kp':0.5,
         'speed_pid_ki':0.1,
         'speed_pid_kd':0.0,
-        'zero_point_draft':-2.0,     # 零点漂移
+        'zero_point_draft':-3.0,     # 零点漂移
         'turning_radius_ratio':1.0,
         'max_speed_change_rate':1.0, # 最大速度变化率
         'smooth_window_size':20,     # 平滑窗口大小
