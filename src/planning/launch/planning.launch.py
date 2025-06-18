@@ -19,6 +19,8 @@ def generate_launch_description():
         'service_name' : '/routing_service',
         'traj_topic_name' : '/planning/trajectory',
         'perc_topic_name' : '/perception/obstacles',
+        'left_boundary_topic_name' : '/map/left_boundary',
+        'right_boundary_topic_name' : '/map/right_boundary',
         'path_type' : 2,
         'process_frq' : 10.0,    # 处理频率, Hz
         'preview_dist' : 12.0,   # 预览距离, m

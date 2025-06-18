@@ -52,6 +52,8 @@ void PlanningNode::InitParams() {
     this->declare_parameter("planning_spd", 2.0);
     this->declare_parameter("path_end_dist", 2.0);
     this->declare_parameter("reverse_moving", false);
+    this->declare_parameter("left_boundary_topic_name", "/map/left_boundary");
+    this->declare_parameter("right_boundary_topic_name", "/map/right_boundary");    
     local_topic_name_ = this->get_parameter("local_topic_name").as_string();
     service_name_ = this->get_parameter("service_name").as_string();
     process_frq_ = this->get_parameter("process_frq").as_double();
@@ -65,6 +67,9 @@ void PlanningNode::InitParams() {
     traj_pub_cnt_ = static_cast<int32_t>(traj_pub_interval_ * process_frq_);
     reverse_moving_ = this->get_parameter("reverse_moving").as_bool();
     path_end_dist_ = this->get_parameter("path_end_dist").as_double();
+    left_boundary_topic_name_ = this->get_parameter("left_boundary_topic_name").as_string();
+    right_boundary_topic_name_ = this->get_parameter("right_boundary_topic_name").as_string();
+
     RCLCPP_INFO(this->get_logger(), "local_topic_name: %s", local_topic_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "service_name: %s", service_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "traj_topic_name: %s", traj_topic_name_.c_str());
@@ -76,7 +81,12 @@ void PlanningNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "planning_spd_: %f", planning_spd_);
     RCLCPP_INFO(this->get_logger(), "reverse_moving: %d", reverse_moving_);
     RCLCPP_INFO(this->get_logger(), "path_end_dist: %f", path_end_dist_);
+    RCLCPP_INFO(this->get_logger(), "left_boundary_topic_name: %s", left_boundary_topic_name_.c_str());
+    RCLCPP_INFO(this->get_logger(), "right_boundary_topic_name: %s", right_boundary_topic_name_.c_str());
 }
+
+
+
 void PlanningNode::InitGlobalPath() {
     auto client = this->create_client<bot_msg::srv::Routing>(service_name_);
 
@@ -136,6 +146,23 @@ void PlanningNode::ObstaclesCallback(const bot_msg::msg::Obstacles::SharedPtr ms
  * @brief 定位信息回调函数
  */
 void PlanningNode::LocalizationInfoCallback(const bot_msg::msg::LocalizationInfo::SharedPtr msg) { cur_local_ = *msg; }
+
+
+/**
+ * 
+ * @brief 左边界回调函数
+ */
+void PlanningNode::LeftBoundaryCallback(const bot_msg::msg::Boundary::SharedPtr msg) {
+    left_boundary_ = *msg;
+}
+
+/**
+ * 
+ * @brief 右边界回调函数
+ */
+void PlanningNode::RightBoundaryCallback(const bot_msg::msg::Boundary::SharedPtr msg) {
+    right_boundary_ = *msg;
+}
 
 bool PlanningNode::IsPathTail() {
     auto path_len = g_traj_.points.size();
@@ -224,29 +251,33 @@ void PlanningNode::TimerCallback() {
     this->pub_traj_->publish(pub_traj_path);
 }
 
+/**
+ * @brief 更新障碍物信息
+ */
 void PlanningNode::UpdateObstacleInfo() {
-    obstacle_info_.fill(-1);
-    for (std::size_t i = 0; i < obstacles_.obstacles.size(); i++) {
-        auto &&obstacle = obstacles_.obstacles[i];
-        // 障碍物在当前车辆正前方
-        if (obstacle.position_y < 1.0 && obstacle.position_y > -1.0) {
-            if (obstacle.position_x < 10.0 && obstacle.position_x > 0.0) {
-                obstacle_info_[1] = i;
-            }
-        }
-        // 障碍物在当前车辆左侧
-        if (obstacle.position_y > 2.0 && obstacle.position_y < 10.0) {
-            if (obstacle.position_x < 10.0 && obstacle.position_x > 0.0) {
-                obstacle_info_[0] = i;
-            }
-        }
-        // 障碍物在当前车辆右侧
-        if (obstacle.position_y < -2.0 && obstacle.position_y > -10.0) {
-            if (obstacle.position_x < 10.0 && obstacle.position_x > 0.0) {
-                obstacle_info_[2] = i;
-            }
-        }
-    }
+    // obstacle_info_.fill(-1);
+    // for (std::size_t i = 0; i < obstacles_.obstacles.size(); i++) {
+    //     auto &&obstacle = obstacles_.obstacles[i];
+    //     // 障碍物在当前车辆正前方
+    //     if (obstacle.position_y < 1.0 && obstacle.position_y > -1.0) {
+    //         if (obstacle.position_x < 10.0 && obstacle.position_x > 0.0) {
+    //             obstacle_info_[1] = i;
+    //         }
+    //     }
+    //     // 障碍物在当前车辆左侧
+    //     if (obstacle.position_y > 2.0 && obstacle.position_y < 10.0) {
+    //         if (obstacle.position_x < 10.0 && obstacle.position_x > 0.0) {
+    //             obstacle_info_[0] = i;
+    //         }
+    //     }
+    //     // 障碍物在当前车辆右侧
+    //     if (obstacle.position_y < -2.0 && obstacle.position_y > -10.0) {
+    //         if (obstacle.position_x < 10.0 && obstacle.position_x > 0.0) {
+    //             obstacle_info_[2] = i;
+    //         }
+    //     }
+    // }
+    // 根据左边界和右边界, 找到当前车辆左侧和右侧的障碍物
 }
 
 void PlanningNode::UpdatePlanningStatus() {

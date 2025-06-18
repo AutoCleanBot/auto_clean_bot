@@ -5,6 +5,7 @@
 #include "bot_msg/msg/adc_trajectory.hpp"
 #include "bot_msg/msg/localization_info.hpp"
 #include "bot_msg/msg/obstacles.hpp"
+#include "bot_msg/msg/boundary.hpp"
 namespace planning {
 
 enum PlanningStatus {
@@ -29,6 +30,8 @@ public:
     void UpdateObstacleInfo();
     void FillPubTraj(bot_msg::msg::ADCTrajectory& pub_traj);
     bool IsPathTail();
+    void LeftBoundaryCallback(const bot_msg::msg::Boundary::SharedPtr msg);
+    void RightBoundaryCallback(const bot_msg::msg::Boundary::SharedPtr msg);
 private:
     rclcpp::TimerBase::SharedPtr timer_;
     bot_msg::msg::LocalizationInfo cur_local_;
@@ -36,11 +39,15 @@ private:
     rclcpp::Subscription<bot_msg::msg::LocalizationInfo>::SharedPtr sub_localization_info_; // 订阅localization信息
     rclcpp::Publisher<bot_msg::msg::ADCTrajectory>::SharedPtr pub_traj_; // 发布路径
     rclcpp::Subscription<bot_msg::msg::Obstacles>::SharedPtr sub_perc_; // 订阅感知信息
+    rclcpp::Subscription<bot_msg::msg::Boundary>::SharedPtr sub_left_boundary_; // 订阅左边界信息
+    rclcpp::Subscription<bot_msg::msg::Boundary>::SharedPtr sub_right_boundary_; // 订阅右边界信息
 
     std::string local_topic_name_ ; // 定位话题名
     std::string service_name_ ;     // 服务名称
     std::string traj_topic_name_ ;  // 轨迹发布话题名
     std::string perc_topic_name_ ;  // 感知话题名
+    std::string left_boundary_topic_name_ ;  // 左边界话题名
+    std::string right_boundary_topic_name_ ;  // 右边界话题名
     double process_frq_ ;          // 处理频率
     int path_type_ ;               // 路径类型
     double preview_dist_ ;         // 预览距离
@@ -52,6 +59,8 @@ private:
     uint8_t planning_status_ ;     // 规划状态
     double path_end_dist_ ;        // 路径结束距离
     bot_msg::msg::Obstacles obstacles_ ; // 当前感知信息
+    bot_msg::msg::Boundary left_boundary_ ; // 左边界信息
+    bot_msg::msg::Boundary right_boundary_ ; // 右边界信息
     std::array<int, 3> obstacle_info_ ; // 障碍物信息 0: 左前,1 正前方,2 右前, 存储的是障碍物的标号
 
     // 临时使用变量
