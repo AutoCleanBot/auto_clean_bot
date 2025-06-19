@@ -72,7 +72,9 @@ void ObstaclesDetectionLidarNode::Obstacle2ENU(bot_msg::msg::ObstacleInfo &obsta
     geometry_msgs::msg::PointStamped point_in_base;
     try {
         // 注意这里的 base_link 表示的是车辆的相对原点坐标系
+        RCLCPP_INFO(this->get_logger(), "point_in_lidar: %f, %f, %f", point_in_lidar.point.x, point_in_lidar.point.y, point_in_lidar.point.z);
         point_in_base = tf_buffer_->transform(point_in_lidar, base_frame_id_);
+        RCLCPP_INFO(this->get_logger(), "point_in_base: %f, %f, %f", point_in_base.point.x, point_in_base.point.y, point_in_base.point.z);
     } catch (const tf2::TransformException &ex) {
         RCLCPP_ERROR(this->get_logger(), "Transform error: %s", ex.what());
     }
@@ -729,7 +731,7 @@ void ObstaclesDetectionLidarNode::PointClould2Callback(const sensor_msgs::msg::P
 
         // 基于激光雷达到GNSS设备的转移矩阵和RTK数据,计算障碍物在东北天坐标系下的坐标
         // 其中east - x, north - y, up - z
-        
+
         Obstacle2ENU(obstacle);
         obstacle_array_msg.obstacles.push_back(obstacle);
         j++;

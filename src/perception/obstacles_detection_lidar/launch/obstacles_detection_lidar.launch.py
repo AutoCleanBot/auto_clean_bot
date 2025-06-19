@@ -52,6 +52,7 @@ def generate_launch_description():
         'segment_ground_type': 1,
         
         # 相关订阅参数
+        'front_lidar_frame_id': 'lidar_link',
         'is_use_front_lidar': True,
         'front_lidar_topic': 'drivers/front_lidar',
         'is_use_left_lidar': False,
