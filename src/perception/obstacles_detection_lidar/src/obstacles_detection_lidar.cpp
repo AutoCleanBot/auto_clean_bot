@@ -31,14 +31,12 @@ ObstaclesDetectionLidarNode::ObstaclesDetectionLidarNode() : Node("perception_no
             std::bind(&ObstaclesDetectionLidarNode::PointClould2Callback, this, std::placeholders::_1));
     if (is_use_gnss_)
         gnss_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
-            gnss_topic_, 10,
-            std::bind(&ObstaclesDetectionLidarNode::GNSSCallback, this, std::placeholders::_1));
+            gnss_topic_, 10, std::bind(&ObstaclesDetectionLidarNode::GNSSCallback, this, std::placeholders::_1));
 
     obstacle_pub_ = this->create_publisher<bot_msg::msg::Obstacles>("/perception/obstacles", 10);
     marker_pub_ = this->create_publisher<visualization_msgs::msg::Marker>("/perception/marker", 10);
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
-
 
 #if DEBUG_PUBLISH_POINT_CLOUD
     // 在构造函数中初始化发布器
@@ -51,23 +49,22 @@ ObstaclesDetectionLidarNode::ObstaclesDetectionLidarNode() : Node("perception_no
 
 /**
  * @brief GNSS设备回调函数,注意GNSS设备消息的坐标系为东北天坐标系
- * 
- * @param gnss_msg 
+ *
+ * @param gnss_msg
  */
-void ObstaclesDetectionLidarNode::GNSSCallback(
-                    const geometry_msgs::msg::PoseStamped::SharedPtr gnss_msg) {
+void ObstaclesDetectionLidarNode::GNSSCallback(const geometry_msgs::msg::PoseStamped::SharedPtr gnss_msg) {
     is_gnss_msg_received_ = true;
     gnss_msg_ = *gnss_msg;
 }
 /**
  * @brief 将障碍物的坐标系转换到ENU坐标系
- * 
- * @param obstacle 
+ *
+ * @param obstacle
  */
 void ObstaclesDetectionLidarNode::Obstacle2ENU(bot_msg::msg::ObstacleInfo &obstacle) {
     // TODO 该功能待测试
     // 1. 将将激光雷达坐标系的坐标数据转换到base坐标系下
-    geometry_msgs::msg::PointStamped point_in_lidar;    
+    geometry_msgs::msg::PointStamped point_in_lidar;
     point_in_lidar.header.frame_id = front_lidar_frame_id_;
     point_in_lidar.point.x = obstacle.position_x;
     point_in_lidar.point.y = obstacle.position_y;
@@ -80,46 +77,37 @@ void ObstaclesDetectionLidarNode::Obstacle2ENU(bot_msg::msg::ObstacleInfo &obsta
         RCLCPP_ERROR(this->get_logger(), "Transform error: %s", ex.what());
     }
     // 2. 将base坐标系下的坐标数据转换到gnss坐标系下
-    if(is_use_gnss_){
+    if (is_use_gnss_) {
         // 将base坐标系下的障碍物坐标转换到ENU(东北天)坐标系下
-        
+
         // 获取当前车辆在ENU坐标系中的位置和姿态
         double vehicle_east = gnss_msg_.pose.position.x;
         double vehicle_north = gnss_msg_.pose.position.y;
         double vehicle_up = gnss_msg_.pose.position.z;
-        
+
         // 提取四元数表示的车辆姿态
-        tf2::Quaternion q(
-            gnss_msg_.pose.orientation.x,
-            gnss_msg_.pose.orientation.y,
-            gnss_msg_.pose.orientation.z,
-            gnss_msg_.pose.orientation.w
-        );
-        
+        tf2::Quaternion q(gnss_msg_.pose.orientation.x, gnss_msg_.pose.orientation.y, gnss_msg_.pose.orientation.z,
+                          gnss_msg_.pose.orientation.w);
+
         // 创建旋转矩阵，用于将车体坐标系下的向量转换到ENU坐标系
         tf2::Matrix3x3 rotation_matrix(q);
-        
+
         // 获取车体坐标系中障碍物的相对位置
-        tf2::Vector3 obstacle_local(
-            point_in_base.point.x,
-            point_in_base.point.y,
-            point_in_base.point.z
-        );
-        
+        tf2::Vector3 obstacle_local(point_in_base.point.x, point_in_base.point.y, point_in_base.point.z);
+
         // 应用旋转，将相对位置从车体坐标系转换到ENU坐标系
         tf2::Vector3 obstacle_enu = rotation_matrix * obstacle_local;
-        
+
         // 计算障碍物在ENU坐标系中的绝对位置
-        obstacle.position_x = vehicle_east + obstacle_enu.x(); // East
+        obstacle.position_x = vehicle_east + obstacle_enu.x();  // East
         obstacle.position_y = vehicle_north + obstacle_enu.y(); // North
-        obstacle.position_z = vehicle_up + obstacle_enu.z(); // Up
-    }else{
+        obstacle.position_z = vehicle_up + obstacle_enu.z();    // Up
+    } else {
         obstacle.position_x = point_in_base.point.x;
         obstacle.position_y = point_in_base.point.y;
         obstacle.position_z = point_in_base.point.z;
     }
 }
-
 
 void ObstaclesDetectionLidarNode::InitParameters() {
     // 设置默认值并声明参数
@@ -512,12 +500,10 @@ void ObstaclesDetectionLidarNode::PublishPointCloud(
     publisher->publish(output_cloud);
 }
 
-
-
 /**
  * @brief 核心的回调函数, 目前的是接受到就处理
- * 
- * @param pnt_cloud 
+ *
+ * @param pnt_cloud
  */
 void ObstaclesDetectionLidarNode::PointClould2Callback(const sensor_msgs::msg::PointCloud2::SharedPtr pnt_cloud) {
 
@@ -697,7 +683,7 @@ void ObstaclesDetectionLidarNode::PointClould2Callback(const sensor_msgs::msg::P
         // 计算质心点
         Eigen::Vector4f centroid;
         pcl::compute3DCentroid(*cloud_cluster, centroid);
-        obstacle.position_x = centroid[0]; 
+        obstacle.position_x = centroid[0];
         obstacle.position_y = centroid[1];
         obstacle.position_z = centroid[2];
 
@@ -743,6 +729,7 @@ void ObstaclesDetectionLidarNode::PointClould2Callback(const sensor_msgs::msg::P
 
         // 基于激光雷达到GNSS设备的转移矩阵和RTK数据,计算障碍物在东北天坐标系下的坐标
         // 其中east - x, north - y, up - z
+        
         Obstacle2ENU(obstacle);
         obstacle_array_msg.obstacles.push_back(obstacle);
         j++;

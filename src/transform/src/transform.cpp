@@ -20,7 +20,7 @@ Transform::Transform() : Node("transform") {
 void Transform::InitParams() {
     // 声明参数
     this->declare_parameter("base_frame_id", "base_link");
-    this->declare_parameter("lidar_frame_id", "front_lidar");
+    this->declare_parameter("lidar_frame_id", "lidar_link");
 
     // 声明平移参数
     this->declare_parameter("transform_translation.x", 0.0);

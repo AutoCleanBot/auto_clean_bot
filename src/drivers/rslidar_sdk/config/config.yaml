@@ -7,7 +7,7 @@ common:
   send_point_cloud_ros: true            # true: Send point cloud through ROS or ROS2
 lidar:
   - driver:
-      lidar_type: RSM1             #  LiDAR type - RS16, RS32, RSBP, RSAIRY, RSHELIOS, RSHELIOS_16P, RS128, RS80, RS48, RSP128, RSP80, RSP48, 
+      lidar_type: RSHELIOS             #  LiDAR type - RS16, RS32, RSBP, RSAIRY, RSHELIOS, RSHELIOS_16P, RS128, RS80, RS48, RSP128, RSP80, RSP48, 
                                    #               RSM1, RSM1_JUMBO, RSM2, RSM3, RSE1, RSMX.
                                    
       msop_port: 6699              #  Msop port of lidar
@@ -35,8 +35,16 @@ lidar:
       pcap_rate: 1.0               #  Rate to read the pcap file
       pcap_path: /home/robosense/lidar.pcap #The path of pcap file
 
+      # 坐标系转换,将原始点云转换到lidar_link坐标系下    
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      roll: 0.0
+      pitch: 0.0
+      yaw: -1.57 # 弧度
+
     ros:
-      ros_frame_id: rslidar                           #Frame id of packet message and point cloud message
+      ros_frame_id: lidar_link                           #Frame id of packet message and point cloud message
       ros_recv_packet_topic: /rslidar_packets          #Topic used to receive lidar packets from ROS
       ros_send_packet_topic: /rslidar_packets          #Topic used to send lidar packets through ROS
       ros_send_imu_data_topic: /rslidar_imu_data         #Topic used to send imu data through ROS
