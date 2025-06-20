@@ -35,6 +35,12 @@ PlanningNode::PlanningNode() : Node("planning_node"), timer_cnt_(0) {
         local_topic_name_, 10, std::bind(&PlanningNode::LocalizationInfoCallback, this, std::placeholders::_1));
     sub_perc_ = this->create_subscription<bot_msg::msg::Obstacles>(
         perc_topic_name_, 10, std::bind(&PlanningNode::ObstaclesCallback, this, std::placeholders::_1));
+    
+    // 添加边界订阅
+    sub_left_boundary_ = this->create_subscription<bot_msg::msg::Boundary>(
+        left_boundary_topic_name_, 10, std::bind(&PlanningNode::LeftBoundaryCallback, this, std::placeholders::_1));
+    sub_right_boundary_ = this->create_subscription<bot_msg::msg::Boundary>(
+        right_boundary_topic_name_, 10, std::bind(&PlanningNode::RightBoundaryCallback, this, std::placeholders::_1));
 
     planning_status_ = PlanningStatus::Planning;
     reverse_moving_ = false;   // 如果未设置,则默认是前进
@@ -256,28 +262,190 @@ void PlanningNode::TimerCallback() {
  */
 void PlanningNode::UpdateObstacleInfo() {
     obstacle_info_.fill(-1);
-    // for (std::size_t i = 0; i < obstacles_.obstacles.size(); i++) {
-    //     auto &&obstacle = obstacles_.obstacles[i];
-    //     // 障碍物在当前车辆正前方
-    //     if (obstacle.position_y < 1.0 && obstacle.position_y > -1.0) {
-    //         if (obstacle.position_x < 10.0 && obstacle.position_x > 0.0) {
-    //             obstacle_info_[1] = i;
-    //         }
-    //     }
-    //     // 障碍物在当前车辆左侧
-    //     if (obstacle.position_y > 2.0 && obstacle.position_y < 10.0) {
-    //         if (obstacle.position_x < 10.0 && obstacle.position_x > 0.0) {
-    //             obstacle_info_[0] = i;
-    //         }
-    //     }
-    //     // 障碍物在当前车辆右侧
-    //     if (obstacle.position_y < -2.0 && obstacle.position_y > -10.0) {
-    //         if (obstacle.position_x < 10.0 && obstacle.position_x > 0.0) {
-    //             obstacle_info_[2] = i;
-    //         }
-    //     }
-    // }
-    // 根据左边界和右边界, 找到当前车辆左侧和右侧的障碍物
+    
+    const double MIN_OBSTACLE_DISTANCE = 10.0; // 最小障碍物距离阈值
+    const double FRONT_OBSTACLE_WIDTH = 1.0;   // 前方障碍物区域宽度(±1.0米)
+    const double SIDE_OBSTACLE_WIDTH = 2.0;    // 侧方障碍物区域距离(±2.0米外)
+    const double SAFETY_MARGIN = 0.5;          // 安全裕度，比实际障碍物大0.5米
+    const double DEFAULT_OBSTACLE_SIZE = 0.5;  // 默认障碍物尺寸
+    
+    // 遍历所有障碍物
+    for (std::size_t i = 0; i < obstacles_.obstacles.size(); i++) {
+        auto &&obstacle = obstacles_.obstacles[i];
+        
+        // 检查障碍物是否在边界内
+        bool is_in_boundary = IsObstacleInBoundary(obstacle);
+        
+        // 如果障碍物不在边界内，跳过
+        if (!is_in_boundary) {
+            continue;
+        }
+        
+        // 计算障碍物距离
+        double obstacle_distance = std::sqrt(std::pow(obstacle.position_x, 2) + std::pow(obstacle.position_y, 2));
+        
+        // 使用障碍物尺寸或默认值
+        double obstacle_width = (obstacle.width > 0.01) ? obstacle.width : DEFAULT_OBSTACLE_SIZE;
+        double obstacle_length = (obstacle.length > 0.01) ? obstacle.length : DEFAULT_OBSTACLE_SIZE;
+        
+        // 计算最小安全距离：考虑障碍物尺寸和安全裕度
+        double obstacle_radius = std::sqrt(std::pow(obstacle_width / 2.0, 2) + std::pow(obstacle_length / 2.0, 2));
+        double safe_distance = obstacle_distance - obstacle_radius - SAFETY_MARGIN;
+        
+        // 距离超过阈值，跳过
+        if (safe_distance > MIN_OBSTACLE_DISTANCE) {
+            continue;
+        }
+        
+        // 障碍物在当前车辆正前方
+        if (obstacle.position_y < FRONT_OBSTACLE_WIDTH && obstacle.position_y > -FRONT_OBSTACLE_WIDTH) {
+            if (obstacle.position_x < MIN_OBSTACLE_DISTANCE && obstacle.position_x > 0.0) {
+                obstacle_info_[1] = i;
+                RCLCPP_INFO(this->get_logger(), "前方发现障碍物，距离：%.2f 米，安全距离：%.2f 米，尺寸：%.2f x %.2f", 
+                           obstacle.position_x, safe_distance, obstacle_length, obstacle_width);
+            }
+        }
+        // 障碍物在当前车辆左侧
+        else if (obstacle.position_y > SIDE_OBSTACLE_WIDTH && obstacle.position_y < MIN_OBSTACLE_DISTANCE) {
+            if (obstacle.position_x < MIN_OBSTACLE_DISTANCE && obstacle.position_x > 0.0) {
+                obstacle_info_[0] = i;
+                RCLCPP_INFO(this->get_logger(), "左侧发现障碍物，距离：%.2f 米，安全距离：%.2f 米，尺寸：%.2f x %.2f", 
+                           obstacle_distance, safe_distance, obstacle_length, obstacle_width);
+            }
+        }
+        // 障碍物在当前车辆右侧
+        else if (obstacle.position_y < -SIDE_OBSTACLE_WIDTH && obstacle.position_y > -MIN_OBSTACLE_DISTANCE) {
+            if (obstacle.position_x < MIN_OBSTACLE_DISTANCE && obstacle.position_x > 0.0) {
+                obstacle_info_[2] = i;
+                RCLCPP_INFO(this->get_logger(), "右侧发现障碍物，距离：%.2f 米，安全距离：%.2f 米，尺寸：%.2f x %.2f", 
+                           obstacle_distance, safe_distance, obstacle_length, obstacle_width);
+            }
+        }
+    }
+}
+
+/**
+ * @brief 判断障碍物是否在边界内
+ * @param obstacle 障碍物信息
+ * @return 是否在边界内
+ */
+bool PlanningNode::IsObstacleInBoundary(const auto &obstacle) {
+    // 检查左右边界是否有数据
+    if (left_boundary_.points.empty() || right_boundary_.points.empty()) {
+        return false;
+    }
+    
+    // 直接使用障碍物坐标（假设已经在全局坐标系中）
+    double global_east = obstacle.position_x;
+    double global_north = obstacle.position_y;
+    
+    // 考虑障碍物的大小，创建多个检测点
+    // 提供默认尺寸，防止障碍物消息中没有尺寸信息
+    const double DEFAULT_OBSTACLE_WIDTH = 0.5;   // 默认宽度0.5米
+    const double DEFAULT_OBSTACLE_LENGTH = 0.5;  // 默认长度0.5米
+    
+    // 使用障碍物自身尺寸或默认尺寸
+    double obstacle_width = (obstacle.width > 0.01) ? obstacle.width : DEFAULT_OBSTACLE_WIDTH;
+    double obstacle_length = (obstacle.length > 0.01) ? obstacle.length : DEFAULT_OBSTACLE_LENGTH;
+    
+    const double obstacle_half_width = obstacle_width / 2.0;  
+    const double obstacle_half_length = obstacle_length / 2.0;
+    
+    RCLCPP_DEBUG(this->get_logger(), "障碍物尺寸: %.2f x %.2f 米", obstacle_length, obstacle_width);
+    
+    // 创建障碍物四角的检测点
+    std::vector<std::pair<double, double>> check_points = {
+        {global_east, global_north},  // 中心点
+        {global_east + obstacle_half_length, global_north + obstacle_half_width},  // 右上角
+        {global_east + obstacle_half_length, global_north - obstacle_half_width},  // 右下角
+        {global_east - obstacle_half_length, global_north + obstacle_half_width},  // 左上角
+        {global_east - obstacle_half_length, global_north - obstacle_half_width}   // 左下角
+    };
+    
+    // 检查所有点是否在边界内，只要有一个点在边界内，就认为障碍物在边界内
+    for (const auto& point : check_points) {
+        double east = point.first;
+        double north = point.second;
+        
+        // 找到最近的边界点
+        int left_idx = FindNearestBoundaryPoint(left_boundary_, east, north);
+        int right_idx = FindNearestBoundaryPoint(right_boundary_, east, north);
+        
+        if (left_idx < 0 || right_idx < 0) {
+            continue;
+        }
+        
+        // 计算点到边界的距离
+        double dist_to_left = CalculatePointToBoundaryDistance(
+            east, north, 
+            left_boundary_.points[left_idx].east, 
+            left_boundary_.points[left_idx].north
+        );
+        
+        double dist_to_right = CalculatePointToBoundaryDistance(
+            east, north, 
+            right_boundary_.points[right_idx].east, 
+            right_boundary_.points[right_idx].north
+        );
+        
+        // 如果点在两条边界线之间，就认为这个点在边界内
+        if (dist_to_left > 0 && dist_to_right > 0) {
+            return true;  // 只要有一个点在边界内，就返回true
+        }
+    }
+    
+    // 所有点都不在边界内，返回false
+    return false;
+}
+
+/**
+ * @brief 寻找最近的边界点
+ * @param boundary 边界线
+ * @param east 东向坐标
+ * @param north 北向坐标
+ * @return 最近边界点索引，失败返回-1
+ */
+int PlanningNode::FindNearestBoundaryPoint(const bot_msg::msg::Boundary &boundary, double east, double north) {
+    if (boundary.points.empty()) {
+        return -1;
+    }
+    
+    int nearest_idx = -1;
+    double min_dist = std::numeric_limits<double>::max();
+    
+    for (size_t i = 0; i < boundary.points.size(); i++) {
+        double dist = std::sqrt(std::pow(boundary.points[i].east - east, 2) + 
+                               std::pow(boundary.points[i].north - north, 2));
+        if (dist < min_dist) {
+            min_dist = dist;
+            nearest_idx = i;
+        }
+    }
+    
+    return nearest_idx;
+}
+
+/**
+ * @brief 计算点到边界的距离
+ * @param east 东向坐标
+ * @param north 北向坐标
+ * @param bound_east 边界点东向坐标
+ * @param bound_north 边界点北向坐标
+ * @return 点到边界的距离，正值表示在边界内，负值表示在边界外
+ */
+double PlanningNode::CalculatePointToBoundaryDistance(double east, double north, double bound_east, double bound_north) {
+    // 计算边界向量（相对于车辆中心）
+    double boundary_vector_east = bound_east - cur_local_.east;
+    double boundary_vector_north = bound_north - cur_local_.north;
+    
+    // 计算障碍物向量（相对于车辆中心）
+    double obstacle_vector_east = east - cur_local_.east;
+    double obstacle_vector_north = north - cur_local_.north;
+    
+    // 计算边界向量和障碍物向量的叉积，判断障碍物在边界的哪一侧
+    double cross_product = boundary_vector_east * obstacle_vector_north - boundary_vector_north * obstacle_vector_east;
+    
+    return cross_product;
 }
 
 void PlanningNode::UpdatePlanningStatus() {
