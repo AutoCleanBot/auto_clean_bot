@@ -6,6 +6,7 @@
 #include "bot_msg/msg/localization_info.hpp"
 #include "bot_msg/msg/obstacles.hpp"
 #include "bot_msg/msg/boundary.hpp"
+#include <limits>
 namespace planning {
 
 enum PlanningStatus {
@@ -32,6 +33,11 @@ public:
     bool IsPathTail();
     void LeftBoundaryCallback(const bot_msg::msg::Boundary::SharedPtr msg);
     void RightBoundaryCallback(const bot_msg::msg::Boundary::SharedPtr msg);
+    
+    // 新增边界处理相关方法
+    bool IsObstacleInBoundary(const auto &obstacle);
+    int FindNearestBoundaryPoint(const bot_msg::msg::Boundary &boundary, double east, double north);
+    double CalculatePointToBoundaryDistance(double east, double north, double bound_east, double bound_north);
 private:
     rclcpp::TimerBase::SharedPtr timer_;
     bot_msg::msg::LocalizationInfo cur_local_;

@@ -1,0 +1,20 @@
+/**:
+  ros__parameters:
+    # 输入输出主题
+    input_topic: "/perception/obstacles"
+    output_topic: "/perception/tracked_obstacles"
+    marker_topic: "/perception/tracked_obstacles_markers"
+
+    # 跟踪器参数
+    max_coasting_count: 5  # 未匹配帧数阈值，超过此值会删除轨迹
+    position_gate: 2.0     # 位置门限（米）
+    size_gate: 0.5         # 尺寸门限（比例）
+    iou_threshold: 0.1     # IOU阈值
+    mahalanobis_threshold: 5.0  # 马氏距离阈值
+
+    # 卡尔曼滤波器参数
+    kalman_dt: 0.1               # 时间间隔（秒）
+    process_noise_pos: 0.1       # 位置过程噪声标准差
+    process_noise_vel: 0.2       # 速度过程噪声标准差
+    measurement_noise_pos: 0.5   # 位置测量噪声标准差
+    measurement_noise_size: 0.2  # 尺寸测量噪声标准差 
