@@ -3,17 +3,22 @@
 #include <pcl/common/centroid.h>
 #include <pcl/common/common.h> // Ensure you have this header included
 // #include <pcl/segmentation/dbscan.h>
+#include <chrono>
 #include <obstacles_detection_lidar/obstacles_detection_lidar.h>
 #include <pcl/features/normal_3d.h>
+#include <pcl/filters/extract_indices.h>
 #include <pcl/filters/passthrough.h>
+#include <pcl/filters/voxel_grid.h>
+#include <pcl/segmentation/extract_clusters.h>
 #include <pcl/segmentation/region_growing.h>
+#include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/visualization/pcl_visualizer.h>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/LinearMath/Vector3.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
-ObstaclesDetectionLidarNode::ObstaclesDetectionLidarNode() : Node("perception_node") {
+ObstaclesDetectionLidarNode::ObstaclesDetectionLidarNode() : Node("perception_node"), last_marker_count_(0) {
     // 加载yaml配置参数
     InitParameters();
     if (is_use_front_lidar_)
@@ -57,29 +62,57 @@ void ObstaclesDetectionLidarNode::GNSSCallback(const geometry_msgs::msg::PoseSta
     gnss_msg_ = *gnss_msg;
 }
 /**
+ * @brief 将障碍物的坐标从激光雷达坐标系转换到base坐标系
+ *
+ * @param obstacle
+ */
+void ObstaclesDetectionLidarNode::Obstacle2Base(bot_msg::msg::ObstacleInfo &obstacle) {
+    RCLCPP_INFO(this->get_logger(), "Obstacle2Base: Starting coordinate transformation to base frame");
+
+    // 将激光雷达坐标系的坐标数据转换到base坐标系下
+    geometry_msgs::msg::PointStamped point_in_lidar;
+    point_in_lidar.header.frame_id = front_lidar_frame_id_;
+    point_in_lidar.point.x = obstacle.position_x;
+    point_in_lidar.point.y = obstacle.position_y;
+    point_in_lidar.point.z = obstacle.position_z;
+
+    RCLCPP_INFO(this->get_logger(), "Obstacle2Base: Input point in lidar frame: (%.3f, %.3f, %.3f)",
+                point_in_lidar.point.x, point_in_lidar.point.y, point_in_lidar.point.z);
+
+    geometry_msgs::msg::PointStamped point_in_base;
+    try {
+        // 注意这里的 base_link 表示的是车辆的相对原点坐标系
+        RCLCPP_INFO(this->get_logger(), "Obstacle2Base: Transforming from %s to %s", front_lidar_frame_id_.c_str(),
+                    base_frame_id_.c_str());
+        point_in_base = tf_buffer_->transform(point_in_lidar, base_frame_id_);
+        RCLCPP_INFO(this->get_logger(), "Obstacle2Base: Transformed point in base frame: (%.3f, %.3f, %.3f)",
+                    point_in_base.point.x, point_in_base.point.y, point_in_base.point.z);
+
+        // 更新障碍物坐标为base坐标系下的坐标
+        obstacle.position_x = point_in_base.point.x;
+        obstacle.position_y = point_in_base.point.y;
+        obstacle.position_z = point_in_base.point.z;
+
+        RCLCPP_INFO(this->get_logger(), "Obstacle2Base: Coordinate transformation completed successfully");
+    } catch (const tf2::TransformException &ex) {
+        RCLCPP_ERROR(this->get_logger(), "Obstacle2Base: Transform error: %s", ex.what());
+        // 转换失败时保持原坐标不变
+        RCLCPP_WARN(this->get_logger(), "Obstacle2Base: Keeping original coordinates due to transform failure");
+    }
+}
+
+/**
  * @brief 将障碍物的坐标系转换到ENU坐标系
  *
  * @param obstacle
  */
 void ObstaclesDetectionLidarNode::Obstacle2ENU(bot_msg::msg::ObstacleInfo &obstacle) {
     // TODO 该功能待测试
-    // 1. 将将激光雷达坐标系的坐标数据转换到base坐标系下
-    geometry_msgs::msg::PointStamped point_in_lidar;
-    point_in_lidar.header.frame_id = front_lidar_frame_id_;
-    point_in_lidar.point.x = obstacle.position_x;
-    point_in_lidar.point.y = obstacle.position_y;
-    point_in_lidar.point.z = obstacle.position_z;
-    geometry_msgs::msg::PointStamped point_in_base;
-    try {
-        // 注意这里的 base_link 表示的是车辆的相对原点坐标系
-        RCLCPP_INFO(this->get_logger(), "point_in_lidar: %f, %f, %f", point_in_lidar.point.x, point_in_lidar.point.y, point_in_lidar.point.z);
-        point_in_base = tf_buffer_->transform(point_in_lidar, base_frame_id_);
-        RCLCPP_INFO(this->get_logger(), "point_in_base: %f, %f, %f", point_in_base.point.x, point_in_base.point.y, point_in_base.point.z);
-    } catch (const tf2::TransformException &ex) {
-        RCLCPP_ERROR(this->get_logger(), "Transform error: %s", ex.what());
-    }
+    // 1. 首先将激光雷达坐标系转换到base坐标系
+    Obstacle2Base(obstacle);
+
     // 2. 将base坐标系下的坐标数据转换到gnss坐标系下
-    if (is_use_gnss_) {
+    if (is_use_gnss_ && is_gnss_msg_received_) {
         // 将base坐标系下的障碍物坐标转换到ENU(东北天)坐标系下
 
         // 获取当前车辆在ENU坐标系中的位置和姿态
@@ -95,7 +128,7 @@ void ObstaclesDetectionLidarNode::Obstacle2ENU(bot_msg::msg::ObstacleInfo &obsta
         tf2::Matrix3x3 rotation_matrix(q);
 
         // 获取车体坐标系中障碍物的相对位置
-        tf2::Vector3 obstacle_local(point_in_base.point.x, point_in_base.point.y, point_in_base.point.z);
+        tf2::Vector3 obstacle_local(obstacle.position_x, obstacle.position_y, obstacle.position_z);
 
         // 应用旋转，将相对位置从车体坐标系转换到ENU坐标系
         tf2::Vector3 obstacle_enu = rotation_matrix * obstacle_local;
@@ -104,11 +137,8 @@ void ObstaclesDetectionLidarNode::Obstacle2ENU(bot_msg::msg::ObstacleInfo &obsta
         obstacle.position_x = vehicle_east + obstacle_enu.x();  // East
         obstacle.position_y = vehicle_north + obstacle_enu.y(); // North
         obstacle.position_z = vehicle_up + obstacle_enu.z();    // Up
-    } else {
-        obstacle.position_x = point_in_base.point.x;
-        obstacle.position_y = point_in_base.point.y;
-        obstacle.position_z = point_in_base.point.z;
     }
+    // 如果不使用GNSS或GNSS消息未接收，则保持base坐标系的坐标
 }
 
 void ObstaclesDetectionLidarNode::InitParameters() {
@@ -134,6 +164,7 @@ void ObstaclesDetectionLidarNode::InitParameters() {
     this->declare_parameter<bool>("is_use_right_lidar", false);
     this->declare_parameter<bool>("is_use_left_lidar", false);
     this->declare_parameter<bool>("is_use_front_camera", false);
+    this->declare_parameter<bool>("is_use_gnss", false);
     this->declare_parameter<std::string>("front_lidar_topic", "drivers/front_lidar");
     this->declare_parameter<std::string>("left_lidar_topic", "drivers/left_lidar");
     this->declare_parameter<std::string>("right_lidar_topic", "drivers/right_lidar");
@@ -231,187 +262,277 @@ void ObstaclesDetectionLidarNode::RemoveInvalidPoints(pcl::PointCloud<pcl::Point
     *cloud = *cloud_filtered;
 }
 
+/**
+ * @brief 移除车辆范围内的点
+ *
+ * @param cloud 输入输出点云
+ */
+void ObstaclesDetectionLidarNode::RemoveVehiclePoints(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud) {
+    RCLCPP_INFO(this->get_logger(), "RemoveVehiclePoints: Starting vehicle points removal with %zu input points",
+                cloud->points.size());
+
+    if (cloud->points.empty()) {
+        RCLCPP_WARN(this->get_logger(), "RemoveVehiclePoints: Input cloud is empty, skipping");
+        return;
+    }
+
+    RCLCPP_INFO(this->get_logger(), "RemoveVehiclePoints: Using vehicle dimensions - length: %.2f, width: %.2f",
+                vehicle_length_, vehicle_width_);
+
+    pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+
+    // 假设车辆中心在原点，车辆的长度方向沿X轴，宽度方向沿Y轴
+    double half_length = vehicle_length_ / 2.0;
+    double half_width = vehicle_width_ / 2.0;
+
+    for (const auto &point : cloud->points) {
+        // 检查点是否在车辆范围内
+        bool is_inside_vehicle = (std::abs(point.x) <= half_length) && (std::abs(point.y) <= half_width);
+
+        // 如果点不在车辆范围内，则保留
+        if (!is_inside_vehicle) {
+            filtered_cloud->points.push_back(point);
+        }
+    }
+
+    // 更新点云属性
+    filtered_cloud->width = filtered_cloud->points.size();
+    filtered_cloud->height = 1;
+    filtered_cloud->is_dense = true;
+
+    size_t original_size = cloud->points.size();
+    size_t removed_count = original_size - filtered_cloud->points.size();
+    *cloud = *filtered_cloud;
+
+    RCLCPP_INFO(this->get_logger(), "RemoveVehiclePoints: Completed - removed %zu vehicle points, %zu points remaining",
+                removed_count, cloud->points.size());
+}
+
 void ObstaclesDetectionLidarNode::FillAndPublishObstacleMarker(const bot_msg::msg::Obstacles &obstacle_array_msg,
                                                                int obstacles_type) {
+    // 首先清除所有旧的marker
+    // ClearAllObstacleMarkers();
+
+    // 然后发布新的marker，使用固定的ID
+    int marker_id = 0;
     for (const auto &obstacle : obstacle_array_msg.obstacles) {
-        auto &&marker = MakeObstacleMarker(obstacle, obstacles_type);
+        auto &&marker = MakeObstacleMarker(obstacle, obstacles_type, marker_id);
         marker_pub_->publish(marker);
+        marker_id++;
+    }
+
+    // 更新marker计数
+    last_marker_count_ = obstacle_array_msg.obstacles.size();
+}
+
+void ObstaclesDetectionLidarNode::ClearAllObstacleMarkers() {
+    // 发送DELETE action来清除所有之前的marker
+    for (int i = 0; i < last_marker_count_; ++i) {
+        visualization_msgs::msg::Marker delete_marker;
+        delete_marker.header.frame_id = frame_id_.empty() ? "base_link" : frame_id_;
+        delete_marker.header.stamp = this->get_clock()->now();
+        delete_marker.ns = "obstacles";
+        delete_marker.id = i;
+        delete_marker.action = visualization_msgs::msg::Marker::DELETE;
+        marker_pub_->publish(delete_marker);
     }
 }
 
 visualization_msgs::msg::Marker ObstaclesDetectionLidarNode::MakeObstacleMarker(int x, int y, int z, int width,
                                                                                 int length, int height,
                                                                                 int obstacles_type) {
-    static int marker_id = 0;
-    auto marker = visualization_msgs::msg::Marker();
-    marker.header.frame_id = frame_id_;
-    marker.header.stamp = this->get_clock()->now();
-    marker.action = visualization_msgs::msg::Marker::ADD;
-    marker.pose.orientation.w = 1.0; // 无旋转
-    marker.id = marker_id++;
-    marker.ns = "obstacles";
-    marker.type = visualization_msgs::msg::Marker::LINE_LIST;
-    marker.lifetime = rclcpp::Duration(0.1);
-    marker.scale.x = 0.02;
-    if (obstacles_type == 1) {
-        marker.color.r = 1.0;
-        marker.color.b = 0.0;
-    } else if (obstacles_type == 2) {
-        marker.color.r = 0.0;
-        marker.color.b = 1.0;
+    try {
+        // 创建线段标记
+        auto marker = visualization_msgs::msg::Marker();
+
+        // 设置基本属性
+        marker.header.frame_id = frame_id_.empty() ? "base_link" : frame_id_;
+        marker.header.stamp = this->get_clock()->now();
+        marker.action = visualization_msgs::msg::Marker::ADD;
+        marker.pose.orientation.w = 1.0; // 无旋转
+        marker.id = 0;
+        marker.ns = "obstacles";
+        marker.type = visualization_msgs::msg::Marker::LINE_LIST;
+        marker.lifetime = rclcpp::Duration(0.1);
+        marker.scale.x = 0.02;
+
+        // 设置颜色
+        marker.color.a = 0.7; // 半透明
+        if (obstacles_type == 1) {
+            // LiDAR检测 - 红色
+            marker.color.r = 1.0;
+            marker.color.g = 0.0;
+            marker.color.b = 0.0;
+        } else if (obstacles_type == 2) {
+            // Camera检测 - 蓝色
+            marker.color.r = 0.0;
+            marker.color.g = 0.0;
+            marker.color.b = 1.0;
+        } else {
+            // Radar检测 - 绿色
+            marker.color.r = 0.0;
+            marker.color.g = 1.0;
+            marker.color.b = 0.0;
+        }
+
+        // 计算中心点和尺寸
+        double ctr_x = static_cast<double>(x);
+        double ctr_y = static_cast<double>(y);
+        double ctr_z = static_cast<double>(z);
+        double scale_x = std::max(0.1, static_cast<double>(length));
+        double scale_y = std::max(0.1, static_cast<double>(width));
+        double scale_z = std::max(0.1, static_cast<double>(height));
+
+        // 创建8个顶点
+        geometry_msgs::msg::Point p1, p2, p3, p4, p5, p6, p7, p8;
+
+        // 定义顶点坐标
+        p1.x = ctr_x + scale_x / 2;
+        p1.y = ctr_y - scale_y / 2;
+        p1.z = ctr_z + scale_z / 2;
+
+        p2.x = ctr_x + scale_x / 2;
+        p2.y = ctr_y + scale_y / 2;
+        p2.z = ctr_z + scale_z / 2;
+
+        p3.x = ctr_x - scale_x / 2;
+        p3.y = ctr_y + scale_y / 2;
+        p3.z = ctr_z + scale_z / 2;
+
+        p4.x = ctr_x - scale_x / 2;
+        p4.y = ctr_y - scale_y / 2;
+        p4.z = ctr_z + scale_z / 2;
+
+        p5.x = ctr_x + scale_x / 2;
+        p5.y = ctr_y - scale_y / 2;
+        p5.z = ctr_z - scale_z / 2;
+
+        p6.x = ctr_x + scale_x / 2;
+        p6.y = ctr_y + scale_y / 2;
+        p6.z = ctr_z - scale_z / 2;
+
+        p7.x = ctr_x - scale_x / 2;
+        p7.y = ctr_y + scale_y / 2;
+        p7.z = ctr_z - scale_z / 2;
+
+        p8.x = ctr_x - scale_x / 2;
+        p8.y = ctr_y - scale_y / 2;
+        p8.z = ctr_z - scale_z / 2;
+
+        // 预先分配空间
+        marker.points.reserve(24);
+
+        // 添加线段 (按照边的顺序添加点)
+        marker.points.push_back(p1);
+        marker.points.push_back(p2);
+
+        marker.points.push_back(p2);
+        marker.points.push_back(p3);
+
+        marker.points.push_back(p3);
+        marker.points.push_back(p4);
+
+        marker.points.push_back(p4);
+        marker.points.push_back(p1);
+
+        marker.points.push_back(p5);
+        marker.points.push_back(p6);
+
+        marker.points.push_back(p6);
+        marker.points.push_back(p7);
+
+        marker.points.push_back(p7);
+        marker.points.push_back(p8);
+
+        marker.points.push_back(p8);
+        marker.points.push_back(p5);
+
+        marker.points.push_back(p1);
+        marker.points.push_back(p5);
+
+        marker.points.push_back(p2);
+        marker.points.push_back(p6);
+
+        marker.points.push_back(p3);
+        marker.points.push_back(p7);
+
+        marker.points.push_back(p4);
+        marker.points.push_back(p8);
+
+        RCLCPP_INFO(this->get_logger(), "Successfully created marker");
+        return marker;
+    } catch (const std::exception &e) {
+        RCLCPP_ERROR(this->get_logger(), "Error in MakeObstacleMarker: %s", e.what());
+
+        // 返回一个简单的默认标记
+        visualization_msgs::msg::Marker default_marker;
+        default_marker.header.frame_id = frame_id_.empty() ? "base_link" : frame_id_;
+        default_marker.header.stamp = this->get_clock()->now();
+        default_marker.id = 0;
+        default_marker.ns = "error";
+        default_marker.type = visualization_msgs::msg::Marker::SPHERE;
+        default_marker.action = visualization_msgs::msg::Marker::ADD;
+        default_marker.pose.position.x = 0;
+        default_marker.pose.position.y = 0;
+        default_marker.pose.position.z = 0;
+        default_marker.pose.orientation.w = 1.0;
+        default_marker.scale.x = 0.2;
+        default_marker.scale.y = 0.2;
+        default_marker.scale.z = 0.2;
+        default_marker.color.r = 1.0;
+        default_marker.color.a = 1.0;
+
+        return default_marker;
     }
-    marker.color.a = 1.0;
-    // 设定位置和大小
-    // marker.pose.position.x = obstacle.position.x;
-    // marker.pose.position.y = obstacle.position.y;
-    // marker.pose.position.z = obstacle.position.z;
-
-    double ctr_x = x;
-    double ctr_y = y;
-    double ctr_z = z;
-    double scale_x = length;
-    double scale_y = width;
-    double scale_z = height;
-
-    geometry_msgs::msg::Point p1, p2, p3, p4, p5, p6, p7, p8;
-    // inten_position是目标物的坐标
-    p1.x = ctr_x + scale_x / 2;
-    p1.y = ctr_y - scale_y / 2;
-    p1.z = ctr_z + scale_z / 2;
-    p2.x = ctr_x + scale_x / 2;
-    p2.y = ctr_y + scale_y / 2;
-    p2.z = ctr_z + scale_z / 2;
-    p3.x = ctr_x - scale_x / 2;
-    p3.y = ctr_y + scale_y / 2;
-    p3.z = ctr_z + scale_z / 2;
-    p4.x = ctr_x - scale_x / 2;
-    p4.y = ctr_y - scale_y / 2;
-    p4.z = ctr_z + scale_z / 2;
-    p5.x = ctr_x + scale_x / 2;
-    p5.y = ctr_y - scale_y / 2;
-    p5.z = ctr_z - scale_z / 2;
-    p6.x = ctr_x + scale_x / 2;
-    p6.y = ctr_y + scale_y / 2;
-    p6.z = ctr_z - scale_z / 2;
-    p7.x = ctr_x - scale_x / 2;
-    p7.y = ctr_y + scale_y / 2;
-    p7.z = ctr_z - scale_z / 2;
-    p8.x = ctr_x - scale_x / 2;
-    p8.y = ctr_y - scale_y / 2;
-    p8.z = ctr_z - scale_z / 2;
-    // LINE_STRIP类型仅仅将line_strip.points中相邻的两个点相连，如0和1，1和2，2和3
-    marker.points.push_back(p1);
-    marker.points.push_back(p2);
-    marker.points.push_back(p2);
-    marker.points.push_back(p3);
-    marker.points.push_back(p3);
-    marker.points.push_back(p4);
-    marker.points.push_back(p4);
-    marker.points.push_back(p1);
-    marker.points.push_back(p5);
-    marker.points.push_back(p6);
-    marker.points.push_back(p6);
-    marker.points.push_back(p7);
-    marker.points.push_back(p7);
-    marker.points.push_back(p8);
-    marker.points.push_back(p8);
-    marker.points.push_back(p5);
-    marker.points.push_back(p1);
-    marker.points.push_back(p5);
-    marker.points.push_back(p2);
-    marker.points.push_back(p6);
-    marker.points.push_back(p3);
-    marker.points.push_back(p7);
-    marker.points.push_back(p4);
-    marker.points.push_back(p8);
-
-    return marker;
 }
 
 visualization_msgs::msg::Marker
-ObstaclesDetectionLidarNode::MakeObstacleMarker(const bot_msg::msg::ObstacleInfo &obstacle, int obstacles_type) {
-    static int marker_id = 0;
+ObstaclesDetectionLidarNode::MakeObstacleMarker(const bot_msg::msg::ObstacleInfo &obstacle, int obstacles_type,
+                                                int marker_id) {
+    // 创建立方体标记
     auto marker = visualization_msgs::msg::Marker();
     marker.header.frame_id = frame_id_;
     marker.header.stamp = this->get_clock()->now();
     marker.action = visualization_msgs::msg::Marker::ADD;
     marker.pose.orientation.w = 1.0; // 无旋转
-    marker.id = marker_id++;
+    marker.id = marker_id;
     marker.ns = "obstacles";
-    marker.type = visualization_msgs::msg::Marker::LINE_LIST;
-    marker.lifetime = rclcpp::Duration(1);
-    marker.scale.x = 0.02;
+    marker.type = visualization_msgs::msg::Marker::CUBE; // 使用立方体类型
+    marker.lifetime = rclcpp::Duration(0.05);            // 设置较短的生命周期
+
+    // 设置颜色
+    marker.color.a = 0.7; // 半透明
     if (obstacles_type == 1) {
-        marker.color.r = 1.0;
-        marker.color.b = 0.0;
-    } else if (obstacles_type == 2) {
+        // LiDAR检测 - 蓝色
         marker.color.r = 0.0;
+        marker.color.g = 0.0;
         marker.color.b = 1.0;
+    } else if (obstacles_type == 2) {
+        // Camera检测 - 绿色
+        marker.color.r = 0.0;
+        marker.color.g = 1.0;
+        marker.color.b = 0.0;
+    } else if (obstacles_type == 3) {
+        // Radar检测 - 黄色
+        marker.color.r = 1.0;
+        marker.color.g = 1.0;
+        marker.color.b = 0.0;
+    } else {
+        // 默认 - 红色
+        marker.color.r = 1.0;
+        marker.color.g = 0.0;
+        marker.color.b = 0.0;
     }
-    marker.color.a = 1.0;
-    // 设定位置和大小
+
+    // 设置立方体中心位置
     marker.pose.position.x = obstacle.position_x;
     marker.pose.position.y = obstacle.position_y;
-    marker.pose.position.z = obstacle.position_z;
+    marker.pose.position.z = obstacle.position_z + obstacle.height / 2.0; // 立方体中心位置
 
-    double ctr_x = obstacle.position_x;
-    double ctr_y = obstacle.position_y;
-    double ctr_z = obstacle.position_z;
-    double scale_x = obstacle.length;
-    double scale_y = obstacle.width;
-    double scale_z = obstacle.height;
-
-    geometry_msgs::msg::Point p1, p2, p3, p4, p5, p6, p7, p8;
-    // inten_position是目标物的坐标
-    p1.x = ctr_x + scale_x / 2;
-    p1.y = ctr_y - scale_y / 2;
-    p1.z = ctr_z + scale_z / 2;
-    p2.x = ctr_x + scale_x / 2;
-    p2.y = ctr_y + scale_y / 2;
-    p2.z = ctr_z + scale_z / 2;
-    p3.x = ctr_x - scale_x / 2;
-    p3.y = ctr_y + scale_y / 2;
-    p3.z = ctr_z + scale_z / 2;
-    p4.x = ctr_x - scale_x / 2;
-    p4.y = ctr_y - scale_y / 2;
-    p4.z = ctr_z + scale_z / 2;
-    p5.x = ctr_x + scale_x / 2;
-    p5.y = ctr_y - scale_y / 2;
-    p5.z = ctr_z - scale_z / 2;
-    p6.x = ctr_x + scale_x / 2;
-    p6.y = ctr_y + scale_y / 2;
-    p6.z = ctr_z - scale_z / 2;
-    p7.x = ctr_x - scale_x / 2;
-    p7.y = ctr_y + scale_y / 2;
-    p7.z = ctr_z - scale_z / 2;
-    p8.x = ctr_x - scale_x / 2;
-    p8.y = ctr_y - scale_y / 2;
-    p8.z = ctr_z - scale_z / 2;
-    // LINE_STRIP类型仅仅将line_strip.points中相邻的两个点相连，如0和1，1和2，2和3
-    marker.points.push_back(p1);
-    marker.points.push_back(p2);
-    marker.points.push_back(p2);
-    marker.points.push_back(p3);
-    marker.points.push_back(p3);
-    marker.points.push_back(p4);
-    marker.points.push_back(p4);
-    marker.points.push_back(p1);
-    marker.points.push_back(p5);
-    marker.points.push_back(p6);
-    marker.points.push_back(p6);
-    marker.points.push_back(p7);
-    marker.points.push_back(p7);
-    marker.points.push_back(p8);
-    marker.points.push_back(p8);
-    marker.points.push_back(p5);
-    marker.points.push_back(p1);
-    marker.points.push_back(p5);
-    marker.points.push_back(p2);
-    marker.points.push_back(p6);
-    marker.points.push_back(p3);
-    marker.points.push_back(p7);
-    marker.points.push_back(p4);
-    marker.points.push_back(p8);
+    // 设置立方体尺寸
+    marker.scale.x = obstacle.length;
+    marker.scale.y = obstacle.width;
+    marker.scale.z = obstacle.height;
 
     return marker;
 }
@@ -508,261 +629,476 @@ void ObstaclesDetectionLidarNode::PublishPointCloud(
  * @param pnt_cloud
  */
 void ObstaclesDetectionLidarNode::PointClould2Callback(const sensor_msgs::msg::PointCloud2::SharedPtr pnt_cloud) {
+    RCLCPP_INFO(this->get_logger(), "PointClould2Callback entered.");
 
-    auto node_timestamp = this->get_clock()->now();
-    RCLCPP_INFO(this->get_logger(), "time stamp , %.2f", node_timestamp.seconds());
-    auto cur_tt = node_timestamp;
-    auto time_diff = cur_tt - node_timestamp;
-    // 查询转换坐标关系
-    geometry_msgs::msg::TransformStamped transformStamped;
+    // 处理点云数据
+    bot_msg::msg::Obstacles obstacles_msg = ProcessPointCloud(pnt_cloud);
 
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
-    pcl::fromROSMsg(*pnt_cloud, *cloud);
-    if (enable_visualization_) {
-        VisualizePointCloud(cloud, "Original Point Cloud");
-    }
-#if DEBUG_PUBLISH_POINT_CLOUD
-    PublishPointCloud(cloud, original_cloud_pub_);
-#endif
-    // Apply transform to the point cloud
-    // pcl_ros::transformPointCloud(*cloud, *cloud, transform_stamped);
-    // 清理无效点
-    RemoveInvalidPoints(cloud);
+    // 发布障碍物消息
+    obstacle_pub_->publish(obstacles_msg);
+    // 发布障碍物可视化标记
+    FillAndPublishObstacleMarker(obstacles_msg, 2);
 
-    // 1. Downsampling the point cloud
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
-    if (enable_downsample_) {
-        pcl::VoxelGrid<pcl::PointXYZ> vg;
-        vg.setInputCloud(cloud);
-        vg.setLeafSize(leaf_size_, leaf_size_, leaf_size_);
-        vg.filter(*cloud_filtered);
-    } else {
-        *cloud_filtered = *cloud;
-    }
+    RCLCPP_INFO(this->get_logger(), "PointClould2Callback exiting safely.");
+    return;
+}
 
-    if (enable_calculate_process_time_) {
-        // 计算处理时间
-        cur_tt = this->get_clock()->now();
-        time_diff = cur_tt - node_timestamp;
-        node_timestamp = cur_tt;
-        RCLCPP_INFO(this->get_logger(), "downsampling process time , %.2f", time_diff.seconds());
-    }
+/**
+ * @brief 地面滤除主函数，根据配置选择不同的算法
+ *
+ * @param cloud 输入点云
+ * @param ground_cloud 输出地面点云
+ * @param non_ground_cloud 输出非地面点云
+ */
+void ObstaclesDetectionLidarNode::FilterGroundPoints(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
+                                                     pcl::PointCloud<pcl::PointXYZ>::Ptr ground_cloud,
+                                                     pcl::PointCloud<pcl::PointXYZ>::Ptr non_ground_cloud) {
+    RCLCPP_INFO(this->get_logger(), "FilterGroundPoints: Starting ground filtering with %zu input points",
+                cloud->points.size());
+    RCLCPP_INFO(this->get_logger(), "FilterGroundPoints: Using ground segmentation type: %d", segment_ground_type_);
 
-    if (enable_visualization_) {
-        VisualizePointCloud(cloud_filtered, "Downsampled Point Cloud"); // 显示降采样后的点云
-    }
-#if DEBUG_PUBLISH_POINT_CLOUD
-    PublishPointCloud(cloud_filtered, filtered_cloud_pub_);
-#endif
-    // 2. Clipping point cloud
-    // 滤除车内点云
-    std::vector<int> indices;
-    for (size_t i = 0; i < cloud_filtered->points.size(); i++) {
-        // 这里可以设置条件判断，判断某个点是否在障碍物的范围内
-        bool is_in_vehicle = (abs(cloud_filtered->points[i].x) < vehicle_length_ / 2.0 &&
-                              abs(cloud_filtered->points[i].y) < vehicle_width_ / 2.0);
-        bool is_out_height = cloud_filtered->points[i].z > max_height_;
-        if (!is_in_vehicle && !is_out_height) {
-            indices.push_back(i);
-        }
-    }
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_clipped(new pcl::PointCloud<pcl::PointXYZ>);
-    pcl::copyPointCloud(*cloud_filtered, indices, *cloud_clipped);
-    *cloud_filtered = *cloud_clipped;
-    // ROI区域筛选
-    if (enable_use_roi_) {
-        // 根据车辆宽度的一半和ROI宽度的一半来判断点是否在ROI区域内
-        indices.clear();
-        for (size_t i = 0; i < cloud_filtered->points.size(); i++) {
-            // 这里可以设置条件判断，判断某个点是否在障碍物的范围内
-            bool is_in_roi = (abs(cloud_filtered->points[i].y) < (vehicle_width_ / 2.0 + roi_width_ / 2.0));
-            if (is_in_roi) {
-                indices.push_back(i);
-            }
-        }
-        pcl::copyPointCloud(*cloud_filtered, indices, *cloud_clipped);
-        *cloud_filtered = *cloud_clipped;
-    }
-
-    if (enable_calculate_process_time_) {
-        // 计算处理时间
-        cur_tt = this->get_clock()->now();
-        time_diff = cur_tt - node_timestamp;
-        node_timestamp = cur_tt;
-        RCLCPP_INFO(this->get_logger(), "clipping process time , %.2f", time_diff.seconds());
-    }
-
-    if (enable_visualization_) {
-        VisualizePointCloud(cloud_clipped, "Clipped Point Cloud"); // 显示裁剪后的点云
-    }
-
-    // 3. Segmenting the ground plane
     if (segment_ground_type_ == 1) {
-        pcl::SACSegmentation<pcl::PointXYZ> seg;
-        pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
-        pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
-        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_plane(new pcl::PointCloud<pcl::PointXYZ>());
-        seg.setOptimizeCoefficients(true);
-        seg.setModelType(pcl::SACMODEL_PARALLEL_PLANE);
-        seg.setMethodType(pcl::SAC_RANSAC);
-        seg.setMaxIterations(100);
-        seg.setDistanceThreshold(0.08);
+        // 使用RANSAC算法进行地面分割
+        RCLCPP_INFO(this->get_logger(), "FilterGroundPoints: Using RANSAC-based ground filtering");
+        FilterGroundByRANSAC(cloud, ground_cloud, non_ground_cloud);
+    } else {
+        // 使用基于高度的简单地面分割
+        RCLCPP_INFO(this->get_logger(), "FilterGroundPoints: Using height-based ground filtering");
+        FilterGroundByHeight(cloud, ground_cloud, non_ground_cloud);
+    }
 
-        int nr_points = (int)cloud_filtered->points.size();
-        double not_plane_point_percent = 1 - plane_point_percent_;
-        while (cloud_filtered->points.size() > not_plane_point_percent * nr_points) {
-            seg.setInputCloud(cloud_filtered);
-            seg.segment(*inliers, *coefficients);
-            if (inliers->indices.size() == 0) {
-                RCLCPP_WARN(this->get_logger(), "Could not estimate a planar model for the given dataset.");
-                break;
-            }
+    RCLCPP_INFO(this->get_logger(), "FilterGroundPoints: Completed - Ground: %zu, Non-ground: %zu",
+                ground_cloud->points.size(), non_ground_cloud->points.size());
+}
 
-            // Extract the planar inliers from the input cloud
-            pcl::ExtractIndices<pcl::PointXYZ> extract;
-            extract.setInputCloud(cloud_filtered);
-            extract.setIndices(inliers);
-            extract.setNegative(false);
-            extract.filter(*cloud_plane);
+/**
+ * @brief 基于高度的地面滤除算法
+ *
+ * @param cloud 输入点云
+ * @param ground_cloud 输出地面点云
+ * @param non_ground_cloud 输出非地面点云
+ */
+void ObstaclesDetectionLidarNode::FilterGroundByHeight(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
+                                                       pcl::PointCloud<pcl::PointXYZ>::Ptr ground_cloud,
+                                                       pcl::PointCloud<pcl::PointXYZ>::Ptr non_ground_cloud) {
+    ground_cloud->clear();
+    non_ground_cloud->clear();
 
-            // Remove the planar inliers, extract the rest
-            extract.setNegative(true);
-            extract.filter(*cloud_filtered);
+    for (const auto &point : cloud->points) {
+        if (point.z < min_height_) {
+            ground_cloud->points.push_back(point);
+        } else {
+            non_ground_cloud->points.push_back(point);
         }
-    } else { /// 使用 PassThrough 滤波器
-        // 1. 创建 PassThrough 滤波器
-        pcl::PassThrough<pcl::PointXYZ> pass;
-        pass.setInputCloud(cloud_filtered);
+    }
 
-        // 2. 设置滤波范围，过滤掉 z 轴小于指定高度的点
-        pass.setFilterFieldName("z");
-        pass.setFilterLimits(-vehicle_height_, std::numeric_limits<float>::max()); // 设置下限为 1.0，上限为无穷大
+    // 设置点云属性
+    ground_cloud->width = ground_cloud->points.size();
+    ground_cloud->height = 1;
+    ground_cloud->is_dense = true;
 
-        // 3. 应用滤波器
-        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered_pass(new pcl::PointCloud<pcl::PointXYZ>());
-        pass.filter(*cloud_filtered_pass);
-        *cloud_filtered = *cloud_filtered_pass;
+    non_ground_cloud->width = non_ground_cloud->points.size();
+    non_ground_cloud->height = 1;
+    non_ground_cloud->is_dense = true;
+
+    RCLCPP_DEBUG(this->get_logger(), "Height-based ground filtering: %zu ground points, %zu non-ground points",
+                 ground_cloud->points.size(), non_ground_cloud->points.size());
+}
+
+/**
+ * @brief 基于RANSAC的地面滤除算法
+ *
+ * @param cloud 输入点云
+ * @param ground_cloud 输出地面点云
+ * @param non_ground_cloud 输出非地面点云
+ */
+void ObstaclesDetectionLidarNode::FilterGroundByRANSAC(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
+                                                       pcl::PointCloud<pcl::PointXYZ>::Ptr ground_cloud,
+                                                       pcl::PointCloud<pcl::PointXYZ>::Ptr non_ground_cloud) {
+    ground_cloud->clear();
+    non_ground_cloud->clear();
+
+    if (cloud->points.empty()) {
+        return;
     }
-    if (enable_calculate_process_time_) {
-        cur_tt = this->get_clock()->now();
-        time_diff = cur_tt - node_timestamp;
-        node_timestamp = cur_tt;
-        RCLCPP_INFO(this->get_logger(), "Segmenting process time , %.2f", time_diff.seconds());
+
+    // 创建分割对象
+    pcl::SACSegmentation<pcl::PointXYZ> seg;
+    pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
+    pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
+
+    // 设置分割参数
+    seg.setOptimizeCoefficients(true);
+    seg.setModelType(pcl::SACMODEL_PLANE);
+    seg.setMethodType(pcl::SAC_RANSAC);
+    seg.setMaxIterations(1000);
+    seg.setDistanceThreshold(0.2); // 距离阈值，可以作为参数配置
+
+    seg.setInputCloud(cloud);
+    seg.segment(*inliers, *coefficients);
+
+    if (inliers->indices.size() == 0) {
+        RCLCPP_WARN(this->get_logger(), "Could not estimate a planar model for the given dataset.");
+        *non_ground_cloud = *cloud;
+        return;
     }
-    if (enable_visualization_) {
-        VisualizePointCloud(cloud_filtered, "Segmented Ground Point Cloud"); // 显示地面分割后的点云
+
+    // 检查平面是否接近水平（地面）
+    // 地面法向量应该接近 (0, 0, 1)
+    double normal_z = coefficients->values[2];
+    if (std::abs(normal_z) < 0.8) { // 法向量z分量应该接近1
+        RCLCPP_DEBUG(this->get_logger(), "Detected plane is not horizontal enough (normal_z: %f)", normal_z);
+        *non_ground_cloud = *cloud;
+        return;
     }
-#if DEBUG_PUBLISH_POINT_CLOUD
-    PublishPointCloud(cloud_filtered, filtered_cloud_pub_);
-#endif
-    // 4. Clustering to find obstacles
+
+    // 检查内点比例
+    double inlier_ratio = static_cast<double>(inliers->indices.size()) / cloud->points.size();
+    if (inlier_ratio < plane_point_percent_) {
+        RCLCPP_DEBUG(this->get_logger(), "Ground plane inlier ratio too low: %f", inlier_ratio);
+        *non_ground_cloud = *cloud;
+        return;
+    }
+
+    // 提取地面点和非地面点
+    pcl::ExtractIndices<pcl::PointXYZ> extract;
+    extract.setInputCloud(cloud);
+    extract.setIndices(inliers);
+
+    // 提取地面点
+    extract.setNegative(false);
+    extract.filter(*ground_cloud);
+
+    // 提取非地面点
+    extract.setNegative(true);
+    extract.filter(*non_ground_cloud);
+
+    RCLCPP_DEBUG(this->get_logger(), "RANSAC ground filtering: %zu ground points, %zu non-ground points",
+                 ground_cloud->points.size(), non_ground_cloud->points.size());
+}
+
+/**
+ * @brief ROI区域滤波，过滤掉感兴趣区域外的点
+ *
+ * @param cloud 输入输出点云
+ */
+void ObstaclesDetectionLidarNode::FilterROI(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud) {
+    RCLCPP_INFO(this->get_logger(), "FilterROI: Starting ROI filtering with %zu input points", cloud->points.size());
+
+    if (!enable_use_roi_) {
+        RCLCPP_INFO(this->get_logger(), "FilterROI: ROI filtering disabled, skipping");
+        return;
+    }
+
+    if (cloud->points.empty()) {
+        RCLCPP_WARN(this->get_logger(), "FilterROI: Input cloud is empty, skipping");
+        return;
+    }
+
+    RCLCPP_INFO(this->get_logger(), "FilterROI: Using ROI width: %f, height range: [%f, %f]", roi_width_, min_height_,
+                max_height_);
+
+    pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+
+    for (const auto &point : cloud->points) {
+        // 检查点是否在ROI范围内
+        // 假设车辆在原点，ROI为以车辆为中心的矩形区域
+        if (std::abs(point.x) <= roi_width_ && std::abs(point.y) <= roi_width_ && point.z >= min_height_ &&
+            point.z <= max_height_) {
+            filtered_cloud->points.push_back(point);
+        }
+    }
+
+    // 更新点云属性
+    filtered_cloud->width = filtered_cloud->points.size();
+    filtered_cloud->height = 1;
+    filtered_cloud->is_dense = true;
+
+    size_t original_size = cloud->points.size();
+    *cloud = *filtered_cloud;
+
+    RCLCPP_INFO(this->get_logger(), "FilterROI: Completed - %zu -> %zu points remaining", original_size,
+                cloud->points.size());
+}
+
+/**
+ * @brief 体素下采样，减少点云密度
+ *
+ * @param cloud 输入输出点云
+ */
+void ObstaclesDetectionLidarNode::DownsampleCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud) {
+    RCLCPP_INFO(this->get_logger(), "DownsampleCloud: Starting downsampling with %zu input points",
+                cloud->points.size());
+
+    if (!enable_downsample_) {
+        RCLCPP_INFO(this->get_logger(), "DownsampleCloud: Downsampling disabled, skipping");
+        return;
+    }
+
+    if (cloud->points.empty()) {
+        RCLCPP_WARN(this->get_logger(), "DownsampleCloud: Input cloud is empty, skipping");
+        return;
+    }
+
+    RCLCPP_INFO(this->get_logger(), "DownsampleCloud: Using leaf size: %f", leaf_size_);
+
+    pcl::VoxelGrid<pcl::PointXYZ> voxel_filter;
+    voxel_filter.setInputCloud(cloud);
+    voxel_filter.setLeafSize(leaf_size_, leaf_size_, leaf_size_);
+
+    pcl::PointCloud<pcl::PointXYZ>::Ptr downsampled_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    voxel_filter.filter(*downsampled_cloud);
+
+    size_t original_size = cloud->points.size();
+    *cloud = *downsampled_cloud;
+
+    RCLCPP_INFO(this->get_logger(), "DownsampleCloud: Completed - %zu -> %zu points", original_size,
+                cloud->points.size());
+}
+
+/**
+ * @brief 欧几里得聚类算法，识别独立的障碍物
+ *
+ * @param cloud 输入点云
+ * @return std::vector<pcl::PointIndices> 聚类结果
+ */
+std::vector<pcl::PointIndices> ObstaclesDetectionLidarNode::ClusterPoints(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud) {
+    RCLCPP_INFO(this->get_logger(), "ClusterPoints: Starting clustering with %zu input points", cloud->points.size());
+
     std::vector<pcl::PointIndices> cluster_indices;
+
+    if (cloud->points.empty()) {
+        RCLCPP_WARN(this->get_logger(), "ClusterPoints: Input cloud is empty, returning empty clusters");
+        return cluster_indices;
+    }
+
+    RCLCPP_INFO(this->get_logger(), "ClusterPoints: Using parameters - tolerance: %f, min_size: %d, max_size: %d",
+                cluster_tolerance_, cluster_min_size_, cluster_max_size_);
+
+    // 创建KdTree对象用于搜索
+    RCLCPP_INFO(this->get_logger(), "ClusterPoints: Creating KdTree for search...");
+    pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>);
+    tree->setInputCloud(cloud);
+
+    // 创建欧几里得聚类提取对象
+    RCLCPP_INFO(this->get_logger(), "ClusterPoints: Setting up EuclideanClusterExtraction...");
     pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
-    ec.setClusterTolerance(cluster_tolerance_); // 10 cm
-    ec.setMinClusterSize(cluster_min_size_);
-    ec.setMaxClusterSize(cluster_max_size_);
-    ec.setSearchMethod(pcl::search::KdTree<pcl::PointXYZ>::Ptr(new pcl::search::KdTree<pcl::PointXYZ>));
-    ec.setInputCloud(cloud_filtered);
+    ec.setClusterTolerance(cluster_tolerance_); // 聚类距离阈值
+    ec.setMinClusterSize(cluster_min_size_);    // 最小聚类点数
+    ec.setMaxClusterSize(cluster_max_size_);    // 最大聚类点数
+    ec.setSearchMethod(tree);
+    ec.setInputCloud(cloud);
+
+    // 执行聚类
+    RCLCPP_INFO(this->get_logger(), "ClusterPoints: Executing clustering...");
     ec.extract(cluster_indices);
 
-    // 创建一个新的点云，用于存储所有障碍物集群
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_obstacles(new pcl::PointCloud<pcl::PointXYZ>);
-    // 5. Filling obstacle array message
-    auto obstacle_array_msg = bot_msg::msg::Obstacles();
-    int j = 0;
-    for (const auto &cluster : cluster_indices) {
-        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster(new pcl::PointCloud<pcl::PointXYZ>);
-        for (const auto &idx : cluster.indices) {
-            cloud_cluster->points.push_back((*cloud_filtered)[idx]);
-        }
-        cloud_cluster->width = cloud_cluster->points.size();
-        cloud_cluster->height = 1;
-        cloud_cluster->is_dense = true;
+    RCLCPP_INFO(this->get_logger(), "ClusterPoints: Completed - found %zu clusters", cluster_indices.size());
 
-        // 将这个集群的点添加到 cloud_obstacles 中
-        *cloud_obstacles += *cloud_cluster;
-        bot_msg::msg::ObstacleInfo obstacle;
-        // 计算质心点
-        Eigen::Vector4f centroid;
-        pcl::compute3DCentroid(*cloud_cluster, centroid);
-        obstacle.position_x = centroid[0];
-        obstacle.position_y = centroid[1];
-        obstacle.position_z = centroid[2];
+    return cluster_indices;
+}
 
-        // 计算障碍物的长宽高
-        pcl::PointXYZ min_point, max_point;
-        pcl::getMinMax3D(*cloud_cluster, min_point, max_point);
-        obstacle.length = max_point.x - min_point.x;
-        obstacle.width = max_point.y - min_point.y;
-        obstacle.height = max_point.z - min_point.z;
+/**
+ * @brief 从聚类中提取障碍物信息
+ *
+ * @param cluster 聚类点云
+ * @param id 障碍物ID
+ * @return bot_msg::msg::ObstacleInfo 障碍物信息
+ */
+bot_msg::msg::ObstacleInfo
+ObstaclesDetectionLidarNode::ExtractObstacleInfo(const pcl::PointCloud<pcl::PointXYZ>::Ptr cluster, uint32_t id) {
+    RCLCPP_INFO(this->get_logger(), "ExtractObstacleInfo: Starting extraction for obstacle %u with %zu points", id,
+                cluster->points.size());
 
-        // 判断障碍物类型
-        // if (obstacle.dimensions.x > 5)
-        //     obstacle.type = perception::msg::Obstacle::WALL;
-        // else if (obstacle.dimensions.z > 0.1 && obstacle.dimensions.z < 0.5)
-        //     obstacle.type = perception::msg::Obstacle::CONES;
-        // else if (obstacle.dimensions.y > 0.1 && obstacle.dimensions.y < 1)
-        //     obstacle.type = perception::msg::Obstacle::PEDESTRIAN;
-        // else if (obstacle.dimensions.y > 1.5)
-        //     obstacle.type = perception::msg::Obstacle::VEHICLE;
-        // else
-        //     obstacle.type = perception::msg::Obstacle::OTHERS;
+    bot_msg::msg::ObstacleInfo obstacle;
 
-        // 计算障碍物距离被测车辆的最近点
-        pcl::PointXYZ closest_point;
-        float min_distance = std::numeric_limits<float>::max();
-        for (const auto &idx : cluster.indices) {
-            pcl::PointXYZ point = (*cloud_filtered)[idx];
-            float distance = std::sqrt(std::pow(point.x, 2) + std::pow(point.y, 2) + std::pow(point.z, 2));
-            if (distance < min_distance) {
-                min_distance = distance;
-                closest_point = point;
-            }
-        }
-        // obstacle.closest_point.x = closest_point.x;
-        // obstacle.closest_point.y = closest_point.y;
-        // obstacle.closest_point.z = closest_point.z;
+    if (cluster->points.empty()) {
+        RCLCPP_WARN(this->get_logger(), "ExtractObstacleInfo: Cluster is empty for obstacle %u", id);
+        return obstacle;
+    }
 
-        // 计算危险系数
-        // float distance = std::sqrt(std::pow(closest_point.x, 2) + std::pow(closest_point.y, 2) +
-        //                            std::pow(closest_point.z, 2));
-        // obstacle.danger_level = 1.0 / (distance + 0.1); // 距离越近，危险系数越大
-        // Add the obstacle to the array
+    // 计算边界框
+    RCLCPP_INFO(this->get_logger(), "ExtractObstacleInfo: Computing bounding box for obstacle %u...", id);
+    pcl::PointXYZ min_point, max_point;
+    pcl::getMinMax3D(*cluster, min_point, max_point);
 
-        // 基于激光雷达到GNSS设备的转移矩阵和RTK数据,计算障碍物在东北天坐标系下的坐标
-        // 其中east - x, north - y, up - z
+    // 计算中心点
+    RCLCPP_INFO(this->get_logger(), "ExtractObstacleInfo: Computing centroid for obstacle %u...", id);
+    pcl::CentroidPoint<pcl::PointXYZ> centroid;
+    for (const auto &point : cluster->points) {
+        centroid.add(point);
+    }
+    pcl::PointXYZ center;
+    centroid.get(center);
 
+    // 设置障碍物信息
+    obstacle.id = id;
+    obstacle.position_x = center.x;
+    obstacle.position_y = center.y;
+    obstacle.position_z = center.z;
+
+    // 计算尺寸
+    obstacle.length = max_point.x - min_point.x;
+    obstacle.width = max_point.y - min_point.y;
+    obstacle.height = max_point.z - min_point.z;
+
+    // 初始化速度信息（静态障碍物）
+    obstacle.velocity_x = 0.0;
+    obstacle.velocity_y = 0.0;
+    obstacle.velocity = 0.0;
+    obstacle.heading = 0.0;
+
+    // 设置障碍物类型和状态
+    obstacle.type = 1;   // 默认类型
+    obstacle.status = 1; // 活跃状态
+
+    // 转换坐标系
+    RCLCPP_INFO(this->get_logger(), "ExtractObstacleInfo: Converting coordinates for obstacle %u...", id);
+    // 首先转换到base坐标系
+    RCLCPP_INFO(this->get_logger(), "ExtractObstacleInfo: Converting to base coordinates for obstacle %u", id);
+    Obstacle2Base(obstacle);
+    if (is_use_gnss_ && is_gnss_msg_received_) {
+        // 如果启用了GNSS，转换到ENU坐标系
+        RCLCPP_INFO(this->get_logger(), "ExtractObstacleInfo: Converting to ENU coordinates for obstacle %u", id);
         Obstacle2ENU(obstacle);
-        obstacle_array_msg.obstacles.push_back(obstacle);
-        j++;
-        // RCLCPP_INFO(this->get_logger(),
-        //             "Lidar object,position,x,%.2f,y,%.2f,z,%.2f,closest_point,x,%.2f,y,%.2f,z,%.2f,dimensions,"
-        //             "x,%.2f,y,%.2f,z,%.2f,type,%d,danger_level,%.2f,count,%d",
-        //             obstacle.position.x, obstacle.position.y, obstacle.position.z, obstacle.closest_point.x,
-        //             obstacle.closest_point.y, obstacle.closest_point.z, obstacle.dimensions.x, obstacle.dimensions.y,
-        //             obstacle.dimensions.z, obstacle.type, obstacle.danger_level, j);
     }
-    if (enable_visualization_) {
-        // 显示所有障碍物点云
-        VisualizePointCloud(cloud_obstacles, "Clustered Obstacles Point Cloud");
-    }
-#if DEBUG_PUBLISH_POINT_CLOUD
-    PublishPointCloud(cloud_obstacles, clustered_cloud_pub_);
-#endif
-    RCLCPP_INFO(this->get_logger(), "Lidar:Number of obstacles detected: %d", j);
 
-    // 发布障碍物信息
-    if (obstacle_array_msg.obstacles.size() > 0) {
-        obstacle_array_msg.header.stamp = this->get_clock()->now();
-        obstacle_array_msg.header.frame_id = frame_id_;
-        obstacle_pub_->publish(obstacle_array_msg);
-        FillAndPublishObstacleMarker(obstacle_array_msg, 1);
+    RCLCPP_INFO(this->get_logger(),
+                "ExtractObstacleInfo: Completed obstacle %u: pos(%.2f, %.2f, %.2f), size(%.2f, %.2f, %.2f)", id,
+                obstacle.position_x, obstacle.position_y, obstacle.position_z, obstacle.length, obstacle.width,
+                obstacle.height);
+
+    return obstacle;
+}
+
+/**
+ * @brief 完整的点云处理流程
+ *
+ * @param pnt_cloud 输入点云消息
+ * @return bot_msg::msg::Obstacles 障碍物消息
+ */
+bot_msg::msg::Obstacles
+ObstaclesDetectionLidarNode::ProcessPointCloud(const sensor_msgs::msg::PointCloud2::SharedPtr pnt_cloud) {
+    bot_msg::msg::Obstacles obstacles_msg;
+    obstacles_msg.header = pnt_cloud->header;
+    obstacles_msg.header.frame_id = frame_id_;
+
+    auto start_time = std::chrono::high_resolution_clock::now();
+
+    RCLCPP_INFO(this->get_logger(), "=== Starting point cloud processing ===");
+
+    // 1. 转换ROS消息到PCL点云
+    RCLCPP_INFO(this->get_logger(), "Step 1: Converting ROS message to PCL point cloud...");
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::fromROSMsg(*pnt_cloud, *cloud);
+
+    RCLCPP_INFO(this->get_logger(), "Step 1 completed: Original cloud size: %zu points", cloud->points.size());
+
+    // 发布原始点云（调试用）
+#if DEBUG_PUBLISH_POINT_CLOUD
+    RCLCPP_INFO(this->get_logger(), "Publishing original point cloud for debugging...");
+    PublishPointCloud(cloud, original_cloud_pub_);
+    RCLCPP_INFO(this->get_logger(), "Original point cloud published successfully");
+#endif
+
+    // 2. 移除无效点
+    RCLCPP_INFO(this->get_logger(), "Step 2: Removing invalid points...");
+    RemoveInvalidPoints(cloud);
+    RCLCPP_INFO(this->get_logger(), "Step 2 completed: Cloud size after removing invalid points: %zu",
+                cloud->points.size());
+
+    // 3. 移除车辆范围内的点
+    RCLCPP_INFO(this->get_logger(), "Step 3: Removing vehicle points...");
+    RemoveVehiclePoints(cloud);
+    RCLCPP_INFO(this->get_logger(), "Step 3 completed: Cloud size after removing vehicle points: %zu",
+                cloud->points.size());
+
+    // 4. ROI滤波
+    RCLCPP_INFO(this->get_logger(), "Step 4: Applying ROI filtering...");
+    FilterROI(cloud);
+    RCLCPP_INFO(this->get_logger(), "Step 4 completed: Cloud size after ROI filtering: %zu", cloud->points.size());
+
+    // 5. 下采样
+    RCLCPP_INFO(this->get_logger(), "Step 5: Applying downsampling...");
+    DownsampleCloud(cloud);
+    RCLCPP_INFO(this->get_logger(), "Step 5 completed: Cloud size after downsampling: %zu", cloud->points.size());
+
+    // 发布滤波后的点云（调试用）
+#if DEBUG_PUBLISH_POINT_CLOUD
+    RCLCPP_INFO(this->get_logger(), "Publishing filtered point cloud for debugging...");
+    PublishPointCloud(cloud, filtered_cloud_pub_);
+    RCLCPP_INFO(this->get_logger(), "Filtered point cloud published successfully");
+#endif
+
+    // 6. 地面滤除
+    RCLCPP_INFO(this->get_logger(), "Step 6: Applying ground filtering...");
+    pcl::PointCloud<pcl::PointXYZ>::Ptr ground_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr non_ground_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    FilterGroundPoints(cloud, ground_cloud, non_ground_cloud);
+    RCLCPP_INFO(this->get_logger(), "Step 6 completed: Ground points: %zu, Non-ground points: %zu",
+                ground_cloud->points.size(), non_ground_cloud->points.size());
+
+    // 发布地面分割结果（调试用）
+#if DEBUG_PUBLISH_POINT_CLOUD
+    RCLCPP_INFO(this->get_logger(), "Publishing ground segmentation result for debugging...");
+    PublishPointCloud(ground_cloud, ground_seg_cloud_pub_);
+    RCLCPP_INFO(this->get_logger(), "Ground segmentation result published successfully");
+#endif
+
+    if (non_ground_cloud->points.empty()) {
+        RCLCPP_WARN(this->get_logger(), "No non-ground points found, returning empty obstacles message");
+        return obstacles_msg;
     }
-    // 计算点云单次处理时间
-    cur_tt = this->get_clock()->now();
-    time_diff = cur_tt - node_timestamp;
-    RCLCPP_INFO(this->get_logger(), "process time , %.2f", time_diff.seconds());
-    return;
+
+    // 7. 聚类
+    RCLCPP_INFO(this->get_logger(), "Step 7: Applying clustering...");
+    std::vector<pcl::PointIndices> cluster_indices = ClusterPoints(non_ground_cloud);
+    RCLCPP_INFO(this->get_logger(), "Step 7 completed: Found %zu clusters", cluster_indices.size());
+
+    // 8. 提取障碍物信息
+    RCLCPP_INFO(this->get_logger(), "Step 8: Extracting obstacle information...");
+    uint32_t obstacle_id = 0;
+    for (const auto &cluster_idx : cluster_indices) {
+        RCLCPP_INFO(this->get_logger(), "Processing cluster %u with %zu points", obstacle_id,
+                    cluster_idx.indices.size());
+
+        // 创建聚类点云
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cluster_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+        pcl::copyPointCloud(*non_ground_cloud, cluster_idx, *cluster_cloud);
+
+        // 提取障碍物信息
+        RCLCPP_INFO(this->get_logger(), "Extracting obstacle info for cluster %u...", obstacle_id);
+        bot_msg::msg::ObstacleInfo obstacle = ExtractObstacleInfo(cluster_cloud, obstacle_id++);
+        obstacles_msg.obstacles.push_back(obstacle);
+        RCLCPP_INFO(this->get_logger(), "Obstacle %u extracted successfully", obstacle_id - 1);
+    }
+    RCLCPP_INFO(this->get_logger(), "Step 8 completed: Extracted %zu obstacles", obstacles_msg.obstacles.size());
+
+    // 发布聚类结果（调试用）
+#if DEBUG_PUBLISH_POINT_CLOUD
+    RCLCPP_INFO(this->get_logger(), "Publishing clustered point cloud for debugging...");
+    PublishPointCloud(non_ground_cloud, clustered_cloud_pub_);
+    RCLCPP_INFO(this->get_logger(), "Clustered point cloud published successfully");
+#endif
+
+    // 计算处理时间
+    if (enable_calculate_process_time_) {
+        RCLCPP_INFO(this->get_logger(), "Calculating processing time...");
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+        RCLCPP_INFO(this->get_logger(), "Point cloud processing time: %ld ms, found %zu obstacles", duration.count(),
+                    obstacles_msg.obstacles.size());
+    }
+
+    // 可视化
+    if (enable_visualization_) {
+        RCLCPP_INFO(this->get_logger(), "Starting visualization...");
+        VisualizePointCloud(non_ground_cloud, "Processed Point Cloud");
+        RCLCPP_INFO(this->get_logger(), "Visualization completed");
+    }
+
+    RCLCPP_INFO(this->get_logger(), "=== Point cloud processing completed successfully ===");
+    return obstacles_msg;
 }
 
 // 节点注册

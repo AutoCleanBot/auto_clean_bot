@@ -3,9 +3,9 @@
 #include "bot_msg/msg/obstacle_info.hpp"
 #include "bot_msg/msg/obstacles.hpp"
 #include "visualization_msgs/msg/marker.hpp"
-#include <geometry_msgs/msg/transform_stamped.hpp>
-#include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/point_stamped.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
+#include <geometry_msgs/msg/transform_stamped.hpp>
 #include <pcl/filters/extract_indices.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/point_types.h>
@@ -15,13 +15,13 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/static_transform_broadcaster.h>
 #include <tf2_ros/transform_listener.h>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <yaml-cpp/yaml.h>
 
-#define DEBUG_PUBLISH_POINT_CLOUD 1
+#define DEBUG_PUBLISH_POINT_CLOUD 0
 
 class ObstaclesDetectionLidarNode : public rclcpp::Node {
   public:
@@ -33,11 +33,29 @@ class ObstaclesDetectionLidarNode : public rclcpp::Node {
     void PointClould2Callback(const sensor_msgs::msg::PointCloud2::SharedPtr pnt_cloud);
     void GNSSCallback(const geometry_msgs::msg::PoseStamped::SharedPtr gnss_msg);
     void RemoveInvalidPoints(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
+    void RemoveVehiclePoints(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
     void FillAndPublishObstacleMarker(const bot_msg::msg::Obstacles &obstacle_array_msg, int obstacles_type);
+    void ClearAllObstacleMarkers();
     void Obstacle2ENU(bot_msg::msg::ObstacleInfo &obstacle);
+    void Obstacle2Base(bot_msg::msg::ObstacleInfo &obstacle);
 
-    
-    visualization_msgs::msg::Marker MakeObstacleMarker(const bot_msg::msg::ObstacleInfo &obstacle, int obstacles_type);
+    // 点云处理相关函数
+    void FilterGroundPoints(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, pcl::PointCloud<pcl::PointXYZ>::Ptr ground_cloud,
+                            pcl::PointCloud<pcl::PointXYZ>::Ptr non_ground_cloud);
+    void FilterGroundByHeight(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
+                              pcl::PointCloud<pcl::PointXYZ>::Ptr ground_cloud,
+                              pcl::PointCloud<pcl::PointXYZ>::Ptr non_ground_cloud);
+    void FilterGroundByRANSAC(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
+                              pcl::PointCloud<pcl::PointXYZ>::Ptr ground_cloud,
+                              pcl::PointCloud<pcl::PointXYZ>::Ptr non_ground_cloud);
+    void FilterROI(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
+    void DownsampleCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
+    std::vector<pcl::PointIndices> ClusterPoints(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
+    bot_msg::msg::ObstacleInfo ExtractObstacleInfo(const pcl::PointCloud<pcl::PointXYZ>::Ptr cluster, uint32_t id);
+    bot_msg::msg::Obstacles ProcessPointCloud(const sensor_msgs::msg::PointCloud2::SharedPtr pnt_cloud);
+
+    visualization_msgs::msg::Marker MakeObstacleMarker(const bot_msg::msg::ObstacleInfo &obstacle, int obstacles_type,
+                                                       int marker_id);
     visualization_msgs::msg::Marker MakeObstacleMarker(int x, int y, int z, int width, int length, int height,
                                                        int obstacles_type);
     void VisualizePointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud, const std::string &title, int stage);
@@ -88,26 +106,28 @@ class ObstaclesDetectionLidarNode : public rclcpp::Node {
     bool enable_downsample_;             // 是否进行下采样
     int segment_ground_type_;            // 地面分割算法类型
 
-    std::string frame_id_;           // 坐标系名称
-    bool is_use_front_lidar_;        // 是否使用前雷达
-    std::string front_lidar_topic_;  // 前雷达的 topic
+    std::string frame_id_;             // 坐标系名称
+    bool is_use_front_lidar_;          // 是否使用前雷达
+    std::string front_lidar_topic_;    // 前雷达的 topic
     std::string front_lidar_frame_id_; // 前雷达的坐标系名称
-    bool is_use_left_lidar_;         // 是否使用左雷达
-    std::string left_lidar_topic_;   // 左雷达的 topic
-    std::string left_lidar_frame_id_; // 左雷达的坐标系名称
-    bool is_use_right_lidar_;        // 是否使用右雷达
-    std::string right_lidar_topic_;  // 右雷达的 topic
+    bool is_use_left_lidar_;           // 是否使用左雷达
+    std::string left_lidar_topic_;     // 左雷达的 topic
+    std::string left_lidar_frame_id_;  // 左雷达的坐标系名称
+    bool is_use_right_lidar_;          // 是否使用右雷达
+    std::string right_lidar_topic_;    // 右雷达的 topic
     std::string right_lidar_frame_id_; // 右雷达的坐标系名称
     // GNSS设备参数
-    bool is_use_gnss_;               // 是否使用GNSS设备
-    std::string gnss_topic_;         // GNSS设备的 topic
-    std::string gnss_frame_id_;      // GNSS设备的坐标系名称
+    bool is_use_gnss_;                         // 是否使用GNSS设备
+    std::string gnss_topic_;                   // GNSS设备的 topic
+    std::string gnss_frame_id_;                // GNSS设备的坐标系名称
     geometry_msgs::msg::PoseStamped gnss_msg_; // GNSS设备消息
 
     // 车辆的相对base坐标系
-    std::string base_frame_id_;      // 车辆的相对base坐标系
+    std::string base_frame_id_; // 车辆的相对base坐标系
 
     // 消息标志位
-    bool is_gnss_msg_received_;      // GNSS设备消息标志位
+    bool is_gnss_msg_received_; // GNSS设备消息标志位
 
+    // 用于跟踪已发布的marker数量
+    int last_marker_count_;
 };

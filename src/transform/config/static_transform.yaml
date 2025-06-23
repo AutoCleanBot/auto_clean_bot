@@ -2,14 +2,14 @@
   ros__parameters:
     # 坐标系ID
     base_frame_id: "base_link"
-    lidar_frame_id: "front_lidar"
+    lidar_frame_id: "lidar_link"
     # 记录的是lidar_link相对于base_link的偏移量
     # 注意这里的base_link是车辆的相对基点, 这个基点等于rtk设备的位置
     # 平移参数 (单位：米)
     transform_translation:
-      x: 2.0  # 前后方向偏移
-      y: 1.0  # 左右方向偏移
-      z: 0.0  # 上下方向偏移
+      x: 0.0  # 前后方向偏移
+      y: 0.0  # 左右方向偏移
+      z: 3.5  # 上下方向偏移
 
     # 记录的是lidar_link相对于base_link的旋转量
     # 旋转参数 (单位：弧度)

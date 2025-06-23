@@ -13,7 +13,7 @@ Transform::Transform() : Node("transform") {
     BroadcastTransform();
 
     RCLCPP_INFO(this->get_logger(), "Transform node initialized");
-    RCLCPP_INFO(this->get_logger(), "Broadcasting static transform from %s to %s", base_front_id_.c_str(),
+    RCLCPP_INFO(this->get_logger(), "Broadcasting static transform from %s to %s", base_frame_id_.c_str(),
                 lidar_frame_id_.c_str());
 }
 
@@ -33,11 +33,11 @@ void Transform::InitParams() {
     this->declare_parameter("transform_rotation.yaw", 0.0);
 
     // 获取参数
-    base_front_id_ = this->get_parameter("base_front_id").as_string();
+    base_frame_id_ = this->get_parameter("base_frame_id").as_string();
     lidar_frame_id_ = this->get_parameter("lidar_frame_id").as_string();
 
     // 打印参数
-    RCLCPP_INFO(this->get_logger(), "base_front_id: %s", base_front_id_.c_str());
+    RCLCPP_INFO(this->get_logger(), "base_frame_id: %s", base_frame_id_.c_str());
     RCLCPP_INFO(this->get_logger(), "lidar_frame_id: %s", lidar_frame_id_.c_str());
 }
 
@@ -46,7 +46,7 @@ void Transform::BroadcastTransform() {
 
     // 设置时间戳和坐标系
     static_transform.header.stamp = this->now();
-    static_transform.header.frame_id = base_front_id_;
+    static_transform.header.frame_id = base_frame_id_;
     static_transform.child_frame_id = lidar_frame_id_;
 
     // 获取并设置平移参数
