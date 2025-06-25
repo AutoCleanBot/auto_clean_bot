@@ -19,7 +19,7 @@ public:
     {
         // 声明参数
         this->declare_parameter("source_frame", "lidar_link");
-        this->declare_parameter("target_frame", "gnss_link");
+        this->declare_parameter("target_frame", "base_link");
         this->declare_parameter("check_period", 1.0);  // 检查周期，单位：秒
 
         // 获取参数

@@ -281,13 +281,21 @@ void ObstaclesDetectionLidarNode::RemoveVehiclePoints(pcl::PointCloud<pcl::Point
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_cloud(new pcl::PointCloud<pcl::PointXYZ>);
 
+    // 激光雷达不在车辆正中心
+    const double lidar_vehicle_front_offset_x = 2.7;
+    const double lidar_vehicle_back_offset_x = vehicle_length_ - lidar_vehicle_front_offset_x;
+
     // 假设车辆中心在原点，车辆的长度方向沿X轴，宽度方向沿Y轴
-    double half_length = vehicle_length_ / 2.0;
+    // double half_length = vehicle_length_ / 2.0;
     double half_width = vehicle_width_ / 2.0;
 
     for (const auto &point : cloud->points) {
         // 检查点是否在车辆范围内
-        bool is_inside_vehicle = (std::abs(point.x) <= half_length) && (std::abs(point.y) <= half_width);
+
+        
+        bool is_inside_vehicle = (std::abs(point.y) <= half_width) && (
+            point.x <= lidar_vehicle_front_offset_x || point.x >= -lidar_vehicle_back_offset_x
+        );
 
         // 如果点不在车辆范围内，则保留
         if (!is_inside_vehicle) {
@@ -498,7 +506,7 @@ ObstaclesDetectionLidarNode::MakeObstacleMarker(const bot_msg::msg::ObstacleInfo
     marker.id = marker_id;
     marker.ns = "obstacles";
     marker.type = visualization_msgs::msg::Marker::CUBE; // 使用立方体类型
-    marker.lifetime = rclcpp::Duration(0.05);            // 设置较短的生命周期
+    marker.lifetime = rclcpp::Duration::from_seconds(0.1);               // 设置较短的生命周期
 
     // 设置颜色
     marker.color.a = 0.7; // 半透明
@@ -803,8 +811,7 @@ void ObstaclesDetectionLidarNode::FilterROI(pcl::PointCloud<pcl::PointXYZ>::Ptr 
     for (const auto &point : cloud->points) {
         // 检查点是否在ROI范围内
         // 假设车辆在原点，ROI为以车辆为中心的矩形区域
-        if (std::abs(point.x) <= roi_width_ && std::abs(point.y) <= roi_width_ && point.z >= min_height_ &&
-            point.z <= max_height_) {
+        if (std::abs(point.x) <= roi_width_ && std::abs(point.y) <= roi_width_) {
             filtered_cloud->points.push_back(point);
         }
     }
@@ -1012,6 +1019,14 @@ ObstaclesDetectionLidarNode::ProcessPointCloud(const sensor_msgs::msg::PointClou
     RemoveVehiclePoints(cloud);
     RCLCPP_INFO(this->get_logger(), "Step 3 completed: Cloud size after removing vehicle points: %zu",
                 cloud->points.size());
+
+    // 可视化
+    if (enable_visualization_) {
+        RCLCPP_INFO(this->get_logger(), "Starting visualization...");
+        VisualizePointCloud(cloud, "Vehicle removed Point Cloud");
+        RCLCPP_INFO(this->get_logger(), "Visualization completed");
+    }
+    
 
     // 4. ROI滤波
     RCLCPP_INFO(this->get_logger(), "Step 4: Applying ROI filtering...");

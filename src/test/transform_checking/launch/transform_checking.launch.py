@@ -16,7 +16,7 @@ def generate_launch_description():
     # 将所有参数放在一个字典中
     checking_params = {
         'source_frame': 'lidar_link',  # 源坐标系
-        'target_frame': 'gnss_link',   # 目标坐标系
+        'target_frame': 'base_link',   # 目标坐标系
         'check_period': 1.0,           # 检查周期（秒）
     }
     
