@@ -1,4 +1,5 @@
 #include <bot_msg/msg/localization_info.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <fstream>
 
@@ -11,6 +12,7 @@ class LocalRecordTest : public rclcpp::Node{
     private:
         void TimerCallback();
         rclcpp::TimerBase::SharedPtr timer_;
-        rclcpp::Publisher<bot_msg::msg::LocalizationInfo>::SharedPtr pub_localization_info_;  
+        rclcpp::Publisher<bot_msg::msg::LocalizationInfo>::SharedPtr pub_localization_info_;
+        rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pub_gnss_pose_;
 };
 }

@@ -80,8 +80,8 @@ class ObstaclesDetectionLidarNode : public rclcpp::Node {
 
 #if DEBUG_PUBLISH_POINT_CLOUD
     // 在类定义中创建多个点云发布器
-    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr original_cloud_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr filtered_cloud_pub_;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr original_cloud_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr ground_seg_cloud_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr clustered_cloud_pub_;
 #endif
@@ -96,7 +96,9 @@ class ObstaclesDetectionLidarNode : public rclcpp::Node {
     double cluster_tolerance_;   // 聚类距离阈值
     int cluster_min_size_;       // 聚类最小点数
     int cluster_max_size_;       // 聚类最大点数
-    float leaf_size_;            // 体素滤波器的叶子大小
+    float leaf_size_x_;            // 体素滤波器的叶子大小
+    float leaf_size_y_;            // 体素滤波器的叶子大小
+    float leaf_size_z_;            // 体素滤波器的叶子大小
     double roi_width_;           // ROI 宽度
     double plane_point_percent_; // 平面点数占比
 
@@ -106,7 +108,7 @@ class ObstaclesDetectionLidarNode : public rclcpp::Node {
     bool enable_downsample_;             // 是否进行下采样
     int segment_ground_type_;            // 地面分割算法类型
 
-    std::string frame_id_;             // 坐标系名称
+
     bool is_use_front_lidar_;          // 是否使用前雷达
     std::string front_lidar_topic_;    // 前雷达的 topic
     std::string front_lidar_frame_id_; // 前雷达的坐标系名称
@@ -124,7 +126,7 @@ class ObstaclesDetectionLidarNode : public rclcpp::Node {
 
     // 车辆的相对base坐标系
     std::string base_frame_id_; // 车辆的相对base坐标系
-
+    std::string map_frame_id_; // 车辆的相对map坐标系
     // 消息标志位
     bool is_gnss_msg_received_; // GNSS设备消息标志位
 

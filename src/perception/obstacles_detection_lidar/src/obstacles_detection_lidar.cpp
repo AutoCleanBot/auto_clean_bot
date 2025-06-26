@@ -17,6 +17,7 @@
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/LinearMath/Vector3.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2_ros/transform_listener.h>
 
 ObstaclesDetectionLidarNode::ObstaclesDetectionLidarNode() : Node("perception_node"), last_marker_count_(0) {
     // 加载yaml配置参数
@@ -50,6 +51,8 @@ ObstaclesDetectionLidarNode::ObstaclesDetectionLidarNode() : Node("perception_no
     ground_seg_cloud_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/perception/ground_seg_cloud", 10);
     clustered_cloud_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/perception/clustered_cloud", 10);
 #endif
+
+
 }
 
 /**
@@ -88,6 +91,7 @@ void ObstaclesDetectionLidarNode::Obstacle2Base(bot_msg::msg::ObstacleInfo &obst
         RCLCPP_INFO(this->get_logger(), "Obstacle2Base: Transformed point in base frame: (%.3f, %.3f, %.3f)",
                     point_in_base.point.x, point_in_base.point.y, point_in_base.point.z);
 
+
         // 更新障碍物坐标为base坐标系下的坐标
         obstacle.position_x = point_in_base.point.x;
         obstacle.position_y = point_in_base.point.y;
@@ -102,43 +106,62 @@ void ObstaclesDetectionLidarNode::Obstacle2Base(bot_msg::msg::ObstacleInfo &obst
 }
 
 /**
- * @brief 将障碍物的坐标系转换到ENU坐标系
+ * @brief 将障碍物的坐标系转换到ENU坐标系,也即MAP坐标系
  *
  * @param obstacle
  */
 void ObstaclesDetectionLidarNode::Obstacle2ENU(bot_msg::msg::ObstacleInfo &obstacle) {
-    // TODO 该功能待测试
-    // 1. 首先将激光雷达坐标系转换到base坐标系
-    Obstacle2Base(obstacle);
 
-    // 2. 将base坐标系下的坐标数据转换到gnss坐标系下
-    if (is_use_gnss_ && is_gnss_msg_received_) {
-        // 将base坐标系下的障碍物坐标转换到ENU(东北天)坐标系下
+    // 1. 将base坐标系下的坐标数据转换到map坐标系下
+    geometry_msgs::msg::PointStamped point_in_base;
+    point_in_base.header.frame_id = base_frame_id_;
+    point_in_base.header.stamp = this->now();
+    point_in_base.point.x = obstacle.position_x;
+    point_in_base.point.y = obstacle.position_y;
+    point_in_base.point.z = obstacle.position_z;
 
-        // 获取当前车辆在ENU坐标系中的位置和姿态
-        double vehicle_east = gnss_msg_.pose.position.x;
-        double vehicle_north = gnss_msg_.pose.position.y;
-        double vehicle_up = gnss_msg_.pose.position.z;
+    RCLCPP_INFO(this->get_logger(), "Obstacle2ENU: Input point in base frame: (%.3f, %.3f, %.3f)",
+                point_in_base.point.x, point_in_base.point.y, point_in_base.point.z);
 
-        // 提取四元数表示的车辆姿态
-        tf2::Quaternion q(gnss_msg_.pose.orientation.x, gnss_msg_.pose.orientation.y, gnss_msg_.pose.orientation.z,
-                          gnss_msg_.pose.orientation.w);
+    // 目标坐标系为map（与ENU一致）
+    const std::string target_frame = "map";
+    
+    try {
+        // 使用tf2进行坐标转换，从base_link到map
+        RCLCPP_INFO(this->get_logger(), "Obstacle2ENU: Transforming from %s to %s", 
+                    base_frame_id_.c_str(), target_frame.c_str());
+        
+        // 检查变换是否可用
+        if (!tf_buffer_->canTransform(target_frame, base_frame_id_, tf2::TimePointZero)) {
+            RCLCPP_WARN(this->get_logger(), "Obstacle2ENU: Transform from %s to %s not available yet. Waiting...",
+                        base_frame_id_.c_str(), target_frame.c_str());
+            
+            // 尝试等待变换可用（最多等待1秒）
+            if (!tf_buffer_->canTransform(target_frame, base_frame_id_, tf2::TimePointZero, 
+                                         tf2::durationFromSec(1.0))) {
+                RCLCPP_ERROR(this->get_logger(), "Obstacle2ENU: Transform not available after waiting. Keeping base coordinates.");
+                return;  // 保持base坐标系下的坐标
+            }
+        }
+        
+        // 执行坐标变换
+        geometry_msgs::msg::PointStamped point_in_map;
+        point_in_map = tf_buffer_->transform(point_in_base, target_frame);
+        
+        RCLCPP_INFO(this->get_logger(), "Obstacle2ENU: Transformed point in map frame: (%.3f, %.3f, %.3f)",
+                    point_in_map.point.x, point_in_map.point.y, point_in_map.point.z);
 
-        // 创建旋转矩阵，用于将车体坐标系下的向量转换到ENU坐标系
-        tf2::Matrix3x3 rotation_matrix(q);
+        // 更新障碍物坐标为map坐标系下的坐标
+        obstacle.position_x = point_in_map.point.x;
+        obstacle.position_y = point_in_map.point.y;
+        obstacle.position_z = point_in_map.point.z;
 
-        // 获取车体坐标系中障碍物的相对位置
-        tf2::Vector3 obstacle_local(obstacle.position_x, obstacle.position_y, obstacle.position_z);
-
-        // 应用旋转，将相对位置从车体坐标系转换到ENU坐标系
-        tf2::Vector3 obstacle_enu = rotation_matrix * obstacle_local;
-
-        // 计算障碍物在ENU坐标系中的绝对位置
-        obstacle.position_x = vehicle_east + obstacle_enu.x();  // East
-        obstacle.position_y = vehicle_north + obstacle_enu.y(); // North
-        obstacle.position_z = vehicle_up + obstacle_enu.z();    // Up
+        RCLCPP_INFO(this->get_logger(), "Obstacle2ENU: Coordinate transformation completed successfully");
+    } catch (const tf2::TransformException &ex) {
+        RCLCPP_ERROR(this->get_logger(), "Obstacle2ENU: Transform error: %s", ex.what());
+        // 转换失败时保持base坐标系下的坐标不变
+        RCLCPP_WARN(this->get_logger(), "Obstacle2ENU: Keeping base coordinates due to transform failure");
     }
-    // 如果不使用GNSS或GNSS消息未接收，则保持base坐标系的坐标
 }
 
 void ObstaclesDetectionLidarNode::InitParameters() {
@@ -152,7 +175,9 @@ void ObstaclesDetectionLidarNode::InitParameters() {
     this->declare_parameter<double>("cluster_tolerance", 0.1);
     this->declare_parameter<int>("min_cluster_size", 30);
     this->declare_parameter<int>("max_cluster_size", 20000);
-    this->declare_parameter<float>("leaf_size", 0.05);
+    this->declare_parameter<float>("leaf_size_x", 0.05);
+    this->declare_parameter<float>("leaf_size_y", 0.05);
+    this->declare_parameter<float>("leaf_size_z", 0.05);
     this->declare_parameter<float>("roi_width", 1.0);
     this->declare_parameter<bool>("enable_visualization", true);
     this->declare_parameter<bool>("enable_calculate_process_time", false);
@@ -175,6 +200,7 @@ void ObstaclesDetectionLidarNode::InitParameters() {
     this->declare_parameter<std::string>("left_lidar_frame_id", "left_lidar");
     this->declare_parameter<std::string>("right_lidar_frame_id", "right_lidar");
     this->declare_parameter<std::string>("base_frame_id", "base_link");
+    this->declare_parameter<std::string>("map_frame_id", "map");
 
     // 获取参数值
 
@@ -187,7 +213,9 @@ void ObstaclesDetectionLidarNode::InitParameters() {
     cluster_tolerance_ = this->get_parameter("cluster_tolerance").as_double();
     cluster_min_size_ = this->get_parameter("min_cluster_size").as_int();
     cluster_max_size_ = this->get_parameter("max_cluster_size").as_int();
-    leaf_size_ = this->get_parameter("leaf_size").as_double();
+    leaf_size_x_ = this->get_parameter("leaf_size_x").as_double();
+    leaf_size_y_ = this->get_parameter("leaf_size_y").as_double();
+    leaf_size_z_ = this->get_parameter("leaf_size_z").as_double();
     roi_width_ = this->get_parameter("roi_width").as_double();
     enable_visualization_ = this->get_parameter("enable_visualization").as_bool();
     enable_calculate_process_time_ = this->get_parameter("enable_calculate_process_time").as_bool();
@@ -201,12 +229,13 @@ void ObstaclesDetectionLidarNode::InitParameters() {
     front_lidar_topic_ = this->get_parameter("front_lidar_topic").as_string();
     left_lidar_topic_ = this->get_parameter("left_lidar_topic").as_string();
     right_lidar_topic_ = this->get_parameter("right_lidar_topic").as_string();
-    frame_id_ = this->get_parameter("frame_id").as_string();
+
     gnss_frame_id_ = this->get_parameter("gnss_frame_id").as_string();
     front_lidar_frame_id_ = this->get_parameter("front_lidar_frame_id").as_string();
     left_lidar_frame_id_ = this->get_parameter("left_lidar_frame_id").as_string();
     right_lidar_frame_id_ = this->get_parameter("right_lidar_frame_id").as_string();
     base_frame_id_ = this->get_parameter("base_frame_id").as_string();
+    map_frame_id_ = this->get_parameter("map_frame_id").as_string();
     is_use_gnss_ = this->get_parameter("is_use_gnss").as_bool();
     gnss_topic_ = this->get_parameter("gnss_topic").as_string();
     // 打印参数值
@@ -219,7 +248,9 @@ void ObstaclesDetectionLidarNode::InitParameters() {
     RCLCPP_INFO(this->get_logger(), "cluster_tolerance: %f", cluster_tolerance_);
     RCLCPP_INFO(this->get_logger(), "cluster_min_size: %d", cluster_min_size_);
     RCLCPP_INFO(this->get_logger(), "cluster_max_size: %d", cluster_max_size_);
-    RCLCPP_INFO(this->get_logger(), "leaf_size: %f", leaf_size_);
+    RCLCPP_INFO(this->get_logger(), "leaf_size: %f", leaf_size_x_);
+    RCLCPP_INFO(this->get_logger(), "leaf_size: %f", leaf_size_y_);
+    RCLCPP_INFO(this->get_logger(), "leaf_size: %f", leaf_size_z_);
     RCLCPP_INFO(this->get_logger(), "roi_width: %f", roi_width_);
     RCLCPP_INFO(this->get_logger(), "enable_visualization: %d", enable_visualization_);
     RCLCPP_INFO(this->get_logger(), "enable_calculate_process_time: %d", enable_calculate_process_time_);
@@ -227,7 +258,8 @@ void ObstaclesDetectionLidarNode::InitParameters() {
     RCLCPP_INFO(this->get_logger(), "enable_downsample: %d", enable_downsample_);
     RCLCPP_INFO(this->get_logger(), "segment_ground_type: %d", segment_ground_type_);
     RCLCPP_INFO(this->get_logger(), "plane_point_percent: %f", plane_point_percent_);
-    RCLCPP_INFO(this->get_logger(), "frame_id: %s", frame_id_.c_str());
+    RCLCPP_INFO(this->get_logger(), "base_frame_id: %s", base_frame_id_.c_str());
+    RCLCPP_INFO(this->get_logger(), "map_frame_id: %s", map_frame_id_.c_str());
     RCLCPP_INFO(this->get_logger(), "is_use_gnss: %d", is_use_gnss_);
     RCLCPP_INFO(this->get_logger(), "is_use_front_lidar: %d", is_use_front_lidar_);
     if (is_use_front_lidar_)
@@ -318,8 +350,7 @@ void ObstaclesDetectionLidarNode::RemoveVehiclePoints(pcl::PointCloud<pcl::Point
 
 void ObstaclesDetectionLidarNode::FillAndPublishObstacleMarker(const bot_msg::msg::Obstacles &obstacle_array_msg,
                                                                int obstacles_type) {
-    // 首先清除所有旧的marker
-    // ClearAllObstacleMarkers();
+
 
     // 然后发布新的marker，使用固定的ID
     int marker_id = 0;
@@ -337,7 +368,7 @@ void ObstaclesDetectionLidarNode::ClearAllObstacleMarkers() {
     // 发送DELETE action来清除所有之前的marker
     for (int i = 0; i < last_marker_count_; ++i) {
         visualization_msgs::msg::Marker delete_marker;
-        delete_marker.header.frame_id = frame_id_.empty() ? "base_link" : frame_id_;
+        delete_marker.header.frame_id = base_frame_id_.empty() ? "base_link" : base_frame_id_;
         delete_marker.header.stamp = this->get_clock()->now();
         delete_marker.ns = "obstacles";
         delete_marker.id = i;
@@ -354,7 +385,7 @@ visualization_msgs::msg::Marker ObstaclesDetectionLidarNode::MakeObstacleMarker(
         auto marker = visualization_msgs::msg::Marker();
 
         // 设置基本属性
-        marker.header.frame_id = frame_id_.empty() ? "base_link" : frame_id_;
+        marker.header.frame_id = base_frame_id_.empty() ? "base_link" : base_frame_id_;
         marker.header.stamp = this->get_clock()->now();
         marker.action = visualization_msgs::msg::Marker::ADD;
         marker.pose.orientation.w = 1.0; // 无旋转
@@ -474,7 +505,7 @@ visualization_msgs::msg::Marker ObstaclesDetectionLidarNode::MakeObstacleMarker(
 
         // 返回一个简单的默认标记
         visualization_msgs::msg::Marker default_marker;
-        default_marker.header.frame_id = frame_id_.empty() ? "base_link" : frame_id_;
+        default_marker.header.frame_id = base_frame_id_.empty() ? "base_link" : base_frame_id_;
         default_marker.header.stamp = this->get_clock()->now();
         default_marker.id = 0;
         default_marker.ns = "error";
@@ -499,7 +530,11 @@ ObstaclesDetectionLidarNode::MakeObstacleMarker(const bot_msg::msg::ObstacleInfo
                                                 int marker_id) {
     // 创建立方体标记
     auto marker = visualization_msgs::msg::Marker();
-    marker.header.frame_id = frame_id_;
+    if(is_use_gnss_){
+        marker.header.frame_id = map_frame_id_;
+    }else{
+        marker.header.frame_id = base_frame_id_;
+    }
     marker.header.stamp = this->get_clock()->now();
     marker.action = visualization_msgs::msg::Marker::ADD;
     marker.pose.orientation.w = 1.0; // 无旋转
@@ -627,7 +662,10 @@ void ObstaclesDetectionLidarNode::PublishPointCloud(
     sensor_msgs::msg::PointCloud2 output_cloud;
     pcl::toROSMsg(*cloud, output_cloud);
     output_cloud.header.stamp = this->get_clock()->now();
-    output_cloud.header.frame_id = frame_id_; // 根据实际的坐标系设置
+    
+    // 将frame_id设置为map而不是frame_id_，使点云在RViz中显示在map坐标系下
+    output_cloud.header.frame_id = "map";
+    
     publisher->publish(output_cloud);
 }
 
@@ -847,11 +885,12 @@ void ObstaclesDetectionLidarNode::DownsampleCloud(pcl::PointCloud<pcl::PointXYZ>
         return;
     }
 
-    RCLCPP_INFO(this->get_logger(), "DownsampleCloud: Using leaf size: %f", leaf_size_);
+    RCLCPP_INFO(this->get_logger(), "DownsampleCloud: Using leaf size: %f, %f, %f", leaf_size_x_, leaf_size_y_,
+                leaf_size_z_);
 
     pcl::VoxelGrid<pcl::PointXYZ> voxel_filter;
     voxel_filter.setInputCloud(cloud);
-    voxel_filter.setLeafSize(leaf_size_, leaf_size_, leaf_size_);
+    voxel_filter.setLeafSize(leaf_size_x_, leaf_size_y_, leaf_size_z_);
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr downsampled_cloud(new pcl::PointCloud<pcl::PointXYZ>);
     voxel_filter.filter(*downsampled_cloud);
@@ -964,7 +1003,7 @@ ObstaclesDetectionLidarNode::ExtractObstacleInfo(const pcl::PointCloud<pcl::Poin
     // 首先转换到base坐标系
     RCLCPP_INFO(this->get_logger(), "ExtractObstacleInfo: Converting to base coordinates for obstacle %u", id);
     Obstacle2Base(obstacle);
-    if (is_use_gnss_ && is_gnss_msg_received_) {
+    if (is_use_gnss_ ) {
         // 如果启用了GNSS，转换到ENU坐标系
         RCLCPP_INFO(this->get_logger(), "ExtractObstacleInfo: Converting to ENU coordinates for obstacle %u", id);
         Obstacle2ENU(obstacle);
@@ -988,7 +1027,11 @@ bot_msg::msg::Obstacles
 ObstaclesDetectionLidarNode::ProcessPointCloud(const sensor_msgs::msg::PointCloud2::SharedPtr pnt_cloud) {
     bot_msg::msg::Obstacles obstacles_msg;
     obstacles_msg.header = pnt_cloud->header;
-    obstacles_msg.header.frame_id = frame_id_;
+    if(is_use_gnss_){
+        obstacles_msg.header.frame_id = map_frame_id_;
+    }else{
+        obstacles_msg.header.frame_id = base_frame_id_;
+    }
 
     auto start_time = std::chrono::high_resolution_clock::now();
 
@@ -1003,8 +1046,8 @@ ObstaclesDetectionLidarNode::ProcessPointCloud(const sensor_msgs::msg::PointClou
 
     // 发布原始点云（调试用）
 #if DEBUG_PUBLISH_POINT_CLOUD
-    RCLCPP_INFO(this->get_logger(), "Publishing original point cloud for debugging...");
     PublishPointCloud(cloud, original_cloud_pub_);
+    RCLCPP_INFO(this->get_logger(), "Publishing original point cloud for debugging...");
     RCLCPP_INFO(this->get_logger(), "Original point cloud published successfully");
 #endif
 

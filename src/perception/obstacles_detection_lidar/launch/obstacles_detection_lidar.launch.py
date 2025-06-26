@@ -24,10 +24,12 @@ def generate_launch_description():
         
         # 聚类算法相关参数
         'roi_width': 10.0,
-        'cluster_tolerance': 0.4,
-        'min_cluster_size': 80,
+        'cluster_tolerance': 0.3,
+        'min_cluster_size': 200,
         'max_cluster_size': 10000,
-        'leaf_size': 0.2,
+        'leaf_size_x': 0.1,
+        'leaf_size_y': 0.1,
+        'leaf_size_z': 0.2,
         'plane_point_percent': 0.5,
         
 
@@ -35,14 +37,13 @@ def generate_launch_description():
         'is_use_gnss':False,
         
         # 调试参数
-        'enable_visualization': False,
+        'enable_visualization': True,
         'enable_use_roi': True,
         'enable_calculate_process_time': True,
-        'enable_downsample': False,
+        'enable_downsample': True,
         'segment_ground_type': 2,
         
         # 相关订阅参数
-        'front_lidar_frame_id': 'lidar_link',
         'is_use_front_lidar': True,
         'front_lidar_topic': '/rslidar_sdk/drivers/front_lidar',
         'is_use_left_lidar': False,
@@ -53,8 +54,9 @@ def generate_launch_description():
         'front_camera_topic': 'drivers/front_camera',
         
         # 消息ID
+        'front_lidar_frame_id': 'lidar_link',
         'base_frame_id': 'base_link',
-        'frame_id': 'base_link'
+        'map_frame_id': 'map'
     }
     
     # 配置节点，并将参数字典直接传递给参数字段

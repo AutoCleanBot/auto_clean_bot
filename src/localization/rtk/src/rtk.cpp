@@ -146,8 +146,11 @@ void RTKNode::ParseRTKInfo(const std::string &info_str) {
         giavp.heading_deg += 360;
     }
 
+    // 为所有消息使用相同的时间戳，避免时间戳不同步问题
+    rclcpp::Time current_timestamp = this->get_clock()->now();
+    
     // simply publish the parsed RTK info
-    rtk_msg_.header.stamp = this->get_clock()->now();
+    rtk_msg_.header.stamp = current_timestamp;
     rtk_msg_.header.frame_id = this->local_frame_id_;
     rtk_msg_.longtitude = giavp.longitude_deg;
     rtk_msg_.latitude = giavp.latitude_deg;
@@ -168,7 +171,7 @@ void RTKNode::ParseRTKInfo(const std::string &info_str) {
     rtk_msg_.gyro_z = giavp.gyro_z_deg_s;
 
     // fill the IMU msg
-    imu_msg_.header.stamp = this->get_clock()->now();
+    imu_msg_.header.stamp = current_timestamp;
     imu_msg_.header.frame_id = imu_frame_id_;
     imu_msg_.linear_acceleration.x = giavp.acc_x_m_s2;
     imu_msg_.linear_acceleration.y = giavp.acc_y_m_s2;
@@ -177,7 +180,7 @@ void RTKNode::ParseRTKInfo(const std::string &info_str) {
     imu_msg_.angular_velocity.y = giavp.gyro_y_deg_s;
     imu_msg_.angular_velocity.z = giavp.gyro_z_deg_s;
     tf2::Quaternion q;
-    q.setRPY(giavp.roll_deg * M_PI / 180.0, giavp.pitch_deg * M_PI / 180.0, giavp.heading_deg * M_PI / 180.0);
+    q.setRPY(giavp.roll_deg * M_PI / 180.0, giavp.pitch_deg * M_PI / 180.0, -giavp.heading_deg * M_PI / 180.0);
     imu_msg_.orientation.x = q.x();
     imu_msg_.orientation.y = q.y();
     imu_msg_.orientation.z = q.z();
@@ -193,15 +196,17 @@ void RTKNode::ParseRTKInfo(const std::string &info_str) {
     if (giavp.status >= 1) {
         WGS84toENU(giavp);
         // fill the gnss msg
-        gnss_pose_enu_msg_.header.stamp = this->get_clock()->now();
+        gnss_pose_enu_msg_.header.stamp = current_timestamp;
         gnss_pose_enu_msg_.header.frame_id = gnss_pose_enu_frame_id_;
         gnss_pose_enu_msg_.pose.position.x = rtk_msg_.east;
         gnss_pose_enu_msg_.pose.position.y = rtk_msg_.north;
         gnss_pose_enu_msg_.pose.position.z = rtk_msg_.up;
 
         tf2::Quaternion orientation;
-        orientation.setRPY(giavp.roll_deg * M_PI / 180.0, giavp.pitch_deg * M_PI / 180.0,
-                           giavp.heading_deg * M_PI / 180.0);
+        //! 由于ros默认的航向偏转为逆时针，而rtk的航向偏转为顺时针，所以需要取反
+        //! 同时由于roll和pitch在低速无人驾驶中几乎为0，所以可以近似认为航向就是yaw
+        orientation.setRPY(0, 0,
+                           -giavp.heading_deg * M_PI / 180.0);
         gnss_pose_enu_msg_.pose.orientation.x = orientation.x();
         gnss_pose_enu_msg_.pose.orientation.y = orientation.y();
         gnss_pose_enu_msg_.pose.orientation.z = orientation.z();

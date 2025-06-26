@@ -16,8 +16,9 @@ def generate_launch_description():
     # 将所有参数放在一个字典中
     checking_params = {
         'source_frame': 'lidar_link',  # 源坐标系
-        'target_frame': 'base_link',   # 目标坐标系
+        'target_frame': 'map',   # 目标坐标系
         'check_period': 1.0,           # 检查周期（秒）
+        'tf_timeout': 0.5,            # TF超时时间（秒）
     }
     
     # 配置节点
