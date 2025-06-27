@@ -20,12 +20,30 @@
 #include <tf2_ros/static_transform_broadcaster.h>
 #include <tf2_ros/transform_listener.h>
 #include <yaml-cpp/yaml.h>
+#include <pcl/common/transforms.h>
+#include <pcl/common/common.h>
+#include <pcl/common/centroid.h>
+#include <pcl/features/moment_of_inertia_estimation.h>
+#include <random>
+#include <algorithm>
+#include <Eigen/Dense>
 
 #define DEBUG_PUBLISH_POINT_CLOUD 0
 
 class ObstaclesDetectionLidarNode : public rclcpp::Node {
   public:
     ObstaclesDetectionLidarNode();
+
+    // 定义ObstacleInfo结构体，用于内部存储障碍物信息
+    struct ObstacleInfo {
+        int id;
+        geometry_msgs::msg::Point position;
+        geometry_msgs::msg::Quaternion orientation;
+        geometry_msgs::msg::Vector3 dimensions;
+        double confidence;
+        int shape_type;
+        std::vector<geometry_msgs::msg::Point> obb_vertices;
+    };
 
   private:
     void InitParameters();
@@ -36,8 +54,12 @@ class ObstaclesDetectionLidarNode : public rclcpp::Node {
     void RemoveVehiclePoints(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
     void FillAndPublishObstacleMarker(const bot_msg::msg::Obstacles &obstacle_array_msg, int obstacles_type);
     void ClearAllObstacleMarkers();
+    std::vector<ObstacleInfo> Obstacle2ENU(const std::vector<ObstacleInfo> &obstacles);
+    std::vector<ObstacleInfo> Obstacle2Base(const std::vector<ObstacleInfo> &obstacles);
     void Obstacle2ENU(bot_msg::msg::ObstacleInfo &obstacle);
     void Obstacle2Base(bot_msg::msg::ObstacleInfo &obstacle);
+    void PublishObstacles(const std::vector<ObstacleInfo> &obstacles);
+    void PublishMarkers(const std::vector<ObstacleInfo> &obstacles);
 
     // 点云处理相关函数
     void FilterGroundPoints(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, pcl::PointCloud<pcl::PointXYZ>::Ptr ground_cloud,
@@ -50,7 +72,22 @@ class ObstaclesDetectionLidarNode : public rclcpp::Node {
                               pcl::PointCloud<pcl::PointXYZ>::Ptr non_ground_cloud);
     void FilterROI(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
     void DownsampleCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
+    void CropCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud, pcl::PointCloud<pcl::PointXYZ>::Ptr output_cloud);
+    void DetectGroundPlane(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, 
+                          pcl::PointCloud<pcl::PointXYZ>::Ptr ground_cloud,
+                          pcl::PointCloud<pcl::PointXYZ>::Ptr non_ground_cloud);
+    void FilterCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud, pcl::PointCloud<pcl::PointXYZ>::Ptr output_cloud);
+    void Run();
     std::vector<pcl::PointIndices> ClusterPoints(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
+    // 新的基于2D聚类的方法
+    std::vector<pcl::PointIndices> ClusterPointsIn2D(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
+    // 使用OBB计算障碍物信息
+    std::vector<ObstacleInfo> ExtractObstacleInfoWithOBB(
+        const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
+        const std::vector<pcl::PointIndices>& cluster_indices);
+    std::vector<ObstacleInfo> ExtractObstacleInfo(
+        const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
+        const std::vector<pcl::PointIndices>& cluster_indices);
     bot_msg::msg::ObstacleInfo ExtractObstacleInfo(const pcl::PointCloud<pcl::PointXYZ>::Ptr cluster, uint32_t id);
     bot_msg::msg::Obstacles ProcessPointCloud(const sensor_msgs::msg::PointCloud2::SharedPtr pnt_cloud);
 
@@ -96,9 +133,9 @@ class ObstaclesDetectionLidarNode : public rclcpp::Node {
     double cluster_tolerance_;   // 聚类距离阈值
     int cluster_min_size_;       // 聚类最小点数
     int cluster_max_size_;       // 聚类最大点数
-    float leaf_size_x_;            // 体素滤波器的叶子大小
-    float leaf_size_y_;            // 体素滤波器的叶子大小
-    float leaf_size_z_;            // 体素滤波器的叶子大小
+    float leaf_size_x_;          // 体素滤波器的叶子大小X
+    float leaf_size_y_;          // 体素滤波器的叶子大小Y
+    float leaf_size_z_;          // 体素滤波器的叶子大小Z
     double roi_width_;           // ROI 宽度
     double plane_point_percent_; // 平面点数占比
 
@@ -107,7 +144,10 @@ class ObstaclesDetectionLidarNode : public rclcpp::Node {
     bool enable_calculate_process_time_; // 是否计算单步处理时间
     bool enable_downsample_;             // 是否进行下采样
     int segment_ground_type_;            // 地面分割算法类型
-
+    bool use_obb_;                       // 是否使用OBB边界框
+    int min_points_per_voxel_;           // 每个体素最小点数
+    int max_points_per_voxel_in_large_cluster_; // 大型聚类中每个体素的最大点数
+    int min_voxel_cluster_size_for_filtering_; // 过滤大型聚类的体素数阈值
 
     bool is_use_front_lidar_;          // 是否使用前雷达
     std::string front_lidar_topic_;    // 前雷达的 topic
@@ -132,4 +172,10 @@ class ObstaclesDetectionLidarNode : public rclcpp::Node {
 
     // 用于跟踪已发布的marker数量
     int last_marker_count_;
+    
+    // 随机数生成器
+    std::default_random_engine random_engine_;
+
+    // 点云数据存储
+    pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud_; // 存储输入点云
 };

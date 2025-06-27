@@ -23,8 +23,8 @@ def generate_launch_description():
         'vehicle_width': 1.425,
         
         # 聚类算法相关参数
-        'roi_width': 10.0,
-        'cluster_tolerance': 0.3,
+        'roi_width': 20.0,
+        'cluster_tolerance': 0.15,
         'min_cluster_size': 200,
         'max_cluster_size': 10000,
         'leaf_size_x': 0.1,
@@ -37,7 +37,7 @@ def generate_launch_description():
         'is_use_gnss':False,
         
         # 调试参数
-        'enable_visualization': True,
+        'enable_visualization': False,
         'enable_use_roi': True,
         'enable_calculate_process_time': True,
         'enable_downsample': True,
