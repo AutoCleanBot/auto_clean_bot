@@ -1,0 +1,12 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+## 文件索引说明
+
+当我提到autoware相关的内容时, 请直接检索./ref_project中的相关文件
+
+## 代码风格说明
+
+请在生成函数后,增加足够明确的中文注释,风格为 doxygen

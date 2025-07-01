@@ -1,0 +1,20 @@
+/**:
+  ros__parameters:
+    update_rate: 10.0
+    grid_resolution: 0.1
+    grid_length_x: 30.0
+    grid_length_y: 30.0
+    grid_position_x: 0.0
+    grid_position_y: 0.0
+    maximum_height_thres: 3.0
+    minimum_height_thres: 0.3
+    grid_min_value: 0.0
+    grid_max_value: 1.0
+    input_frame: "base_link"
+    input_points_topic: "/no_ground_points"
+    is_pub_pnt_cloud: true
+    map_frame: "map"
+    costmap_frame: "map"
+    costmap_topic: "/costmap"
+    occupancy_grid_topic: "/occupancy_grid"
+

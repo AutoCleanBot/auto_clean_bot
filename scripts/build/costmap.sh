@@ -1,0 +1,1 @@
+colcon build --packages-select costmap_generator --symlink-install --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON 

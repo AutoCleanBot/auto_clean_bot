@@ -1,0 +1,34 @@
+/**:
+  ros__parameters:
+    update_rate: 10.0 # 参数更新频率 (Hz)
+    input_frame: "lidar_link" # 输入点云坐标系，空字符串表示使用sensor_frame
+    output_frame: "base_link" # 输出点云坐标系
+    use_sensor_frame: true # 是否使用传感器坐标系作为输入坐标系
+    timeout: 0.1 # TF查询超时时间 (秒)
+    use_latest_transforms: false # 是否使用最新的变换而不是点云时间戳对应的变换
+    
+    # 话题配置
+    input_topic: "/rslidar_sdk/drivers/front_lidar" # 输入点云话题
+    output_topic: "/lidar_points" # 输出点云话题 
+
+    # 车辆点云过滤配置
+    # 坐标系说明: Y+ = 车头方向, X+ = 车辆右侧, Z+ = 垂直向上
+    filter_vehicle_points: true  # 是否启用车辆点云过滤
+    vehicle_front_length: 2.7    # 车辆前部长度 (米)，从激光雷达到车辆前端的距离 (Y轴正方向)
+    vehicle_back_length: 0.55    # 车辆后部长度 (米)，从激光雷达到车辆后端的距离 (Y轴负方向)
+    vehicle_width: 1.425         # 车辆总宽度 (米)，用于计算默认的左右宽度
+    vehicle_height: 2.5          # 车辆总高度 (米)，用于计算默认的上下高度
+    
+    # 更精细的车辆尺寸配置（不设置则根据总宽度和总高度自动计算）
+    vehicle_right_width: 0.7125  # 车辆右侧宽度 (米)，从激光雷达到车辆右侧的距离 (X轴正方向)
+    vehicle_left_width: 0.7125   # 车辆左侧宽度 (米)，从激光雷达到车辆左侧的距离 (X轴负方向)
+    vehicle_top_height: 2.5      # 车辆顶部高度 (米)，从激光雷达到车辆顶部的距离 (Z轴正方向)
+    vehicle_bottom_height: 0.0   # 车辆底部高度 (米)，从激光雷达到车辆底部的距离 (Z轴负方向)
+    
+    # 偏移和边界参数
+    vehicle_x_offset: 0.0        # 车辆X轴偏移 (米)，正值使过滤区域向右移动
+    vehicle_y_offset: 0.0        # 车辆Y轴偏移 (米)，正值使过滤区域向前移动
+    vehicle_z_offset: 0.0        # 车辆Z轴偏移 (米)，正值使过滤区域向上移动
+    vehicle_length_margin: 0.1   # 车辆长度边界扩展 (米)，Y轴方向
+    vehicle_width_margin: 0.1    # 车辆宽度边界扩展 (米)，X轴方向
+    vehicle_height_margin: 0.1   # 车辆高度边界扩展 (米)，Z轴方向

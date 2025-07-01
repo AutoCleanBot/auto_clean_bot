@@ -130,8 +130,16 @@ void Transform::GnssPoseCallback(const geometry_msgs::msg::PoseStamped::SharedPt
     transform_stamped.transform.translation.y = msg->pose.position.y;  // 北向位置
     transform_stamped.transform.translation.z = 0;  // 上方位置
     
+    // 设置姿态（从RTK的四元数），并修正yaw方向
+    // 由于GNSS的yaw方向与ROS默认方向相反，需要进行修正
+    //! 注意在实际使用时, 修改为下述被注释的代码.
     // 设置姿态（从RTK的四元数）
-    transform_stamped.transform.rotation = msg->pose.orientation;
+    // transform_stamped.transform.rotation = msg->pose.orientation;
+    // 方法2：通过翻转四元数的w和z值来实现yaw方向的翻转（绕z轴旋转180度）
+    transform_stamped.transform.rotation.w = msg->pose.orientation.w;
+    transform_stamped.transform.rotation.x = msg->pose.orientation.x;
+    transform_stamped.transform.rotation.y = msg->pose.orientation.y;
+    transform_stamped.transform.rotation.z = -msg->pose.orientation.z;  // 反转z分量来改变yaw方向
     
     // 发布动态坐标转换
     dynamic_tf_broadcaster_->sendTransform(transform_stamped);
