@@ -46,6 +46,7 @@ private:
   double grid_position_y_;    ///< 网格中心Y坐标 (m)
   double maximum_height_thres_;  ///< 最大高度阈值 (m)
   double minimum_height_thres_;  ///< 最小高度阈值 (m)
+  double current_vehicle_yaw_;  ///< 保存当前车辆的航向角度
   std::string costmap_frame_;    ///< 代价地图坐标系
   std::string input_frame_;      ///< 输入坐标系
   std::string map_frame_;        ///< 地图坐标系
