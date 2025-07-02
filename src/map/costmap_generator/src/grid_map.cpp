@@ -98,15 +98,20 @@ void GridMap::toMessage(grid_map_msgs::msg::GridMap &message) const {
 void GridMap::toOccupancyGrid(const std::string &layer, const double min_value, const double max_value,
                               nav_msgs::msg::OccupancyGrid &occupancy_grid) const {
     const auto &matrix = data_.at(layer);
-    const int rows = matrix.rows();
-    const int cols = matrix.cols();
+    const int rows = matrix.rows(); // 对应X轴方向的网格数量
+    const int cols = matrix.cols(); // 对应Y轴方向的网格数量
 
     occupancy_grid.header.frame_id = frame_id_;
     occupancy_grid.header.stamp.sec = timestamp_ / 1000000000ULL;
     occupancy_grid.header.stamp.nanosec = timestamp_ % 1000000000ULL;
     occupancy_grid.info.resolution = resolution_;
-    occupancy_grid.info.width = cols;
-    occupancy_grid.info.height = rows;
+
+    // 修复坐标系统：在ROS OccupancyGrid中，width对应X轴，height对应Y轴
+    // 但我们的矩阵中，rows对应X轴，cols对应Y轴
+    // 所以需要转置矩阵的概念
+    occupancy_grid.info.width = rows;  // X轴方向的网格数量
+    occupancy_grid.info.height = cols; // Y轴方向的网格数量
+
     occupancy_grid.info.origin.position.x = position_.x() - length_.x() / 2.0;
     occupancy_grid.info.origin.position.y = position_.y() - length_.y() / 2.0;
     occupancy_grid.info.origin.position.z = 0.0;
@@ -118,14 +123,19 @@ void GridMap::toOccupancyGrid(const std::string &layer, const double min_value, 
     occupancy_grid.data.resize(rows * cols);
 
     const double range = max_value - min_value;
-    for (int r = 0; r < rows; ++r) {
-        for (int c = 0; c < cols; ++c) {
-            const double value = matrix(r, c);
+
+    // 修复数据存储顺序：OccupancyGrid的数据按行优先存储，但行对应Y轴
+    // 我们需要将矩阵数据正确映射到OccupancyGrid格式
+    for (int y = 0; y < cols; ++y) {             // Y轴方向（矩阵列）
+        for (int x = 0; x < rows; ++x) {         // X轴方向（矩阵行）
+            const double value = matrix(x, y);   // matrix(行, 列) = matrix(X, Y)
+            const int grid_index = y * rows + x; // OccupancyGrid索引：y * width + x
+
             if (std::isnan(value)) {
-                occupancy_grid.data[r * cols + c] = -1; // Unknown
+                occupancy_grid.data[grid_index] = -1; // Unknown
             } else {
                 const double normalized = std::min(std::max((value - min_value) / range, 0.0), 1.0);
-                occupancy_grid.data[r * cols + c] = static_cast<int8_t>(normalized * 100.0);
+                occupancy_grid.data[grid_index] = static_cast<int8_t>(normalized * 100.0);
             }
         }
     }
