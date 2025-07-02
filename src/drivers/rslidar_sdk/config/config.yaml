@@ -41,7 +41,7 @@ lidar:
       z: 0.0
       roll: 0.0
       pitch: 0.0
-      yaw: -1.57 # 弧度
+      yaw: 0.0 # 弧度
 
     ros:
       ros_frame_id: lidar_link                           #Frame id of packet message and point cloud message
