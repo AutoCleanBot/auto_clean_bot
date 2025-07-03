@@ -8,6 +8,7 @@
 #include <tf2_eigen/tf2_eigen.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
+#include <chrono>
 #include <memory>
 #include <string>
 #include <vector>
@@ -21,7 +22,9 @@ namespace costmap_generator {
  * 初始化代价地图生成器，声明并读取所有参数，设置订阅者、发布者和定时器
  */
 CostmapGenerator::CostmapGenerator(const rclcpp::NodeOptions &node_options)
-    : Node("costmap_generator", node_options), tf_buffer_(this->get_clock()), tf_listener_(tf_buffer_) {
+    : Node("costmap_generator", node_options),
+      tf_buffer_(this->get_clock(), tf2::durationFromSec(10.0)), // 增加TF缓存时间到10秒
+      tf_listener_(tf_buffer_) {
     // 声明所有参数，但使用配置文件中的值
     this->declare_parameter("update_rate", 10.0);
     this->declare_parameter("grid_min_value", 0.0);
@@ -65,8 +68,8 @@ CostmapGenerator::CostmapGenerator(const rclcpp::NodeOptions &node_options)
         input_points_topic, rclcpp::SensorDataQoS(),
         std::bind(&CostmapGenerator::onPointCloud, this, std::placeholders::_1));
 
-    // Initialize publishers
-    pub_costmap_ = this->create_publisher<grid_map_msgs::msg::GridMap>(costmap_topic, 1);
+    // Initialize publishers - 只发布占用栅格地图，不发布GridMap
+    // pub_costmap_ = this->create_publisher<grid_map_msgs::msg::GridMap>(costmap_topic, 1);  // 已禁用
     pub_occupancy_grid_ = this->create_publisher<nav_msgs::msg::OccupancyGrid>(occupancy_grid_topic, 1);
     pub_pnt_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("transformed_points", 1);
     // Initialize timer
@@ -106,15 +109,18 @@ void CostmapGenerator::onPointCloud(const sensor_msgs::msg::PointCloud2::SharedP
 /**
  * @brief 定时器回调函数
  *
- * 定期执行代价地图生成和发布操作
+ * 定期执行占用栅格地图生成和发布操作
  */
 void CostmapGenerator::onTimer() {
+    auto start_time = std::chrono::high_resolution_clock::now();
+
     if (!points_) {
         RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "No point cloud received yet");
         return;
     }
 
     // 获取坐标变换: 从costmap_frame到input_frame的变换
+    auto tf_start = std::chrono::high_resolution_clock::now();
     geometry_msgs::msg::TransformStamped transform;
     try {
         transform =
@@ -123,26 +129,54 @@ void CostmapGenerator::onTimer() {
         RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "Could not get transform: %s", ex.what());
         return;
     }
+    auto tf_end = std::chrono::high_resolution_clock::now();
+    auto tf_duration = std::chrono::duration_cast<std::chrono::microseconds>(tf_end - tf_start);
+    RCLCPP_DEBUG(this->get_logger(), "Transform lookup time: %ld μs", tf_duration.count());
 
     // 保存当前车辆的航向角度
     current_vehicle_yaw_ = tf2::getYaw(transform.transform.rotation);
-    RCLCPP_INFO(this->get_logger(), "Vehicle yaw: %.2f", current_vehicle_yaw_);
+    RCLCPP_DEBUG(this->get_logger(), "Vehicle yaw: %.2f", current_vehicle_yaw_);
 
     // 重新初始化固定坐标系中的网格地图
+    auto init_start = std::chrono::high_resolution_clock::now();
     initGridmap();
+    auto init_end = std::chrono::high_resolution_clock::now();
+    auto init_duration = std::chrono::duration_cast<std::chrono::microseconds>(init_end - init_start);
+    RCLCPP_DEBUG(this->get_logger(), "Grid map initialization time: %ld μs", init_duration.count());
 
     // 设置网格中心为车辆当前位置
+    auto center_start = std::chrono::high_resolution_clock::now();
     setGridCenter(transform);
+    auto center_end = std::chrono::high_resolution_clock::now();
+    auto center_duration = std::chrono::duration_cast<std::chrono::microseconds>(center_end - center_start);
+    RCLCPP_DEBUG(this->get_logger(), "Grid center setting time: %ld μs", center_duration.count());
 
-    // 生成代价地图
+    // 生成占用栅格地图
+    auto points_start = std::chrono::high_resolution_clock::now();
     const double vehicle_to_map_z = transform.transform.translation.z;
     costmap_[LayerName::points] = generatePointsCostmap(points_, vehicle_to_map_z);
+    auto points_end = std::chrono::high_resolution_clock::now();
+    auto points_duration = std::chrono::duration_cast<std::chrono::milliseconds>(points_end - points_start);
+    RCLCPP_INFO(this->get_logger(), "Points costmap generation time: %ld ms", points_duration.count());
 
-    // 生成组合代价地图
+    // 生成组合占用栅格地图
+    auto combined_start = std::chrono::high_resolution_clock::now();
     costmap_[LayerName::combined] = generateCombinedCostmap();
+    auto combined_end = std::chrono::high_resolution_clock::now();
+    auto combined_duration = std::chrono::duration_cast<std::chrono::microseconds>(combined_end - combined_start);
+    RCLCPP_DEBUG(this->get_logger(), "Combined costmap generation time: %ld μs", combined_duration.count());
 
-    // 发布代价地图
+    // 发布占用栅格地图
+    auto publish_start = std::chrono::high_resolution_clock::now();
     publishCostmap(costmap_, transform);
+    auto publish_end = std::chrono::high_resolution_clock::now();
+    auto publish_duration = std::chrono::duration_cast<std::chrono::milliseconds>(publish_end - publish_start);
+    RCLCPP_INFO(this->get_logger(), "Occupancy grid publishing time: %ld ms", publish_duration.count());
+
+    // 总耗时
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto total_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+    RCLCPP_INFO(this->get_logger(), "Total processing time: %ld ms", total_duration.count());
 }
 
 /**
@@ -186,22 +220,25 @@ void CostmapGenerator::setGridCenter(const geometry_msgs::msg::TransformStamped 
 }
 
 /**
- * @brief 发布代价地图
+ * @brief 发布占用栅格地图
  * @param costmap 要发布的代价地图
  * @param tf 坐标变换信息
  *
- * 将代价地图转换为ROS消息并发布，包括GridMap和OccupancyGrid两种格式
+ * 将代价地图转换为OccupancyGrid格式并发布（不再发布GridMap）
  */
 void CostmapGenerator::publishCostmap(const GridMap &costmap, const geometry_msgs::msg::TransformStamped &tf) {
+    auto start_time = std::chrono::high_resolution_clock::now();
+
     // 更新时间戳
     costmap_.setTimestamp(this->now().nanoseconds());
 
-    // Publish GridMap
-    grid_map_msgs::msg::GridMap grid_map_msg;
-    costmap.toMessage(grid_map_msg);
-    pub_costmap_->publish(grid_map_msg);
+    // 不再发布GridMap，只发布OccupancyGrid以提高性能
+    // grid_map_msgs::msg::GridMap grid_map_msg;
+    // costmap.toMessage(grid_map_msg);
+    // pub_costmap_->publish(grid_map_msg);
 
     // Publish OccupancyGrid
+    auto occupancy_start = std::chrono::high_resolution_clock::now();
     nav_msgs::msg::OccupancyGrid occupancy_grid;
 
     try {
@@ -210,6 +247,10 @@ void CostmapGenerator::publishCostmap(const GridMap &costmap, const geometry_msg
         RCLCPP_ERROR(this->get_logger(), "Error converting to OccupancyGrid: %s", e.what());
         return;
     }
+    auto occupancy_convert_end = std::chrono::high_resolution_clock::now();
+    auto occupancy_convert_duration =
+        std::chrono::duration_cast<std::chrono::microseconds>(occupancy_convert_end - occupancy_start);
+    RCLCPP_DEBUG(this->get_logger(), "OccupancyGrid conversion time: %ld μs", occupancy_convert_duration.count());
 
     // 计算OccupancyGrid的原点
     // OccupancyGrid的原点在左下角，需要考虑车辆的朝向
@@ -253,26 +294,36 @@ void CostmapGenerator::publishCostmap(const GridMap &costmap, const geometry_msg
     occupancy_grid.header.stamp = this->now();
     occupancy_grid.header.frame_id = costmap_frame_;
 
-    RCLCPP_INFO(
+    RCLCPP_DEBUG(
         this->get_logger(),
         "Publishing OccupancyGrid: origin=(%.2f, %.2f), rotated_offset=(%.2f, %.2f), grid size=%dx%d, resolution=%.2f",
         origin.position.x, origin.position.y, rotated_offset_x, rotated_offset_y, occupancy_grid.info.width,
         occupancy_grid.info.height, occupancy_grid.info.resolution);
 
     // 发布占用栅格地图
+    auto publish_start = std::chrono::high_resolution_clock::now();
     pub_occupancy_grid_->publish(occupancy_grid);
+    auto publish_end = std::chrono::high_resolution_clock::now();
+    auto publish_duration = std::chrono::duration_cast<std::chrono::microseconds>(publish_end - publish_start);
+    RCLCPP_DEBUG(this->get_logger(), "OccupancyGrid publish time: %ld μs", publish_duration.count());
+
+    // 总的发布函数耗时
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto total_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+    RCLCPP_DEBUG(this->get_logger(), "Total publishCostmap time: %ld ms", total_duration.count());
 }
 
 /**
- * @brief 从点云生成代价地图
+ * @brief 从点云生成占用栅格地图
  * @param in_points 输入点云
  * @param vehicle_to_map_z 车辆到地图坐标系的Z轴偏移
- * @return 生成的代价地图矩阵
+ * @return 生成的占用栅格地图矩阵
  *
- * 将点云数据转换为代价地图，考虑高度阈值和网格分辨率
+ * 将点云数据转换为占用栅格地图，考虑高度阈值和网格分辨率
  */
 Eigen::MatrixXf CostmapGenerator::generatePointsCostmap(const sensor_msgs::msg::PointCloud2::SharedPtr &in_points,
                                                         const double vehicle_to_map_z) {
+    auto start_time = std::chrono::high_resolution_clock::now();
 
     if (!in_points) {
         RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "No point cloud data available");
@@ -280,35 +331,52 @@ Eigen::MatrixXf CostmapGenerator::generatePointsCostmap(const sensor_msgs::msg::
     }
 
     // 将点云转换到costmap_frame坐标系
+    auto transform_lookup_start = std::chrono::high_resolution_clock::now();
     sensor_msgs::msg::PointCloud2 transformed_points;
     geometry_msgs::msg::TransformStamped transform;
 
+    // 添加TF调试信息
+    RCLCPP_DEBUG(this->get_logger(), "Looking for transform from %s to %s", in_points->header.frame_id.c_str(),
+                 costmap_frame_.c_str());
+
+    // 检查TF是否可用
+    bool tf_available = tf_buffer_.canTransform(costmap_frame_, in_points->header.frame_id, tf2::TimePointZero,
+                                                tf2::durationFromSec(0.01));
+    RCLCPP_DEBUG(this->get_logger(), "TF available: %s", tf_available ? "true" : "false");
+
     try {
-        // 查找从点云坐标系到代价地图坐标系的变换
-        transform = tf_buffer_.lookupTransform(costmap_frame_, in_points->header.frame_id, in_points->header.stamp,
-                                               tf2::durationFromSec(1.0));
+        // 首先尝试使用最新的变换（性能更好）
+        transform = tf_buffer_.lookupTransform(costmap_frame_, in_points->header.frame_id, tf2::TimePointZero,
+                                               tf2::durationFromSec(0.05)); // 减少等待时间
+        RCLCPP_DEBUG(this->get_logger(), "Using latest transform for better performance");
     } catch (tf2::TransformException &ex) {
-        // 如果找不到精确时间戳的变换，尝试使用最新的变换
+        RCLCPP_DEBUG(this->get_logger(), "Latest transform failed: %s", ex.what());
+        // 如果最新变换失败，尝试使用精确时间戳的变换
         try {
-            transform = tf_buffer_.lookupTransform(costmap_frame_, in_points->header.frame_id, tf2::TimePointZero,
-                                                   tf2::durationFromSec(1.0));
-            RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
-                                 "Using latest transform instead of timestamp-matched transform");
+            transform = tf_buffer_.lookupTransform(costmap_frame_, in_points->header.frame_id, in_points->header.stamp,
+                                                   tf2::durationFromSec(0.05)); // 减少等待时间
+            RCLCPP_DEBUG(this->get_logger(), "Using timestamp-matched transform");
         } catch (tf2::TransformException &ex2) {
-            RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "Could not get transform: %s",
-                                 ex2.what());
+            RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
+                                 "Could not get transform from %s to %s: latest=%s, stamped=%s",
+                                 in_points->header.frame_id.c_str(), costmap_frame_.c_str(), ex.what(), ex2.what());
             return costmap_[LayerName::points];
         }
     }
+    auto transform_lookup_end = std::chrono::high_resolution_clock::now();
+    auto transform_lookup_duration =
+        std::chrono::duration_cast<std::chrono::milliseconds>(transform_lookup_end - transform_lookup_start);
+    RCLCPP_INFO(this->get_logger(), "Point cloud transform lookup time: %ld ms", transform_lookup_duration.count());
 
     // 输出点云转换信息
-    RCLCPP_INFO(this->get_logger(),
-                "Point cloud transform: tx=%.2f, ty=%.2f, tz=%.2f, qw=%.2f, qx=%.2f, qy=%.2f, qz=%.2f",
-                transform.transform.translation.x, transform.transform.translation.y, transform.transform.translation.z,
-                transform.transform.rotation.w, transform.transform.rotation.x, transform.transform.rotation.y,
-                transform.transform.rotation.z);
+    RCLCPP_DEBUG(this->get_logger(),
+                 "Point cloud transform: tx=%.2f, ty=%.2f, tz=%.2f, qw=%.2f, qx=%.2f, qy=%.2f, qz=%.2f",
+                 transform.transform.translation.x, transform.transform.translation.y,
+                 transform.transform.translation.z, transform.transform.rotation.w, transform.transform.rotation.x,
+                 transform.transform.rotation.y, transform.transform.rotation.z);
 
     // 手动转换 transform 到 Eigen::Affine3d
+    auto matrix_start = std::chrono::high_resolution_clock::now();
     Eigen::Translation3d translation(transform.transform.translation.x, transform.transform.translation.y,
                                      transform.transform.translation.z);
 
@@ -317,9 +385,16 @@ Eigen::MatrixXf CostmapGenerator::generatePointsCostmap(const sensor_msgs::msg::
 
     Eigen::Affine3d transform_eigen = translation * rotation;
     Eigen::Matrix4f transform_matrix = transform_eigen.matrix().cast<float>();
+    auto matrix_end = std::chrono::high_resolution_clock::now();
+    auto matrix_duration = std::chrono::duration_cast<std::chrono::milliseconds>(matrix_end - matrix_start);
+    RCLCPP_INFO(this->get_logger(), "Transform matrix computation time: %ld ms", matrix_duration.count());
 
     // 变换点云
+    auto transform_start = std::chrono::high_resolution_clock::now();
     pcl_ros::transformPointCloud(transform_matrix, *in_points, transformed_points);
+    auto transform_end = std::chrono::high_resolution_clock::now();
+    auto transform_duration = std::chrono::duration_cast<std::chrono::milliseconds>(transform_end - transform_start);
+    RCLCPP_INFO(this->get_logger(), "Point cloud transformation time: %ld ms", transform_duration.count());
 
     // 确保转换后的点云frame_id设置正确
     transformed_points.header.frame_id = costmap_frame_;
@@ -331,16 +406,21 @@ Eigen::MatrixXf CostmapGenerator::generatePointsCostmap(const sensor_msgs::msg::
     }
 
     // 转换为PCL点云
+    auto pcl_start = std::chrono::high_resolution_clock::now();
     pcl::PointCloud<pcl::PointXYZ> pcl_pointcloud;
     pcl::fromROSMsg(transformed_points, pcl_pointcloud);
+    auto pcl_end = std::chrono::high_resolution_clock::now();
+    auto pcl_duration = std::chrono::duration_cast<std::chrono::milliseconds>(pcl_end - pcl_start);
+    RCLCPP_INFO(this->get_logger(), "PCL conversion time: %ld ms", pcl_duration.count());
 
     // 在生成代价地图前清空当前图层
     costmap_[LayerName::points].setZero();
 
     // 记录调试信息
-    RCLCPP_INFO(this->get_logger(), "Processing %zu points for costmap", pcl_pointcloud.size());
+    RCLCPP_INFO(this->get_logger(), "Processing %zu points for occupancy grid", pcl_pointcloud.size());
 
     // 计算点云的边界
+    auto bounds_start = std::chrono::high_resolution_clock::now();
     if (!pcl_pointcloud.empty()) {
         float min_x = std::numeric_limits<float>::max();
         float max_x = -std::numeric_limits<float>::max();
@@ -358,22 +438,31 @@ Eigen::MatrixXf CostmapGenerator::generatePointsCostmap(const sensor_msgs::msg::
             max_z = std::max(max_z, point.z);
         }
 
-        RCLCPP_INFO(this->get_logger(), "Point cloud bounds: x=[%.2f, %.2f], y=[%.2f, %.2f], z=[%.2f, %.2f]", min_x,
-                    max_x, min_y, max_y, min_z, max_z);
+        RCLCPP_DEBUG(this->get_logger(), "Point cloud bounds: x=[%.2f, %.2f], y=[%.2f, %.2f], z=[%.2f, %.2f]", min_x,
+                     max_x, min_y, max_y, min_z, max_z);
 
         // 输出点云相对于网格中心的位置
-        RCLCPP_INFO(this->get_logger(),
-                    "Point cloud relative to grid center: x_center=%.2f (offset=%.2f), y_center=%.2f (offset=%.2f)",
-                    (min_x + max_x) / 2.0, (min_x + max_x) / 2.0 - grid_position_x_, (min_y + max_y) / 2.0,
-                    (min_y + max_y) / 2.0 - grid_position_y_);
+        RCLCPP_DEBUG(this->get_logger(),
+                     "Point cloud relative to grid center: x_center=%.2f (offset=%.2f), y_center=%.2f (offset=%.2f)",
+                     (min_x + max_x) / 2.0, (min_x + max_x) / 2.0 - grid_position_x_, (min_y + max_y) / 2.0,
+                     (min_y + max_y) / 2.0 - grid_position_y_);
     }
+    auto bounds_end = std::chrono::high_resolution_clock::now();
+    auto bounds_duration = std::chrono::duration_cast<std::chrono::milliseconds>(bounds_end - bounds_start);
+    RCLCPP_INFO(this->get_logger(), "Point cloud bounds calculation time: %ld ms", bounds_duration.count());
 
-    // 从点云生成代价地图，传入车辆航向角用于旋转补偿
+    // 从点云生成占用栅格地图，传入车辆航向角用于旋转补偿
+    auto costmap_gen_start = std::chrono::high_resolution_clock::now();
     Eigen::MatrixXf costmap = points2costmap_.makeCostmapFromPoints(
         maximum_height_thres_, minimum_height_thres_, grid_min_value_, grid_max_value_, costmap_, LayerName::points,
         pcl_pointcloud, current_vehicle_yaw_);
+    auto costmap_gen_end = std::chrono::high_resolution_clock::now();
+    auto costmap_gen_duration =
+        std::chrono::duration_cast<std::chrono::milliseconds>(costmap_gen_end - costmap_gen_start);
+    RCLCPP_INFO(this->get_logger(), "Occupancy grid generation time: %ld ms", costmap_gen_duration.count());
 
-    // 记录代价地图信息
+    // 记录占用栅格地图信息
+    auto stats_start = std::chrono::high_resolution_clock::now();
     int non_zero_cells = 0;
     for (int i = 0; i < costmap.rows(); i++) {
         for (int j = 0; j < costmap.cols(); j++) {
@@ -382,21 +471,30 @@ Eigen::MatrixXf CostmapGenerator::generatePointsCostmap(const sensor_msgs::msg::
             }
         }
     }
-    RCLCPP_INFO(this->get_logger(), "Generated costmap with %d non-zero cells out of %dx%d", non_zero_cells,
+    auto stats_end = std::chrono::high_resolution_clock::now();
+    auto stats_duration = std::chrono::duration_cast<std::chrono::milliseconds>(stats_end - stats_start);
+    RCLCPP_INFO(this->get_logger(), "Statistics computation time: %ld ms", stats_duration.count());
+
+    RCLCPP_INFO(this->get_logger(), "Generated occupancy grid with %d non-zero cells out of %dx%d", non_zero_cells,
                 costmap.rows(), costmap.cols());
+
+    // 总的函数耗时
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto total_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+    RCLCPP_INFO(this->get_logger(), "Total generatePointsCostmap time: %ld ms", total_duration.count());
 
     return costmap;
 }
 
 /**
- * @brief 生成组合代价地图
- * @return 组合后的代价地图矩阵
+ * @brief 生成组合占用栅格地图
+ * @return 组合后的占用栅格地图矩阵
  *
- * 将多个图层的代价地图组合成一个最终的代价地图
+ * 将多个图层的占用栅格地图组合成一个最终的占用栅格地图
  * 目前仅返回点云图层，未来可扩展为组合多个图层
  */
 Eigen::MatrixXf CostmapGenerator::generateCombinedCostmap() {
-    // For now, we only have points costmap, so just return it
+    // For now, we only have points occupancy grid, so just return it
     return costmap_[LayerName::points];
 }
 
