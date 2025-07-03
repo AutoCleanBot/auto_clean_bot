@@ -47,7 +47,7 @@ def generate_launch_description():
     
     # 配置地图节点
     map_node = Node(
-        package='map',
+        package='csv_map',
         executable='map_node',
         name='map_node',
         output='screen',

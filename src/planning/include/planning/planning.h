@@ -5,9 +5,13 @@
 #include "bot_msg/msg/boundary.hpp"
 #include "bot_msg/msg/localization_info.hpp"
 #include "bot_msg/msg/obstacles.hpp"
+#include <geometry_msgs/msg/point.hpp>
 #include <limits>
 #include <nav_msgs/msg/occupancy_grid.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <std_msgs/msg/color_rgba.hpp>
+#include <visualization_msgs/msg/marker.hpp>
+#include <visualization_msgs/msg/marker_array.hpp>
 namespace planning {
 
 enum PlanningStatus {
@@ -37,6 +41,14 @@ class PlanningNode : public rclcpp::Node {
     void RightBoundaryCallback(const bot_msg::msg::Boundary::SharedPtr msg);
     bool IsObstacleInBoundaryByPosition(double global_x, double global_y);
 
+    // 可视化相关函数
+    void PublishVisualization(const bot_msg::msg::ADCTrajectory &pub_traj);
+    visualization_msgs::msg::Marker CreateTrajectoryMarker(const bot_msg::msg::ADCTrajectory &pub_traj);
+    visualization_msgs::msg::Marker CreateVehicleMarker();
+    visualization_msgs::msg::Marker CreateObstacleStatusMarker();
+    visualization_msgs::msg::Marker CreateBoundaryMarker(const bot_msg::msg::Boundary &boundary, const std::string &ns,
+                                                         const std_msgs::msg::ColorRGBA &color);
+
     // 新增边界处理相关方法
     bool IsObstacleInBoundary(const bot_msg::msg::ObstacleInfo &obstacle);
     int FindNearestBoundaryPoint(const bot_msg::msg::Boundary &boundary, double east, double north);
@@ -48,6 +60,7 @@ class PlanningNode : public rclcpp::Node {
     bot_msg::msg::ADCTrajectory g_traj_;                                                    // 暂时的全局路径
     rclcpp::Subscription<bot_msg::msg::LocalizationInfo>::SharedPtr sub_localization_info_; // 订阅localization信息
     rclcpp::Publisher<bot_msg::msg::ADCTrajectory>::SharedPtr pub_traj_;                    // 发布路径
+    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pub_visualization_;  // 发布可视化信息
     rclcpp::Subscription<bot_msg::msg::Obstacles>::SharedPtr sub_perc_;                     // 订阅感知信息
     rclcpp::Subscription<bot_msg::msg::Boundary>::SharedPtr sub_left_boundary_;             // 订阅左边界信息
     rclcpp::Subscription<bot_msg::msg::Boundary>::SharedPtr sub_right_boundary_;            // 订阅右边界信息
@@ -60,6 +73,7 @@ class PlanningNode : public rclcpp::Node {
     std::string left_boundary_topic_name_;        // 左边界话题名
     std::string right_boundary_topic_name_;       // 右边界话题名
     std::string occupancy_grid_topic_name_;       // 占用栅格地图话题名
+    std::string visualization_topic_name_;        // 可视化话题名
     double process_frq_;                          // 处理频率
     int path_type_;                               // 路径类型
     double preview_dist_;                         // 预览距离

@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>map</name>
+  <name>csv_map</name>
   <version>0.0.1</version>
-  <description>ROS2 Map Node for Boundary Publishing</description>
+  <description>ROS2 CSV Map Node for Boundary Publishing</description>
   <maintainer email="your_email@example.com">Your Name</maintainer>
   <license>Apache License 2.0</license>
 

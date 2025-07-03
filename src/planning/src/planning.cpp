@@ -16,6 +16,7 @@ PlanningNode::PlanningNode() : Node("planning_node"), timer_cnt_(0) {
     auto qos = rclcpp::QoS(rclcpp::KeepLast(10)).reliable().durability_volatile();
 
     pub_traj_ = this->create_publisher<bot_msg::msg::ADCTrajectory>(traj_topic_name_, qos);
+    pub_visualization_ = this->create_publisher<visualization_msgs::msg::MarkerArray>(visualization_topic_name_, qos);
     // 立即发布一个空的轨迹消息，确保话题被注册
     bot_msg::msg::ADCTrajectory empty_traj;
     empty_traj.header.stamp = this->now();
@@ -83,6 +84,7 @@ void PlanningNode::InitParams() {
     this->declare_parameter("occupancy_grid_topic_name", "/occupancy_grid");
     this->declare_parameter("use_occupancy_grid", true);
     this->declare_parameter("test_mode", false);
+    this->declare_parameter("visualization_topic_name", "/planning/visualization");
 
     // 占用栅格地图障碍物检测参数
     this->declare_parameter("min_obstacle_distance", 10.0);
@@ -107,6 +109,7 @@ void PlanningNode::InitParams() {
     occupancy_grid_topic_name_ = this->get_parameter("occupancy_grid_topic_name").as_string();
     use_occupancy_grid_ = this->get_parameter("use_occupancy_grid").as_bool();
     test_mode_ = this->get_parameter("test_mode").as_bool();
+    visualization_topic_name_ = this->get_parameter("visualization_topic_name").as_string();
 
     // 获取占用栅格地图障碍物检测参数
     min_obstacle_distance_ = this->get_parameter("min_obstacle_distance").as_double();
@@ -298,6 +301,9 @@ void PlanningNode::TimerCallback() {
     pub_traj_path.header.frame_id = "map";
     pub_traj_path.direction = reverse_moving_ ? 1 : 0;
     this->pub_traj_->publish(pub_traj_path);
+
+    // 发布可视化信息
+    PublishVisualization(pub_traj_path);
 }
 
 /**
@@ -610,6 +616,218 @@ void PlanningNode::UpdatePlanningStatus() {
         planning_status_ = PlanningStatus::Planning;
     }
 }
+
+/**
+ * @brief 发布可视化信息
+ */
+void PlanningNode::PublishVisualization(const bot_msg::msg::ADCTrajectory &pub_traj) {
+    visualization_msgs::msg::MarkerArray marker_array;
+
+    // 统一的时间戳，确保所有marker同步
+    auto current_time = this->now();
+    const std::string frame_id = "map";
+
+    // 创建轨迹可视化
+    auto trajectory_marker = CreateTrajectoryMarker(pub_traj);
+    if (trajectory_marker.points.size() > 0) {
+        trajectory_marker.header.stamp = current_time;
+        trajectory_marker.header.frame_id = frame_id;
+        marker_array.markers.push_back(trajectory_marker);
+    }
+
+    // 创建车辆位置可视化
+    auto vehicle_marker = CreateVehicleMarker();
+    vehicle_marker.header.stamp = current_time;
+    vehicle_marker.header.frame_id = frame_id;
+    marker_array.markers.push_back(vehicle_marker);
+
+    // 创建障碍物状态可视化
+    auto obstacle_status_marker = CreateObstacleStatusMarker();
+    obstacle_status_marker.header.stamp = current_time;
+    obstacle_status_marker.header.frame_id = frame_id;
+    marker_array.markers.push_back(obstacle_status_marker);
+
+    // 创建边界线可视化
+    if (!left_boundary_.points.empty()) {
+        std_msgs::msg::ColorRGBA left_color;
+        left_color.r = 0.0;
+        left_color.g = 1.0;
+        left_color.b = 0.0;
+        left_color.a = 0.8;
+        auto left_boundary_marker = CreateBoundaryMarker(left_boundary_, "left_boundary", left_color);
+        left_boundary_marker.header.stamp = current_time;
+        left_boundary_marker.header.frame_id = frame_id;
+        marker_array.markers.push_back(left_boundary_marker);
+    }
+
+    if (!right_boundary_.points.empty()) {
+        std_msgs::msg::ColorRGBA right_color;
+        right_color.r = 1.0;
+        right_color.g = 0.0;
+        right_color.b = 0.0;
+        right_color.a = 0.8;
+        auto right_boundary_marker = CreateBoundaryMarker(right_boundary_, "right_boundary", right_color);
+        right_boundary_marker.header.stamp = current_time;
+        right_boundary_marker.header.frame_id = frame_id;
+        marker_array.markers.push_back(right_boundary_marker);
+    }
+
+    pub_visualization_->publish(marker_array);
+}
+
+/**
+ * @brief 创建轨迹可视化标记
+ */
+visualization_msgs::msg::Marker PlanningNode::CreateTrajectoryMarker(const bot_msg::msg::ADCTrajectory &pub_traj) {
+    visualization_msgs::msg::Marker marker;
+    // header会在PublishVisualization中统一设置
+    marker.ns = "trajectory";
+    marker.id = 0;
+    marker.type = visualization_msgs::msg::Marker::LINE_STRIP;
+    marker.action = visualization_msgs::msg::Marker::ADD;
+
+    marker.scale.x = 0.2; // 线宽
+    marker.color.r = 0.0;
+    marker.color.g = 0.0;
+    marker.color.b = 1.0;
+    marker.color.a = 1.0;
+
+    // 添加轨迹点
+    for (const auto &point : pub_traj.points) {
+        geometry_msgs::msg::Point p;
+        p.x = point.east;
+        p.y = point.north;
+        p.z = 0;
+        marker.points.push_back(p);
+    }
+
+    return marker;
+}
+
+/**
+ * @brief 创建车辆位置可视化标记
+ */
+visualization_msgs::msg::Marker PlanningNode::CreateVehicleMarker() {
+    visualization_msgs::msg::Marker marker;
+    // header会在PublishVisualization中统一设置
+    marker.ns = "vehicle";
+    marker.id = 0;
+    marker.type = visualization_msgs::msg::Marker::ARROW;
+    marker.action = visualization_msgs::msg::Marker::ADD;
+
+    marker.pose.position.x = cur_local_.east;
+    marker.pose.position.y = cur_local_.north;
+    marker.pose.position.z = 0.0;
+
+    // 根据yaw角度设置朝向
+    double yaw = -cur_local_.yaw * M_PI / 180.0 + M_PI / 2.0;
+    marker.pose.orientation.x = 0.0;
+    marker.pose.orientation.y = 0.0;
+    marker.pose.orientation.z = sin(yaw / 2.0);
+    marker.pose.orientation.w = cos(yaw / 2.0);
+
+    marker.scale.x = 0.4; // 箭头长度
+    marker.scale.y = 0.1; // 箭头宽度
+    marker.scale.z = 0.1; // 箭头高度
+
+    // 根据规划状态设置颜色
+    switch (planning_status_) {
+    case PlanningStatus::Stop:
+        marker.color.r = 1.0;
+        marker.color.g = 0.0;
+        marker.color.b = 0.0; // 红色
+        break;
+    case PlanningStatus::Planning:
+        marker.color.r = 0.0;
+        marker.color.g = 1.0;
+        marker.color.b = 0.0; // 绿色
+        break;
+    default:
+        marker.color.r = 1.0;
+        marker.color.g = 1.0;
+        marker.color.b = 0.0; // 黄色
+        break;
+    }
+    marker.color.a = 1.0;
+
+    return marker;
+}
+
+/**
+ * @brief 创建障碍物状态可视化标记
+ */
+visualization_msgs::msg::Marker PlanningNode::CreateObstacleStatusMarker() {
+    visualization_msgs::msg::Marker marker;
+    // header会在PublishVisualization中统一设置
+    marker.ns = "obstacle_status";
+    marker.id = 0;
+    marker.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
+    marker.action = visualization_msgs::msg::Marker::ADD;
+
+    marker.pose.position.x = cur_local_.east;
+    marker.pose.position.y = cur_local_.north + 1.0; // 在车辆上方3米显示
+    marker.pose.position.z = 1.0;
+
+    marker.scale.z = 0.4; // 文字大小
+    marker.color.r = 1.0;
+    marker.color.g = 1.0;
+    marker.color.b = 1.0;
+    marker.color.a = 1.0;
+
+    // 根据障碍物检测结果设置文本
+    std::string status_text = "Status: ";
+    if (planning_status_ == PlanningStatus::Stop) {
+        status_text += "STOP";
+    } else {
+        status_text += "PLANNING";
+    }
+
+    status_text += "\nObstacles: ";
+    if (obstacle_info_[0] != -1)
+        status_text += "LEFT ";
+    if (obstacle_info_[1] != -1)
+        status_text += "FRONT ";
+    if (obstacle_info_[2] != -1)
+        status_text += "RIGHT ";
+    if (obstacle_info_[0] == -1 && obstacle_info_[1] == -1 && obstacle_info_[2] == -1) {
+        status_text += "NONE";
+    }
+
+    status_text += "\nMode: " + std::string(use_occupancy_grid_ ? "OccupancyGrid" : "Traditional");
+
+    marker.text = status_text;
+
+    return marker;
+}
+
+/**
+ * @brief 创建边界线可视化标记
+ */
+visualization_msgs::msg::Marker PlanningNode::CreateBoundaryMarker(const bot_msg::msg::Boundary &boundary,
+                                                                   const std::string &ns,
+                                                                   const std_msgs::msg::ColorRGBA &color) {
+    visualization_msgs::msg::Marker marker;
+    // header会在PublishVisualization中统一设置
+    marker.ns = ns;
+    marker.id = 0;
+    marker.type = visualization_msgs::msg::Marker::LINE_STRIP;
+    marker.action = visualization_msgs::msg::Marker::ADD;
+
+    marker.scale.x = 0.1; // 线宽
+    marker.color = color;
+
+    // 添加边界点
+    for (const auto &point : boundary.points) {
+        geometry_msgs::msg::Point p;
+        p.x = point.east;
+        p.y = point.north;
+        p.z = 0;
+        marker.points.push_back(p);
+    }
+
+    return marker;
+}
+
 PlanningNode::~PlanningNode() { RCLCPP_INFO(this->get_logger(), "planning node stopped"); }
 } // namespace planning
 

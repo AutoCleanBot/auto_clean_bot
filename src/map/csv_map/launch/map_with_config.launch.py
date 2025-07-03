@@ -7,7 +7,7 @@ from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
     # 获取地图包的目录
-    map_pkg_dir = get_package_share_directory('map')
+    map_pkg_dir = get_package_share_directory('csv_map')
     
     # 配置文件路径
     config_file = LaunchConfiguration('config_file')
@@ -19,7 +19,7 @@ def generate_launch_description():
     
     # 配置地图节点
     map_node = Node(
-        package='map',
+        package='csv_map',
         executable='map_node',
         name='map_node',
         output='screen',

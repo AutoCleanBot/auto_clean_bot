@@ -20,6 +20,7 @@ def generate_launch_description():
         'front_obstacle_width' : 1.0,    # 前方障碍物区域宽度(±米)
         'side_obstacle_width' : 2.0,     # 侧方障碍物区域距离(±米外)
         'occupied_threshold' : 50,        # 占用阈值 (0-100)
+        'visualization_topic_name' : '/planning/visualization',  # 可视化话题名
         'path_type' : 2,
         'process_frq' : 10.0,    # 处理频率, Hz
         'preview_dist' : 12.0,   # 预览距离, m
