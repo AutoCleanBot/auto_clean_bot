@@ -49,10 +49,11 @@ class CostmapGenerator : public rclcpp::Node {
     std::string input_frame_;     ///< 输入坐标系
     std::string map_frame_;       ///< 地图坐标系
     bool is_pub_pnt_cloud_;       ///< 是否发布转换后的点云
+    bool enable_gridmap_output_;  ///< 是否启用GridMap输出
 
     // ROS2 subscribers and publishers
-    rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_points_; ///< 点云订阅者
-    // rclcpp::Publisher<grid_map_msgs::msg::GridMap>::SharedPtr pub_costmap_;      ///< 代价地图发布者（已禁用）
+    rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_points_;     ///< 点云订阅者
+    rclcpp::Publisher<grid_map_msgs::msg::GridMap>::SharedPtr pub_costmap_;         ///< 代价地图发布者（可选）
     rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr pub_occupancy_grid_; ///< 占用栅格发布者
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_pnt_cloud_;     ///< 转换后点云发布者
 

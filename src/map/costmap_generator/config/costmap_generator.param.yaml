@@ -17,4 +17,5 @@
     costmap_frame: "map"
     costmap_topic: "/costmap"
     occupancy_grid_topic: "/occupancy_grid"
+    enable_gridmap_output: true  # 设置为true启用GridMap输出，false只输出OccupancyGrid
 

@@ -43,6 +43,7 @@ CostmapGenerator::CostmapGenerator(const rclcpp::NodeOptions &node_options)
     this->declare_parameter("costmap_topic", "~/output/grid_map");
     this->declare_parameter("occupancy_grid_topic", "~/output/occupancy_grid");
     this->declare_parameter("is_pub_pnt_cloud", false);
+    this->declare_parameter("enable_gridmap_output", false); // 控制是否生成GridMap
     // 从配置文件中读取参数
     update_rate_ = this->get_parameter("update_rate").as_double();
     grid_min_value_ = this->get_parameter("grid_min_value").as_double();
@@ -63,13 +64,20 @@ CostmapGenerator::CostmapGenerator(const rclcpp::NodeOptions &node_options)
     std::string costmap_topic = this->get_parameter("costmap_topic").as_string();
     std::string occupancy_grid_topic = this->get_parameter("occupancy_grid_topic").as_string();
     is_pub_pnt_cloud_ = this->get_parameter("is_pub_pnt_cloud").as_bool();
+    enable_gridmap_output_ = this->get_parameter("enable_gridmap_output").as_bool();
+
     // Initialize subscribers
     sub_points_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
         input_points_topic, rclcpp::SensorDataQoS(),
         std::bind(&CostmapGenerator::onPointCloud, this, std::placeholders::_1));
 
-    // Initialize publishers - 只发布占用栅格地图，不发布GridMap
-    // pub_costmap_ = this->create_publisher<grid_map_msgs::msg::GridMap>(costmap_topic, 1);  // 已禁用
+    // Initialize publishers - 根据配置决定是否创建GridMap发布者
+    if (enable_gridmap_output_) {
+        pub_costmap_ = this->create_publisher<grid_map_msgs::msg::GridMap>(costmap_topic, 1);
+        RCLCPP_INFO(this->get_logger(), "GridMap output enabled");
+    } else {
+        RCLCPP_INFO(this->get_logger(), "GridMap output disabled");
+    }
     pub_occupancy_grid_ = this->create_publisher<nav_msgs::msg::OccupancyGrid>(occupancy_grid_topic, 1);
     pub_pnt_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("transformed_points", 1);
     // Initialize timer
@@ -95,6 +103,7 @@ CostmapGenerator::CostmapGenerator(const rclcpp::NodeOptions &node_options)
     RCLCPP_INFO(this->get_logger(), "grid_max_value: %f", grid_max_value_);
     RCLCPP_INFO(this->get_logger(), "maximum_height_thres: %f", maximum_height_thres_);
     RCLCPP_INFO(this->get_logger(), "minimum_height_thres: %f", minimum_height_thres_);
+    RCLCPP_INFO(this->get_logger(), "enable_gridmap_output: %s", enable_gridmap_output_ ? "true" : "false");
     RCLCPP_INFO(this->get_logger(), "Costmap generator initialized");
 }
 
@@ -232,10 +241,16 @@ void CostmapGenerator::publishCostmap(const GridMap &costmap, const geometry_msg
     // 更新时间戳
     costmap_.setTimestamp(this->now().nanoseconds());
 
-    // 不再发布GridMap，只发布OccupancyGrid以提高性能
-    // grid_map_msgs::msg::GridMap grid_map_msg;
-    // costmap.toMessage(grid_map_msg);
-    // pub_costmap_->publish(grid_map_msg);
+    // 根据配置决定是否发布GridMap
+    if (enable_gridmap_output_ && pub_costmap_) {
+        auto gridmap_start = std::chrono::high_resolution_clock::now();
+        grid_map_msgs::msg::GridMap grid_map_msg;
+        costmap.toMessage(grid_map_msg);
+        pub_costmap_->publish(grid_map_msg);
+        auto gridmap_end = std::chrono::high_resolution_clock::now();
+        auto gridmap_duration = std::chrono::duration_cast<std::chrono::milliseconds>(gridmap_end - gridmap_start);
+        RCLCPP_INFO(this->get_logger(), "GridMap publishing time: %ld ms", gridmap_duration.count());
+    }
 
     // Publish OccupancyGrid
     auto occupancy_start = std::chrono::high_resolution_clock::now();
