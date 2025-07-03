@@ -1,1 +1,2 @@
+colcon build --packages-select rslidar_msg --symlink-install --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON 
 colcon build --packages-select rslidar_sdk --symlink-install --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON 
