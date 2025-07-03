@@ -1,6 +1,6 @@
 /**:
   ros__parameters:
-    update_rate: 40.0
+    update_rate: 10.0
     grid_resolution: 0.1
     grid_length_x: 30.0
     grid_length_y: 30.0
