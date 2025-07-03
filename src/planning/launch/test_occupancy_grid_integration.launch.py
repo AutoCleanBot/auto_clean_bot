@@ -1,19 +1,14 @@
-import os
+#!/usr/bin/env python3
+
 from launch import LaunchDescription
+from launch.actions import ExecuteProcess
 from launch_ros.actions import Node
-from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration
+import os
+from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
-    # 声明日志级别参数
-    log_level = LaunchConfiguration('log_level')
-    declare_log_level = DeclareLaunchArgument(
-        'log_level',
-        default_value='info',
-        description='Logging level'
-    )
     
-    # 将所有参数放在一个字典中
+    # 规划节点参数
     planning_params = {
         'local_topic_name':'/localization/rtk_info',
         'service_name' : '/routing_service',
@@ -22,11 +17,7 @@ def generate_launch_description():
         'left_boundary_topic_name' : '/map/left_boundary',
         'right_boundary_topic_name' : '/map/right_boundary',
         'occupancy_grid_topic_name' : '/occupancy_grid',  # 占用栅格地图话题
-        'use_occupancy_grid' : True,   # 是否使用占用栅格地图进行障碍物检测
-        'min_obstacle_distance' : 10.0,  # 最小障碍物距离阈值(米)
-        'front_obstacle_width' : 1.0,    # 前方障碍物区域宽度(±米)
-        'side_obstacle_width' : 2.0,     # 侧方障碍物区域距离(±米外)
-        'occupied_threshold' : 50,        # 占用阈值 (0-100)
+    'use_occupancy_grid' : True,   # 使用占用栅格地图进行障碍物检测
         'path_type' : 2,
         'process_frq' : 10.0,    # 处理频率, Hz
         'preview_dist' : 12.0,   # 预览距离, m
@@ -38,17 +29,22 @@ def generate_launch_description():
         'reverse_moving' : False  # 是否反向行驶
     }
     
-    # 配置节点，并将参数字典直接传递给参数字段
+    # 规划节点
     planning_node = Node(
         package='planning',
         executable='planning_node',
-        name='planning_node',  # 保持与代码中一致
-        output='screen',
-        parameters=[planning_params],  # 直接使用参数字典
-        arguments=['--ros-args', '--log-level', log_level]
+        name='planning_node',
+        parameters=[planning_params],
+        output='screen'
     )
-
+    
+    # 测试数据发布节点
+    test_publisher = ExecuteProcess(
+        cmd=['python3', '/home/limer/auto_clean_bot/src/planning/test_occupancy_grid_integration.py'],
+        output='screen'
+    )
+    
     return LaunchDescription([
-        declare_log_level,
-        planning_node
+        test_publisher,
+        planning_node,
     ])
