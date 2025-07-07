@@ -228,7 +228,7 @@ void ControlNode::LateralController() {
     // 在直线段增加Stanley控制器的权重，在弯道增加Pure Pursuit的权重
     double adaptive_pursuit_rate = pursuit_control_rate_;
     double adaptive_stanley_rate = stanley_control_rate_;
-    if(pursuit_control_rate_ != 1.0 && stanley_control_rate_ != 1.0){
+    if (pursuit_control_rate_ != 1.0 && stanley_control_rate_ != 1.0) {
         if (curvature_based_weight < CURVATURE_THRESHOLD) {
             adaptive_pursuit_rate *= 0.7;
             adaptive_stanley_rate *= 1.3;
@@ -532,7 +532,7 @@ void ControlNode::TimerCallback() {
 
     // 2. 发布控制命令
     control_cmd_msg_.header.stamp = this->now();
-    control_cmd_msg_.header.frame_id = "base_link";
+    control_cmd_msg_.header.frame_id = "map";
     if (adc_trajectory_msg_->direction == 0) {
         control_cmd_msg_.gear = 1;
     } else if (adc_trajectory_msg_->direction == 1) {
@@ -604,7 +604,7 @@ void ControlNode::InitParams() {
     log_file_path_ = this->get_parameter("log_file_path").get_value<std::string>();
     speed_pid_kp_ = this->get_parameter("speed_pid_kp").as_double();
     speed_pid_ki_ = this->get_parameter("speed_pid_ki").as_double();
-    speed_pid_kd_ = this->get_parameter("speed_pid_kd").as_double();    
+    speed_pid_kd_ = this->get_parameter("speed_pid_kd").as_double();
     speed_pid_kf_ = this->get_parameter("speed_pid_kf").as_double();
 
     // Print parameters
@@ -739,7 +739,7 @@ double ControlNode::CalculatePathCurvature(size_t index) {
     // 修正后的正确代码
     if (cross_product_z > 0) {
         // 向量 P1P0 -> P1P2 是逆时针，对应左转
-        signed_curvature = -curvature_magnitude;  // 右转 -> 负曲率
+        signed_curvature = -curvature_magnitude; // 右转 -> 负曲率
     } else if (cross_product_z < 0) {
         // 向量 P1P0 -> P1P2 是顺时针，对应右转
         signed_curvature = curvature_magnitude; // 左转 -> 正曲率
@@ -796,8 +796,6 @@ double ControlNode::SmoothSteeringAngle(double target_angle, double dt) {
     //         target_angle = previous_steering_angle_ - MIN_EFFECTIVE_ANGLE_CHANGE;
     //     }
     // }
-
-
 
     // 更新状态
     previous_steering_angle_ = target_angle;
