@@ -247,7 +247,7 @@ void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
             closet_idx_ = i;
         }
     }
-    RCLCPP_INFO(this->get_logger(), "min_dist: %f, min_idx: %ld", min_dist, closet_idx_);
+    // RCLCPP_INFO(this->get_logger(), "min_dist: %f, min_idx: %ld", min_dist, closet_idx_);
     // 根据min_idx, 找到min_idx的前5m和后20m
 
     double cur_dis_cnt = 0.0;
@@ -269,8 +269,8 @@ void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
     for (std::size_t i = start_idx; i <= preview_idx; i++) {
         pub_traj.points.push_back(g_traj_.points[i]);
     }
-    RCLCPP_INFO(this->get_logger(), "cur_dis_cnt: %f, start_idx: %ld, preview_idx: %ld", cur_dis_cnt, start_idx,
-                preview_idx);
+    // RCLCPP_INFO(this->get_logger(), "cur_dis_cnt: %f, start_idx: %ld, preview_idx: %ld", cur_dis_cnt, start_idx,
+    //             preview_idx);
 }
 
 // TODO 待验证,更新机制是有有问题
@@ -510,12 +510,6 @@ void PlanningNode::UpdateObstacleInfoFromOccupancyGrid() {
         return;
     }
 
-    // 使用配置参数
-    const double MIN_OBSTACLE_DISTANCE = min_obstacle_distance_;
-    const double FRONT_OBSTACLE_WIDTH = front_obstacle_width_;
-    const double SIDE_OBSTACLE_WIDTH = side_obstacle_width_;
-    const int OCCUPIED_THRESHOLD = occupied_threshold_;
-
     // 获取占用栅格地图信息
     const auto &info = occupancy_grid_.info;
     const double resolution = info.resolution;
@@ -523,11 +517,11 @@ void PlanningNode::UpdateObstacleInfoFromOccupancyGrid() {
     const int height = info.height;
 
     // 获取地图原点在全局坐标系中的位置
-    const double origin_x = info.origin.position.x;
-    const double origin_y = info.origin.position.y;
+    double origin_x = info.origin.position.x;
+    double origin_y = info.origin.position.y;
 
-    RCLCPP_DEBUG(this->get_logger(), "Occupancy grid: %dx%d, resolution: %.2f, origin: (%.2f, %.2f)", width, height,
-                 resolution, origin_x, origin_y);
+    RCLCPP_INFO(this->get_logger(), "Occupancy grid size: %dx%d, resolution: %.2f, origin: (%.2f, %.2f)", width, height,
+                resolution, origin_x, origin_y);
 
     // 遍历车辆前方区域，检查障碍物
     for (int grid_x = 0; grid_x < width; ++grid_x) {
@@ -535,7 +529,7 @@ void PlanningNode::UpdateObstacleInfoFromOccupancyGrid() {
             int index = grid_y * width + grid_x;
 
             // 检查栅格是否被占用
-            if (occupancy_grid_.data[index] < OCCUPIED_THRESHOLD) {
+            if (occupancy_grid_.data[index] < occupied_threshold_) {
                 continue;
             }
 
@@ -551,7 +545,7 @@ void PlanningNode::UpdateObstacleInfoFromOccupancyGrid() {
             double distance = std::sqrt(relative_x * relative_x + relative_y * relative_y);
 
             // 距离超过阈值，跳过
-            if (distance > MIN_OBSTACLE_DISTANCE) {
+            if (distance > min_obstacle_distance_) {
                 continue;
             }
 
@@ -562,20 +556,20 @@ void PlanningNode::UpdateObstacleInfoFromOccupancyGrid() {
             }
 
             // 根据相对位置分类障碍物
-            if (relative_x > 0.0 && relative_x < MIN_OBSTACLE_DISTANCE) { // 车辆前方
-                if (relative_y < FRONT_OBSTACLE_WIDTH && relative_y > -FRONT_OBSTACLE_WIDTH) {
+            if (relative_y > 0.0 && relative_y < min_obstacle_distance_) { // 车辆前方
+                if (relative_x < front_obstacle_width_ && relative_x > -front_obstacle_width_) {
                     // 正前方障碍物
                     obstacle_info_[1] = 1; // 使用1表示检测到障碍物
                     RCLCPP_INFO(this->get_logger(), "前方发现障碍物，距离：%.2f 米，位置：(%.2f, %.2f)", distance,
                                 relative_x, relative_y);
-                } else if (relative_y > SIDE_OBSTACLE_WIDTH) {
+                } else if (relative_x > side_obstacle_width_) {
                     // 左前方障碍物
                     obstacle_info_[0] = 1;
-                    RCLCPP_DEBUG(this->get_logger(), "左前方发现障碍物，距离：%.2f 米", distance);
-                } else if (relative_y < -SIDE_OBSTACLE_WIDTH) {
+                    RCLCPP_INFO(this->get_logger(), "左前方发现障碍物，距离：%.2f 米", distance);
+                } else if (relative_x < -side_obstacle_width_) {
                     // 右前方障碍物
                     obstacle_info_[2] = 1;
-                    RCLCPP_DEBUG(this->get_logger(), "右前方发现障碍物，距离：%.2f 米", distance);
+                    RCLCPP_INFO(this->get_logger(), "右前方发现障碍物，距离：%.2f 米", distance);
                 }
             }
         }
@@ -593,7 +587,9 @@ bool PlanningNode::IsObstacleInBoundaryByPosition(double global_x, double global
     int left_idx = FindNearestBoundaryPoint(left_boundary_, global_x, global_y);
     int right_idx = FindNearestBoundaryPoint(right_boundary_, global_x, global_y);
 
-    if (left_idx < 0 || right_idx < 0) {
+    // 检查索引是否有效, 为下述值时说明障碍物在边界外
+    if (left_idx <= 0 || right_idx <= 0 || left_idx >= left_boundary_.points.size() - 1 ||
+        right_idx >= right_boundary_.points.size() - 1) {
         return false;
     }
 

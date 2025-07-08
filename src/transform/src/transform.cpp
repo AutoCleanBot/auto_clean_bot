@@ -19,16 +19,15 @@ Transform::Transform() : Node("transform") {
     // 如果启用map坐标转换，创建RTK GNSS位姿订阅
     if (enable_map_transform_) {
         gnss_pose_subscription_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
-            rtk_gnss_pose_topic_, 10, 
-            std::bind(&Transform::GnssPoseCallback, this, std::placeholders::_1));
-        
+            rtk_gnss_pose_topic_, 10, std::bind(&Transform::GnssPoseCallback, this, std::placeholders::_1));
+
         RCLCPP_INFO(this->get_logger(), "Subscribed to RTK GNSS pose topic: %s", rtk_gnss_pose_topic_.c_str());
-        RCLCPP_INFO(this->get_logger(), "Will broadcast dynamic transform from %s to %s", map_frame_id_.c_str(), base_frame_id_.c_str());
+        RCLCPP_INFO(this->get_logger(), "Will broadcast dynamic transform from %s to %s", map_frame_id_.c_str(),
+                    base_frame_id_.c_str());
 
         // 添加一个计时器，定期重发最新的转换，确保转换数据始终可用
-        transform_refresh_timer_ = this->create_wall_timer(
-            std::chrono::milliseconds(50), // 20Hz刷新率
-            std::bind(&Transform::RepublishLatestTransform, this));
+        transform_refresh_timer_ = this->create_wall_timer(std::chrono::milliseconds(50), // 20Hz刷新率
+                                                           std::bind(&Transform::RepublishLatestTransform, this));
     }
 
     RCLCPP_INFO(this->get_logger(), "Transform node initialized");
@@ -109,7 +108,7 @@ void Transform::RepublishLatestTransform() {
     if (has_latest_transform_) {
         // 更新时间戳到当前时间
         latest_transform_.header.stamp = this->now();
-        
+
         // 重新广播转换
         dynamic_tf_broadcaster_->sendTransform(latest_transform_);
     }
@@ -119,31 +118,31 @@ void Transform::RepublishLatestTransform() {
 void Transform::GnssPoseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg) {
     // 创建转换消息
     geometry_msgs::msg::TransformStamped transform_stamped;
-    
+
     // 设置消息头 - 使用当前时间而不是消息时间，减少时间戳不同步问题
     transform_stamped.header.stamp = this->now();
-    transform_stamped.header.frame_id = map_frame_id_;      // 父坐标系：map
-    transform_stamped.child_frame_id = base_frame_id_;      // 子坐标系：base_link
-    
+    transform_stamped.header.frame_id = map_frame_id_; // 父坐标系：map
+    transform_stamped.child_frame_id = base_frame_id_; // 子坐标系：base_link
+
     // 设置位置（从RTK的ENU坐标）
-    transform_stamped.transform.translation.x = msg->pose.position.x;  // 东向位置
-    transform_stamped.transform.translation.y = msg->pose.position.y;  // 北向位置
-    transform_stamped.transform.translation.z = 0;  // 上方位置
-    
+    transform_stamped.transform.translation.x = msg->pose.position.x; // 东向位置
+    transform_stamped.transform.translation.y = msg->pose.position.y; // 北向位置
+    transform_stamped.transform.translation.z = 0;                    // 上方位置
+
     // 设置姿态（从RTK的四元数），并修正yaw方向
     // 由于GNSS的yaw方向与ROS默认方向相反，需要进行修正
     //! 注意在实际使用时, 修改为下述被注释的代码.
     // 设置姿态（从RTK的四元数）
-    // transform_stamped.transform.rotation = msg->pose.orientation;
-    // 方法2：通过翻转四元数的w和z值来实现yaw方向的翻转（绕z轴旋转180度）
-    transform_stamped.transform.rotation.w = msg->pose.orientation.w;
-    transform_stamped.transform.rotation.x = msg->pose.orientation.x;
-    transform_stamped.transform.rotation.y = msg->pose.orientation.y;
-    transform_stamped.transform.rotation.z = -msg->pose.orientation.z;  // 反转z分量来改变yaw方向
-    
+    transform_stamped.transform.rotation = msg->pose.orientation;
+    // // 方法2：通过翻转四元数的w和z值来实现yaw方向的翻转（绕z轴旋转180度）
+    // transform_stamped.transform.rotation.w = msg->pose.orientation.w;
+    // transform_stamped.transform.rotation.x = msg->pose.orientation.x;
+    // transform_stamped.transform.rotation.y = msg->pose.orientation.y;
+    // transform_stamped.transform.rotation.z = -msg->pose.orientation.z;  // 反转z分量来改变yaw方向
+
     // 发布动态坐标转换
     dynamic_tf_broadcaster_->sendTransform(transform_stamped);
-    
+
     // 保存最近的转换数据用于定期重发
     latest_transform_ = transform_stamped;
     has_latest_transform_ = true;

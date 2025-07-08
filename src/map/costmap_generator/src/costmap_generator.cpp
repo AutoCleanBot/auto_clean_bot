@@ -309,11 +309,11 @@ void CostmapGenerator::publishCostmap(const GridMap &costmap, const geometry_msg
     occupancy_grid.header.stamp = this->now();
     occupancy_grid.header.frame_id = costmap_frame_;
 
-    RCLCPP_DEBUG(
-        this->get_logger(),
-        "Publishing OccupancyGrid: origin=(%.2f, %.2f), rotated_offset=(%.2f, %.2f), grid size=%dx%d, resolution=%.2f",
-        origin.position.x, origin.position.y, rotated_offset_x, rotated_offset_y, occupancy_grid.info.width,
-        occupancy_grid.info.height, occupancy_grid.info.resolution);
+    RCLCPP_INFO(this->get_logger(),
+                "Publishing OccupancyGrid: origin=(%.2f, %.2f), grid_position = (%.2f, %.2f),"
+                "grid_size = (%dx%d), resolution = %.2f",
+                origin.position.x, origin.position.y, grid_position_x_, grid_position_y_, occupancy_grid.info.width,
+                occupancy_grid.info.height, occupancy_grid.info.resolution);
 
     // 发布占用栅格地图
     auto publish_start = std::chrono::high_resolution_clock::now();

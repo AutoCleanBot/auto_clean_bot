@@ -226,9 +226,11 @@ launch_full_system() {
 # 启动控制系统
 launch_control_system() {
     log_info "启动控制系统..."
+    launch_node "RTK定位" "rtk" "rtk.launch.py" ""
+    launch_node "路由服务" "routing" "routing.launch.py" ""
+    launch_node "路径规划" "planning" "planning.launch.py" ""
     launch_node "车辆控制" "control" "control.launch.py" ""
     launch_node "CAN总线" "canbus_cq" "canbus.launch.py" ""
-    launch_node "RTK定位" "rtk" "rtk.launch.py" ""
 }
 
 # 启动感知系统
