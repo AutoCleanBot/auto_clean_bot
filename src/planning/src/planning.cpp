@@ -587,21 +587,37 @@ bool PlanningNode::IsObstacleInBoundaryByPosition(double global_x, double global
     int left_idx = FindNearestBoundaryPoint(left_boundary_, global_x, global_y);
     int right_idx = FindNearestBoundaryPoint(right_boundary_, global_x, global_y);
 
-    // 检查索引是否有效, 为下述值时说明障碍物在边界外
-    if (left_idx <= 0 || right_idx <= 0 || left_idx >= left_boundary_.points.size() - 1 ||
+    // 检查索引是否有效
+    if (left_idx < 0 || right_idx < 0 || left_idx >= left_boundary_.points.size() - 1 ||
         right_idx >= right_boundary_.points.size() - 1) {
         return false;
     }
 
-    // 计算点到边界的距离
-    double dist_to_left = CalculatePointToBoundaryDistance(global_x, global_y, left_boundary_.points[left_idx].east,
-                                                           left_boundary_.points[left_idx].north);
+    // 获取左右边界点
+    const auto &left_point = left_boundary_.points[left_idx];
+    const auto &right_point = right_boundary_.points[right_idx];
 
-    double dist_to_right = CalculatePointToBoundaryDistance(global_x, global_y, right_boundary_.points[right_idx].east,
-                                                            right_boundary_.points[right_idx].north);
+    // 计算障碍物到车辆的向量
+    double obs_vec_x = global_x - cur_local_.east;
+    double obs_vec_y = global_y - cur_local_.north;
 
-    // 如果点在两条边界线之间，就认为这个点在边界内
-    return (dist_to_left > 0 && dist_to_right > 0);
+    // 计算左边界点到车辆的向量
+    double left_vec_x = left_point.east - cur_local_.east;
+    double left_vec_y = left_point.north - cur_local_.north;
+
+    // 计算右边界点到车辆的向量
+    double right_vec_x = right_point.east - cur_local_.east;
+    double right_vec_y = right_point.north - cur_local_.north;
+
+    // 计算叉积，判断障碍物相对于边界的位置
+    // 对于左边界，障碍物应该在边界的右侧（叉积为负）
+    double left_cross = left_vec_x * obs_vec_y - left_vec_y * obs_vec_x;
+
+    // 对于右边界，障碍物应该在边界的左侧（叉积为正）
+    double right_cross = right_vec_x * obs_vec_y - right_vec_y * obs_vec_x;
+
+    // 障碍物在左边界右侧且在右边界左侧，则在边界内
+    return (left_cross < 0 && right_cross > 0);
 }
 
 void PlanningNode::UpdatePlanningStatus() {

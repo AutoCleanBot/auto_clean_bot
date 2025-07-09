@@ -28,7 +28,7 @@ def generate_launch_description():
         'min_obstacle_distance' : 20.0,  # 最小障碍物距离阈值(米)
         'front_obstacle_width' : 1.0,    # 前方障碍物区域宽度(±米)
         'side_obstacle_width' : 1.0,     # 侧方障碍物区域距离(±米外)
-        'occupied_threshold' : 20,        # 占用阈值 (0-100)
+        'occupied_threshold' : 50,        # 占用阈值 (0-100)
         
         'path_type' : 2,         # 路径标号
         'process_frq' : 10.0,    # 处理频率, Hz
