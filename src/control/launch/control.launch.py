@@ -15,10 +15,11 @@ def generate_launch_description():
         description='Logging level'
     )
     
-    # 声明日志文件路径参数
-    log_file_path = LaunchConfiguration('log_file_path')
-    control_share_dir = get_package_share_directory('control')
-    log_dir = os.path.join(control_share_dir, 'log')
+    workspace_dir = os.path.expanduser('~/auto_clean_bot/running_logs/')  # 扩展~为用户主目录
+    log_dir = os.path.join(workspace_dir, 'control_log')
+    # 确保日志目录存在
+    if(not os.path.exists(log_dir)):
+        os.makedirs(log_dir, exist_ok=True)
     now = datetime.now()
     timestamp_str = now.strftime('%Y%m%d_%H%M%S')
     default_log_path = os.path.join(log_dir, f'control_debug_{timestamp_str}.csv')

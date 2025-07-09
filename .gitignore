@@ -21,6 +21,7 @@ bin/
 install/
 build_unix/
 build_windows/
+running_logs/
 
 # Ignore IDE-specific files
 .vscode/
