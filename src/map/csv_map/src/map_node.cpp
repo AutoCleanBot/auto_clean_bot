@@ -176,6 +176,7 @@ size_t MapNode::findClosestPointIndex(const std::vector<BoundaryPoint> &boundary
 
 void MapNode::calculateBoundarySegment(const std::vector<BoundaryPoint> &boundary_points, size_t start_index,
                                        double length, std::vector<bot_msg::msg::BoundaryPoint> &segment_points) {
+    const double previous_distance = 2.0;
     segment_points.clear();
 
     if (boundary_points.empty() || start_index >= boundary_points.size()) {
@@ -185,6 +186,29 @@ void MapNode::calculateBoundarySegment(const std::vector<BoundaryPoint> &boundar
     double accumulated_distance = 0.0;
     double previous_east = boundary_points[start_index].east;
     double previous_north = boundary_points[start_index].north;
+
+    // 向后添加点，直到达到previous_distance或边界开始
+    for (int i = start_index - 1; i >= 0; --i) {
+        double dx = boundary_points[i].east - previous_east;
+        double dy = boundary_points[i].north - previous_north;
+        double segment_distance = std::sqrt(dx * dx + dy * dy);
+
+        if (accumulated_distance + segment_distance > previous_distance) {
+            break;
+        }
+
+        accumulated_distance += segment_distance;
+        previous_east = boundary_points[i].east;
+        previous_north = boundary_points[i].north;
+
+        bot_msg::msg::BoundaryPoint point;
+        point.east = boundary_points[i].east;
+        point.north = boundary_points[i].north;
+        point.up = 0.0; // 默认高度为0
+        point.distance = accumulated_distance;
+        segment_points.push_back(point);
+    }
+    std::reverse(segment_points.begin(), segment_points.end());
 
     // 添加起始点
     bot_msg::msg::BoundaryPoint start_point;

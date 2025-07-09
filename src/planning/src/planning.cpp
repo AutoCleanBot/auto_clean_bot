@@ -276,6 +276,9 @@ void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
 // TODO 待验证,更新机制是有有问题
 // TODO 路径终点的处理机制
 void PlanningNode::TimerCallback() {
+    // 开始计时
+    auto start_time = std::chrono::high_resolution_clock::now();
+
     // 基于当前的当前定位信息, 找到当前位置在全局路径上的最近点
     // 根据配置选择障碍物检测方法
     if (use_occupancy_grid_) {
@@ -304,6 +307,13 @@ void PlanningNode::TimerCallback() {
 
     // 发布可视化信息
     PublishVisualization(pub_traj_path);
+
+    // 结束计时并计算耗时
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+
+    // 输出耗时信息
+    RCLCPP_INFO(this->get_logger(), "TimerCallback 总耗时: %ld ms", duration.count());
 }
 
 /**
@@ -498,6 +508,9 @@ double PlanningNode::CalculatePointToBoundaryDistance(double east, double north,
 void PlanningNode::UpdateObstacleInfoFromOccupancyGrid() {
     obstacle_info_.fill(-1);
 
+    // 清空之前的障碍物点
+    detected_obstacle_points_.clear();
+
     // 检查占用栅格地图是否有效
     if (occupancy_grid_.data.empty() || occupancy_grid_.info.width == 0 || occupancy_grid_.info.height == 0) {
         RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "Occupancy grid is empty or invalid");
@@ -520,8 +533,11 @@ void PlanningNode::UpdateObstacleInfoFromOccupancyGrid() {
     double origin_x = info.origin.position.x;
     double origin_y = info.origin.position.y;
 
-    RCLCPP_INFO(this->get_logger(), "Occupancy grid size: %dx%d, resolution: %.2f, origin: (%.2f, %.2f)", width, height,
-                resolution, origin_x, origin_y);
+    // 获取栅格地图的旋转信息
+    double grid_yaw = tf2::getYaw(info.origin.orientation);
+
+    RCLCPP_INFO(this->get_logger(), "Occupancy grid size: %dx%d, resolution: %.2f, origin: (%.2f, %.2f), yaw: %.2f",
+                width, height, resolution, origin_x, origin_y, grid_yaw);
 
     // 遍历车辆前方区域，检查障碍物
     for (int grid_x = 0; grid_x < width; ++grid_x) {
@@ -533,9 +549,18 @@ void PlanningNode::UpdateObstacleInfoFromOccupancyGrid() {
                 continue;
             }
 
-            // 将栅格坐标转换为全局坐标
-            double global_x = origin_x + grid_x * resolution;
-            double global_y = origin_y + grid_y * resolution;
+            // 将栅格坐标转换为相对于栅格地图原点的坐标（考虑分辨率）
+            double local_x = grid_x * resolution;
+            double local_y = grid_y * resolution;
+
+            // 应用旋转变换，将相对坐标转换为考虑航向的坐标
+            // 使用标准的2D旋转矩阵
+            double rotated_x = local_x * cos(grid_yaw) - local_y * sin(grid_yaw);
+            double rotated_y = local_x * sin(grid_yaw) + local_y * cos(grid_yaw);
+
+            // 计算全局坐标（地图坐标系）
+            double global_x = origin_x + rotated_x;
+            double global_y = origin_y + rotated_y;
 
             // 转换为相对于车辆的坐标
             double relative_x = global_x - cur_local_.east;
@@ -551,26 +576,29 @@ void PlanningNode::UpdateObstacleInfoFromOccupancyGrid() {
 
             // 检查障碍物是否在边界内
             bool is_in_boundary = IsObstacleInBoundaryByPosition(global_x, global_y);
+
+            // 添加调试信息，记录边界判断结果
+            if (is_in_boundary) {
+                RCLCPP_DEBUG(this->get_logger(), "点 (%.2f, %.2f) 在边界内", global_x, global_y);
+            } else {
+                RCLCPP_DEBUG(this->get_logger(), "点 (%.2f, %.2f) 在边界外", global_x, global_y);
+            }
+
+            // 存储检测到的障碍物点（无论是否在边界内）
+            ObstaclePoint obstacle_point;
+            obstacle_point.x = global_x;
+            obstacle_point.y = global_y;
+            obstacle_point.in_boundary = is_in_boundary;
+            detected_obstacle_points_.push_back(obstacle_point);
+
             if (!is_in_boundary) {
                 continue;
             }
 
-            // 根据相对位置分类障碍物
             if (relative_y > 0.0 && relative_y < min_obstacle_distance_) { // 车辆前方
-                if (relative_x < front_obstacle_width_ && relative_x > -front_obstacle_width_) {
-                    // 正前方障碍物
-                    obstacle_info_[1] = 1; // 使用1表示检测到障碍物
-                    RCLCPP_INFO(this->get_logger(), "前方发现障碍物，距离：%.2f 米，位置：(%.2f, %.2f)", distance,
-                                relative_x, relative_y);
-                } else if (relative_x > side_obstacle_width_) {
-                    // 左前方障碍物
-                    obstacle_info_[0] = 1;
-                    RCLCPP_INFO(this->get_logger(), "左前方发现障碍物，距离：%.2f 米", distance);
-                } else if (relative_x < -side_obstacle_width_) {
-                    // 右前方障碍物
-                    obstacle_info_[2] = 1;
-                    RCLCPP_INFO(this->get_logger(), "右前方发现障碍物，距离：%.2f 米", distance);
-                }
+                obstacle_info_[1] = 1;                                     // 使用1表示检测到障碍物
+                RCLCPP_INFO(this->get_logger(), "前方发现障碍物，距离：%.2f 米，位置：(%.2f, %.2f)", distance,
+                            relative_x, relative_y);
             }
         }
     }
@@ -616,6 +644,20 @@ bool PlanningNode::IsObstacleInBoundaryByPosition(double global_x, double global
     // 对于右边界，障碍物应该在边界的左侧（叉积为正）
     double right_cross = right_vec_x * obs_vec_y - right_vec_y * obs_vec_x;
 
+    // 添加额外的距离检查，确保点不会太远离边界
+    double dist_to_left = std::sqrt(std::pow(global_x - left_point.east, 2) + std::pow(global_y - left_point.north, 2));
+    double dist_to_right =
+        std::sqrt(std::pow(global_x - right_point.east, 2) + std::pow(global_y - right_point.north, 2));
+
+    // 计算左右边界之间的距离
+    double boundary_width =
+        std::sqrt(std::pow(left_point.east - right_point.east, 2) + std::pow(left_point.north - right_point.north, 2));
+
+    // 如果点到任一边界的距离超过边界宽度的一半，认为它在边界外
+    if (dist_to_left > boundary_width * 0.6 || dist_to_right > boundary_width * 0.6) {
+        return false;
+    }
+
     // 障碍物在左边界右侧且在右边界左侧，则在边界内
     return (left_cross < 0 && right_cross > 0);
 }
@@ -645,6 +687,14 @@ void PlanningNode::PublishVisualization(const bot_msg::msg::ADCTrajectory &pub_t
         trajectory_marker.header.stamp = current_time;
         trajectory_marker.header.frame_id = frame_id;
         marker_array.markers.push_back(trajectory_marker);
+    }
+
+    // 添加障碍物点可视化
+    auto obstacle_points_marker = CreateObstaclePointsMarker();
+    if (obstacle_points_marker.points.size() > 0) {
+        obstacle_points_marker.header.stamp = current_time;
+        obstacle_points_marker.header.frame_id = frame_id;
+        marker_array.markers.push_back(obstacle_points_marker);
     }
 
     // 创建车辆位置可视化
@@ -835,6 +885,44 @@ visualization_msgs::msg::Marker PlanningNode::CreateBoundaryMarker(const bot_msg
         p.y = point.north;
         p.z = 0;
         marker.points.push_back(p);
+    }
+
+    return marker;
+}
+
+/**
+ * @brief 创建障碍物点可视化标记
+ */
+visualization_msgs::msg::Marker PlanningNode::CreateObstaclePointsMarker() {
+    visualization_msgs::msg::Marker marker;
+    // header会在PublishVisualization中统一设置
+    marker.ns = "obstacle_points";
+    marker.id = 0;
+    marker.type = visualization_msgs::msg::Marker::POINTS;
+    marker.action = visualization_msgs::msg::Marker::ADD;
+
+    marker.scale.x = 0.1; // 点的大小
+    marker.scale.y = 0.1;
+
+    // 添加所有检测到的障碍物点
+    for (const auto &point : detected_obstacle_points_) {
+        // 只显示边界内的点
+        if (point.in_boundary) {
+            geometry_msgs::msg::Point p;
+            p.x = point.x;
+            p.y = point.y;
+            p.z = 0.1; // 稍微抬高一点，以便更容易看到
+
+            marker.points.push_back(p);
+
+            // 设置点的颜色为红色
+            std_msgs::msg::ColorRGBA color;
+            color.r = 1.0;
+            color.g = 0.0;
+            color.b = 0.0;
+            color.a = 1.0;
+            marker.colors.push_back(color);
+        }
     }
 
     return marker;

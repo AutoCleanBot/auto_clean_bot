@@ -10,6 +10,7 @@
 #include <nav_msgs/msg/occupancy_grid.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/color_rgba.hpp>
+#include <tf2/utils.h>
 #include <visualization_msgs/msg/marker.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 namespace planning {
@@ -19,6 +20,13 @@ enum PlanningStatus {
     Ready = 1,
     Planning = 2,
     Stop = 3,
+};
+
+// 障碍物点结构体
+struct ObstaclePoint {
+    double x;
+    double y;
+    bool in_boundary;
 };
 
 class PlanningNode : public rclcpp::Node {
@@ -101,5 +109,11 @@ class PlanningNode : public rclcpp::Node {
     // 临时使用变量
     std::size_t closet_idx_ = 0;  // 当前路径下最近点的下标
     bool reverse_moving_ = false; // 是否反向行驶
+
+    // 存储检测到的障碍物点
+    std::vector<ObstaclePoint> detected_obstacle_points_;
+
+    // 创建障碍物点可视化标记
+    visualization_msgs::msg::Marker CreateObstaclePointsMarker();
 };
 } // namespace planning
