@@ -313,6 +313,8 @@ void ControlNode::LongitudinalController() {
     const double koffset = 0.2;
     const double SPEED_THRESHOLD = 0.01;
     const double STEP_SIZE = 0.5;
+    const double DECEL_STEP_SIZE = 0.5; // 减速步长
+
     // 检查输入数据是否有效
     if (!adc_trajectory_msg_ || !localization_info_msg_) {
         RCLCPP_WARN(this->get_logger(), "LongitudinalController: Missing trajectory or localization data");
@@ -347,10 +349,11 @@ void ControlNode::LongitudinalController() {
         }
     } else if (final_target_speed < step_target_speed) {
         // 目标速度低于当前阶梯目标 - 需要减速
-        if (current_speed <= step_target_speed + SPEED_THRESHOLD) {
-            // 当前速度已降至阶梯目标，降低阶梯
-            step_target_speed = std::max(step_target_speed - 4 * STEP_SIZE, final_target_speed);
-        }
+        // 对于减速，不等待当前速度达到阶梯目标，而是立即降低阶梯目标
+        // 这样可以补偿车辆减速缓慢的问题
+        double speed_diff = step_target_speed - final_target_speed;
+        double adaptive_decel_step = DECEL_STEP_SIZE * (1.0 + speed_diff / 2.0); // 速度差越大，减速步长越大
+        step_target_speed = std::max(step_target_speed - adaptive_decel_step, final_target_speed);
     } else {
         // 最终目标速度等于当前阶梯目标，无需调整
         step_target_speed = final_target_speed;

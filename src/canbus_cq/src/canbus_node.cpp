@@ -42,13 +42,13 @@ CanbusNode::~CanbusNode() {
 /**
  * @brief 发送给底盘控制的can消息
  *         ! 需要一次性发送两帧消息
- * 
- * @param steer_angle 
- * @param brk 
- * @param gear 
- * @param spd 
+ *
+ * @param steer_angle
+ * @param brk
+ * @param gear
+ * @param spd
  */
-void CanbusNode::SendCtrlMsg(double steer_angle, double brk, uint8_t gear, double spd){
+void CanbusNode::SendCtrlMsg(double steer_angle, double brk, uint8_t gear, double spd) {
     can_frame frame;
     frame.can_id = CONTROL_CMD;
     frame.can_dlc = 8;
@@ -71,7 +71,7 @@ void CanbusNode::SendCtrlMsg(double steer_angle, double brk, uint8_t gear, doubl
 
 /**
  * @brief 定时器回调函数, 定时上发底盘状态信息;且如无控制消息时,定时下发维持连接的控制消息
- * 
+ *
  */
 void CanbusNode::TimerCallback() {
     auto msg = std::make_shared<bot_msg::msg::ChassisInfo>();
@@ -79,7 +79,7 @@ void CanbusNode::TimerCallback() {
     FillChassisInfo(msg);
     pub_chassis_info_->publish(*msg);
 
-    if(control_cmd_cnt_ > 10){ // 保持无人驾驶的控制连接
+    if (control_cmd_cnt_ > 10) { // 保持无人驾驶的控制连接
         SendCtrlMsg(0.0, 0.2, 0, 0);
     }
 
@@ -97,13 +97,13 @@ void CanbusNode::FillChassisInfo(bot_msg::msg::ChassisInfo::SharedPtr msg) {
     msg->brk_press = chassis_info_local_.service_brake_percentage_feedback; // 压力百分比
     msg->cur_speed = chassis_info_local_.speed_feedback;
     msg->soc = chassis_info_local_.soc;
-    if(chassis_info_local_.forward_gear_feedback == 1){
+    if (chassis_info_local_.forward_gear_feedback == 1) {
         msg->gear = 1;
         msg->direction = 1;
-    }else if(chassis_info_local_.reverse_gear_feedback == 1){
+    } else if (chassis_info_local_.reverse_gear_feedback == 1) {
         msg->gear = 2;
         msg->direction = 2;
-    }else{
+    } else {
         msg->gear = 0;
         msg->direction = 0;
     }
@@ -111,7 +111,6 @@ void CanbusNode::FillChassisInfo(bot_msg::msg::ChassisInfo::SharedPtr msg) {
     msg->controller_online_sts = 0;
     msg->ipc_online_sts = 0;
 }
-
 
 void CanbusNode::InitParams() {
     this->declare_parameter<std::string>("can_device", "can0");
@@ -132,11 +131,11 @@ void CanbusNode::InitParams() {
 
 /**
  * @brief 初始化can socket
- * 
- * @param can_device_name 
- * @param can_baudrate 
- * @return true 
- * @return false 
+ *
+ * @param can_device_name
+ * @param can_baudrate
+ * @return true
+ * @return false
  */
 bool CanbusNode::InitCanSocket(std::string can_device_name, int can_baudrate) {
     struct sockaddr_can addr;
@@ -260,8 +259,9 @@ void CanbusNode::CanThreadFunc() {
                 chassis_info_local_.service_brake_percentage_feedback =
                     static_cast<double>(ctrl_info.service_brake_percentage_feedback) * 0.4 / 100.0;
 
-                chassis_info_local_.speed_feedback = ctrl_info.travel_motor_speed_feedback / 24.2 / 60 * 0.71 * M_PI; // 轮上转速m/s
-                chassis_info_local_.steering_wheel_angle =static_cast<double>(ctrl_info.steering_wheel_angle)*0.01;
+                chassis_info_local_.speed_feedback =
+                    ctrl_info.travel_motor_speed_feedback / 24.2 / 60 * 0.71 * M_PI; // 轮上转速m/s
+                chassis_info_local_.steering_wheel_angle = static_cast<double>(ctrl_info.steering_wheel_angle) * 0.01;
                 PrintCanDataFrame(frame);
             } else if (frame.can_id == CONTROL_PHY_INFO) {
                 // 解析VCU_INFO_2
@@ -296,7 +296,6 @@ void CanbusNode::ControlCmdCallback(const bot_msg::msg::ControlCmd::SharedPtr ms
     uint8_t gear = msg->gear;
     double spd = msg->speed;
 
-
     // 发送控制指令
     SendCtrlMsg(steer_angle, brk, gear, spd);
     control_cmd_cnt_ = 0;
@@ -304,7 +303,7 @@ void CanbusNode::ControlCmdCallback(const bot_msg::msg::ControlCmd::SharedPtr ms
 
 /**
  * @brief 填充can data frame的控制消息
- * 
+ *
  * @param data can dataframe 数组值
  * @param steer_angle  方向盘转角, 经过比例放大后
  * @param brk          刹车百分比, 0~1
@@ -315,13 +314,13 @@ void CanbusNode::FillCanCtrlCmd(uint8_t data[8], double steer_angle, double brk,
     // printf("steer_angle: %f, current gear: %d, speed: %f\n", steer_angle, gear, spd);
     // byte0
     memset(data, 0, 8);
-    data[0] |= 0x03;      // bit0:1 自动模式使能; bit1:1行走使能
+    data[0] |= 0x03; // bit0:1 自动模式使能; bit1:1行走使能
     // data[0] &= 0xFB;      // bit2:0 行车制动无效
-    data[0] |= 0x01 << 3;   // bit3:1 转向使能
+    data[0] |= 0x01 << 3; // bit3:1 转向使能
     // data[0] &= 0xEF;        // bit4:0 充电使能无效
-    if(gear == 1){  // 档位控制
+    if (gear == 1) { // 档位控制
         data[0] |= 1 << 5;
-    }else if(gear == 2){
+    } else if (gear == 2) {
         data[0] |= 1 << 6;
     }
 
@@ -335,19 +334,19 @@ void CanbusNode::FillCanCtrlCmd(uint8_t data[8], double steer_angle, double brk,
     data[3] = (target_steer_angle >> 8) & 0xFF;
 
     // byte4~byte5, 行车转速控制
-    int16_t motor_spd = static_cast<int16_t>((spd * 22.4 * 60)/(0.71*M_PI)); 
+    int16_t motor_spd = static_cast<int16_t>((spd * 22.4 * 60) / (0.71 * M_PI));
     data[4] = motor_spd & 0xFF;
     data[5] = (motor_spd >> 8) & 0xFF;
     // byte6, 行走电机加速率
-    data[6] = 10;
+    data[6] = 5;
     // byte7, 行走电机减速率
-    data[7] = 10;
+    data[7] = 5;
 }
 
 /**
  * @brief 打印can消息
- * 
- * @param frame 
+ *
+ * @param frame
  */
 void CanbusNode::PrintCanDataFrame(const struct can_frame &frame) {
     std::stringstream ss;
