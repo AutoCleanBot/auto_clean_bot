@@ -15,12 +15,18 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+set(CMAKE_BUILD_TYPE "Debug")
+
+
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(bot_msg REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(rosgraph_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
 
 include_directories(include)
 
@@ -32,6 +38,9 @@ ament_target_dependencies(planning_node
   rclcpp
   std_msgs
   rosgraph_msgs
+  nav_msgs
+  visualization_msgs
+  geometry_msgs
 )
 
 if(BUILD_TESTING)

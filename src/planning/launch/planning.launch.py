@@ -21,7 +21,16 @@ def generate_launch_description():
         'perc_topic_name' : '/perception/obstacles',
         'left_boundary_topic_name' : '/map/left_boundary',
         'right_boundary_topic_name' : '/map/right_boundary',
-        'path_type' : 2,
+        'occupancy_grid_topic_name' : '/occupancy_grid',  # 占用栅格地图话题
+        'visualization_topic_name' : '/planning/visualization',  # 可视化话题名
+        'use_occupancy_grid' : True,   # 是否使用占用栅格地图进行障碍物检测
+        
+        'min_obstacle_distance' : 10.0,  # 最小障碍物距离阈值(米)
+        'front_obstacle_width' : 1.0,    # 前方障碍物区域宽度(±米)
+        'side_obstacle_width' : 1.0,     # 侧方障碍物区域距离(±米外)
+        'occupied_threshold' : 30,        # 占用阈值 (0-100)
+        
+        'path_type' : 2,         # 路径标号
         'process_frq' : 10.0,    # 处理频率, Hz
         'preview_dist' : 12.0,   # 预览距离, m
         'preview_time' : 1.0,     # 预瞄时间, s

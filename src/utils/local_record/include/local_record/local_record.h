@@ -1,16 +1,16 @@
 #pragma once
 
 #include <bot_msg/msg/localization_info.hpp>
-#include <rclcpp/rclcpp.hpp>
 #include <fstream>
-
+#include <rclcpp/rclcpp.hpp>
 
 namespace local_record {
 class LocalRecordNode : public rclcpp::Node {
-public:
+  public:
     LocalRecordNode();
     ~LocalRecordNode();
-private:
+
+  private:
     void TimerCallback();
     void LocalizationCallback(const bot_msg::msg::LocalizationInfo::SharedPtr msg);
     void InitParams();
@@ -29,8 +29,8 @@ private:
     double save_rate_;
     // 定位信息的话题名
     std::string topic_name_;
-
+    std::string new_file_path_;
 
     ssize_t localization_info_count_;
 };
-}
+} // namespace local_record

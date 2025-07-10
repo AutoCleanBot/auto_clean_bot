@@ -1,0 +1,186 @@
+# 自动清洁机器人系统默认配置
+# 定义各种启动模式下的节点配置
+
+system:
+  name: "auto_clean_bot"
+  version: "1.0.0"
+  workspace: "/home/limer/auto_clean_bot"
+
+# 全局设置
+global:
+  use_sim_time: false
+  log_level: "info"
+  startup_delay: 2  # 节点间启动延迟（秒）
+  
+# 节点定义
+nodes:
+  # 基础节点
+  rtk:
+    package: "rtk"
+    launch_file: "rtk.launch.py"
+    required: true
+    priority: 1
+    description: "RTK定位节点"
+    
+  canbus:
+    package: "canbus_cq"
+    launch_file: "canbus.launch.py"
+    required: true
+    priority: 2
+    description: "CAN总线通信节点"
+    
+  map_service:
+    package: "csv_map"
+    launch_file: "map_with_config.launch.py"
+    required: true
+    priority: 3
+    description: "地图服务节点"
+    
+  # 感知节点
+  lidar:
+    package: "lidar_driver"
+    launch_file: "lidar.launch.py"
+    required: true
+    priority: 4
+    description: "激光雷达驱动节点"
+    
+  pointcloud_preprocess:
+    package: "pointcloud_preprocess"
+    launch_file: "pointcloud_preprocess.launch.py"
+    required: false
+    priority: 5
+    description: "点云预处理节点"
+    
+  ground_filter:
+    package: "patchworkpp"
+    launch_file: "patchworkpp.launch.py"
+    required: false
+    priority: 6
+    description: "地面滤波节点"
+    
+  obstacles_detection:
+    package: "obstacles_tracker"
+    launch_file: "obstacles_tracker.launch.py"
+    required: false
+    priority: 7
+    description: "障碍物检测节点"
+    
+  # 规划控制节点
+  planning:
+    package: "planning"
+    launch_file: "planning.launch.py"
+    required: true
+    priority: 8
+    description: "路径规划节点"
+    
+  control:
+    package: "control"
+    launch_file: "control.launch.py"
+    required: true
+    priority: 9
+    description: "车辆控制节点"
+    
+  routing:
+    package: "routing"
+    launch_file: "routing.launch.py"
+    required: false
+    priority: 10
+    description: "路由服务节点"
+    
+  # 建图节点
+  ndt_mapping:
+    package: "ndt_mapping"
+    launch_file: "ndt_mapping.launch.py"
+    required: false
+    priority: 11
+    description: "NDT建图节点"
+    
+  # 测试节点
+  local_record_test:
+    package: "test"
+    launch_file: "local_record_test.launch.py"
+    required: false
+    priority: 12
+    description: "本地记录测试节点"
+
+# 启动模式定义
+modes:
+  full:
+    description: "完整系统模式"
+    nodes:
+      - rtk
+      - canbus
+      - map_service
+      - lidar
+      - pointcloud_preprocess
+      - ground_filter
+      - obstacles_detection
+      - planning
+      - control
+      
+  control:
+    description: "控制系统模式"
+    nodes:
+      - rtk
+      - canbus
+      - control
+      
+  perception:
+    description: "感知系统模式"
+    nodes:
+      - lidar
+      - pointcloud_preprocess
+      - ground_filter
+      - obstacles_detection
+      
+  planning:
+    description: "规划系统模式"
+    nodes:
+      - map_service
+      - planning
+      - routing
+      
+  mapping:
+    description: "建图模式"
+    nodes:
+      - rtk
+      - lidar
+      - ndt_mapping
+      
+  test:
+    description: "测试模式"
+    nodes:
+      - control
+      - local_record_test
+      - routing
+      - planning
+
+# 依赖关系定义
+dependencies:
+  control:
+    depends_on: [rtk, canbus]
+    
+  planning:
+    depends_on: [map_service]
+    
+  obstacles_detection:
+    depends_on: [ground_filter]
+    
+  ground_filter:
+    depends_on: [pointcloud_preprocess]
+    
+  pointcloud_preprocess:
+    depends_on: [lidar]
+
+# 健康检查配置
+health_check:
+  enabled: true
+  interval: 10  # 检查间隔（秒）
+  timeout: 5    # 超时时间（秒）
+  
+# 日志配置
+logging:
+  level: "info"
+  file_path: "/tmp/auto_clean_bot_launcher.log"
+  max_size: "10MB"
+  backup_count: 5

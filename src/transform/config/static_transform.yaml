@@ -2,18 +2,24 @@
   ros__parameters:
     # 坐标系ID
     base_frame_id: "base_link"
-    lidar_frame_id: "front_lidar"
+    lidar_frame_id: "lidar_link"
+    map_frame_id: "map"  # 地图坐标系ID
+    
+    # RTK GNSS话题配置
+    rtk_gnss_pose_topic: "gnss/pose"  # RTK发布的GNSS位姿话题
+    enable_map_transform: true  # 是否启用map到base_link的动态坐标转换
+    
     # 记录的是lidar_link相对于base_link的偏移量
     # 注意这里的base_link是车辆的相对基点, 这个基点等于rtk设备的位置
     # 平移参数 (单位：米)
     transform_translation:
-      x: 2.0  # 前后方向偏移
-      y: 1.0  # 左右方向偏移
-      z: 0.0  # 上下方向偏移
+      x: 0.0  # 前后方向偏移
+      y: 0.0  # 左右方向偏移
+      z: 2.5  # 上下方向偏移
 
     # 记录的是lidar_link相对于base_link的旋转量
     # 旋转参数 (单位：弧度)
     transform_rotation:
       roll: 0.0   # 横滚角
       pitch: 0.0  # 俯仰角
-      yaw: 0.0    # 偏航角 
+      yaw: 1.5707963267949    # 偏航角 

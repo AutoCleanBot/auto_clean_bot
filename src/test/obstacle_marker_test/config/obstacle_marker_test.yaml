@@ -1,0 +1,18 @@
+# Obstacle Marker Test Configuration
+
+obstacle_marker_test_node:
+  ros__parameters:
+    # Frame ID for the markers (configurable)
+    frame_id: "base_link"
+    
+    # Publishing rate in Hz
+    publish_rate: 2.0
+    
+    # Test parameters
+    test_mode: true
+    
+    # Visualization settings
+    marker_lifetime: 0.0  # 0 means persistent until replaced
+    text_scale: 0.5
+    box_scale: 0.4
+    line_width: 0.15

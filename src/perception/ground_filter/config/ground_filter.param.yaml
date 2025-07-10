@@ -1,0 +1,13 @@
+/**:
+  ros__parameters:
+    update_rate: 10.0 # 更新率
+    min_height: 0.25 # 最小高度
+    max_height: 3.0 # 最大高度
+    base_frame: "base_link" # 基准坐标系
+    target_frame: "base_link" # 目标坐标系
+    use_sensor_frame: false # 是否使用传感器坐标系
+    
+    # 话题配置
+    input_topic: "/lidar_points" # 输入点云话题
+    ground_points_topic: "/ground_points" # 地面点云输出话题
+    no_ground_points_topic: "/no_ground_points" # 非地面点云输出话题

@@ -225,25 +225,45 @@ void ControlNode::LateralController() {
     double curvature_based_weight = std::abs(path_curvature);
     const double CURVATURE_THRESHOLD = 0.05; // 曲率阈值
 
-    // 在直线段增加Stanley控制器的权重，在弯道增加Pure Pursuit的权重
+    // 使用连续函数而非二元判断来调整权重
+    double curvature_factor = std::min(1.0, curvature_based_weight / CURVATURE_THRESHOLD);
+    double speed_factor = std::min(1.0, current_speed / 2.0); // 低速时也调整权重
+
+    // 自适应权重
     double adaptive_pursuit_rate = pursuit_control_rate_;
     double adaptive_stanley_rate = stanley_control_rate_;
-    if(pursuit_control_rate_ != 1.0 && stanley_control_rate_ != 1.0){
-        if (curvature_based_weight < CURVATURE_THRESHOLD) {
-            adaptive_pursuit_rate *= 0.7;
-            adaptive_stanley_rate *= 1.3;
-        } else {
-            adaptive_pursuit_rate *= 1.3;
-            adaptive_stanley_rate *= 0.7;
-        }
-    }
+    // 基础权重
+    double base_pursuit_rate = pursuit_control_rate_;
+    double base_stanley_rate = stanley_control_rate_;
 
-    // 计算横向误差增益
-    double adaptive_lat_rate = sta_lat_rate_;
-    // if (std::abs(current_speed) < 0.5) {
-    //     // 低速时增大横向误差增益
-    //     adaptive_lat_rate *= 2.0;
-    // }
+    // 根据曲率连续调整权重
+    if (pursuit_control_rate_ != 1.0 && stanley_control_rate_ != 1.0) {
+        // 曲率越大，Pure Pursuit权重越高
+        adaptive_pursuit_rate = base_pursuit_rate * (1.0 + 0.3 * curvature_factor);
+        adaptive_stanley_rate = base_stanley_rate * (1.0 - 0.3 * curvature_factor + 0.3 * (1.0 - curvature_factor));
+
+        // 考虑速度因素 - 低速时增加Stanley权重
+        adaptive_pursuit_rate *= (0.7 + 0.3 * speed_factor);
+        adaptive_stanley_rate *= (1.3 - 0.3 * speed_factor);
+
+        // // 考虑延迟因素 - 延迟大时增加Pure Pursuit权重
+        // double estimated_delay = 0.2; // 秒，可以通过实际测量获得
+        // if (estimated_delay > 0.1) {
+        //     double delay_factor = std::min(1.0, estimated_delay / 0.3);
+        //     adaptive_pursuit_rate *= (1.0 + 0.2 * delay_factor);
+        //     adaptive_stanley_rate *= (1.0 - 0.2 * delay_factor);
+        // }
+
+        // 确保权重总和保持不变
+        double sum = adaptive_pursuit_rate + adaptive_stanley_rate;
+        adaptive_pursuit_rate /= sum;
+        adaptive_stanley_rate /= sum;
+
+        // 重新缩放到原始权重总和
+        double original_sum = base_pursuit_rate + base_stanley_rate;
+        adaptive_pursuit_rate *= original_sum;
+        adaptive_stanley_rate *= original_sum;
+    }
 
     // 根据速度动态调整heading_error_rate_
     heading_error_rate_ = CalculateAdaptiveHeadingErrorRate(current_speed);
@@ -251,7 +271,7 @@ void ControlNode::LateralController() {
     // 使用自适应参数计算控制输出
     double pursuit_control = -std::atan2(2 * wheelbase_ * std::sin(angular_error), preview_dist);
     double stanley_control =
-        -(heading_error_rate_ * heading_error - std::atan(adaptive_lat_rate * lat_error / effective_stanley_spd));
+        -(heading_error_rate_ * heading_error - std::atan(sta_lat_rate_ * lat_error / effective_stanley_spd));
 
     // 应用自适应权重
     double front_wheel_rad = adaptive_pursuit_rate * pursuit_control + adaptive_stanley_rate * stanley_control;
@@ -291,13 +311,13 @@ void ControlNode::LateralController() {
         auto feedback_steer_angle = chassis_info_msg_.steer_angle;
         debug_log_file_ << time_str << "," << pursuit_control_rate_ << "," << stanley_control_rate_ << ","
                         << sta_lat_rate_ << "," << heading_error * 180.0 / M_PI << "," << angular_error * 180.0 / M_PI
-                        << "," << lat_error << "," << pursuit_control * 180.0 / M_PI << ","
-                        << stanley_control * 180.0 / M_PI << "," << steer_angle << "," << feedback_steer_angle << ","
-                        << preview_dist << "," << preview_idx << "," << closest_idx_ << "," << target_east << ","
-                        << target_north << "," << target_yaw * 180.0 / M_PI << "," << closest_east << ","
-                        << closest_north << "," << closest_yaw * 180.0 / M_PI << "," << path_curvature << ","
-                        << cur_east << "," << cur_north << "," << cur_yaw * 180.0 / M_PI << "," << feedforward_rate_
-                        << "," << zero_point_draft_;
+                        << "," << lat_error << "," << pursuit_control * 180.0 / M_PI * adaptive_pursuit_rate << ","
+                        << stanley_control * 180.0 / M_PI * adaptive_stanley_rate << "," << steer_angle << ","
+                        << feedback_steer_angle << "," << preview_dist << "," << preview_idx << "," << closest_idx_
+                        << "," << target_east << "," << target_north << "," << target_yaw * 180.0 / M_PI << ","
+                        << closest_east << "," << closest_north << "," << closest_yaw * 180.0 / M_PI << ","
+                        << path_curvature << "," << cur_east << "," << cur_north << "," << cur_yaw * 180.0 / M_PI << ","
+                        << feedforward_rate_ << "," << zero_point_draft_;
     }
 }
 
@@ -313,6 +333,8 @@ void ControlNode::LongitudinalController() {
     const double koffset = 0.2;
     const double SPEED_THRESHOLD = 0.01;
     const double STEP_SIZE = 0.5;
+    const double DECEL_STEP_SIZE = 0.5; // 减速步长
+
     // 检查输入数据是否有效
     if (!adc_trajectory_msg_ || !localization_info_msg_) {
         RCLCPP_WARN(this->get_logger(), "LongitudinalController: Missing trajectory or localization data");
@@ -347,10 +369,11 @@ void ControlNode::LongitudinalController() {
         }
     } else if (final_target_speed < step_target_speed) {
         // 目标速度低于当前阶梯目标 - 需要减速
-        if (current_speed <= step_target_speed + SPEED_THRESHOLD) {
-            // 当前速度已降至阶梯目标，降低阶梯
-            step_target_speed = std::max(step_target_speed - 4 * STEP_SIZE, final_target_speed);
-        }
+        // 对于减速，不等待当前速度达到阶梯目标，而是立即降低阶梯目标
+        // 这样可以补偿车辆减速缓慢的问题
+        double speed_diff = step_target_speed - final_target_speed;
+        double adaptive_decel_step = DECEL_STEP_SIZE * (1.0 + speed_diff / 2.0); // 速度差越大，减速步长越大
+        step_target_speed = std::max(step_target_speed - adaptive_decel_step, final_target_speed);
     } else {
         // 最终目标速度等于当前阶梯目标，无需调整
         step_target_speed = final_target_speed;
@@ -532,7 +555,7 @@ void ControlNode::TimerCallback() {
 
     // 2. 发布控制命令
     control_cmd_msg_.header.stamp = this->now();
-    control_cmd_msg_.header.frame_id = "base_link";
+    control_cmd_msg_.header.frame_id = "map";
     if (adc_trajectory_msg_->direction == 0) {
         control_cmd_msg_.gear = 1;
     } else if (adc_trajectory_msg_->direction == 1) {
@@ -604,7 +627,7 @@ void ControlNode::InitParams() {
     log_file_path_ = this->get_parameter("log_file_path").get_value<std::string>();
     speed_pid_kp_ = this->get_parameter("speed_pid_kp").as_double();
     speed_pid_ki_ = this->get_parameter("speed_pid_ki").as_double();
-    speed_pid_kd_ = this->get_parameter("speed_pid_kd").as_double();    
+    speed_pid_kd_ = this->get_parameter("speed_pid_kd").as_double();
     speed_pid_kf_ = this->get_parameter("speed_pid_kf").as_double();
 
     // Print parameters
@@ -739,7 +762,7 @@ double ControlNode::CalculatePathCurvature(size_t index) {
     // 修正后的正确代码
     if (cross_product_z > 0) {
         // 向量 P1P0 -> P1P2 是逆时针，对应左转
-        signed_curvature = -curvature_magnitude;  // 右转 -> 负曲率
+        signed_curvature = -curvature_magnitude; // 右转 -> 负曲率
     } else if (cross_product_z < 0) {
         // 向量 P1P0 -> P1P2 是顺时针，对应右转
         signed_curvature = curvature_magnitude; // 左转 -> 正曲率
@@ -765,12 +788,10 @@ double ControlNode::CalculateAdaptivePreviewDistance(double current_speed, doubl
 }
 
 // 添加转向角平滑函数
-
 double ControlNode::SmoothSteeringAngle(double target_angle, double dt) {
     // 1. 首先进行速率限制，和之前一样
     double max_angle_change = max_steering_rate_ * dt;
     double angle_change = target_angle - previous_steering_angle_;
-
     if (std::abs(angle_change) > max_angle_change) {
         if (angle_change > 0) {
             target_angle = previous_steering_angle_ + max_angle_change;
@@ -796,8 +817,6 @@ double ControlNode::SmoothSteeringAngle(double target_angle, double dt) {
     //         target_angle = previous_steering_angle_ - MIN_EFFECTIVE_ANGLE_CHANGE;
     //     }
     // }
-
-
 
     // 更新状态
     previous_steering_angle_ = target_angle;
