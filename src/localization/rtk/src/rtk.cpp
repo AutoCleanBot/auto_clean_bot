@@ -201,7 +201,7 @@ void RTKNode::ParseRTKInfo(const std::string &info_str) {
 
         tf2::Quaternion orientation;
         orientation.setRPY(giavp.roll_deg * M_PI / 180.0, giavp.pitch_deg * M_PI / 180.0,
-                           giavp.heading_deg * M_PI / 180.0);
+                           -giavp.heading_deg * M_PI / 180.0);
         gnss_pose_enu_msg_.pose.orientation.x = orientation.x();
         gnss_pose_enu_msg_.pose.orientation.y = orientation.y();
         gnss_pose_enu_msg_.pose.orientation.z = orientation.z();

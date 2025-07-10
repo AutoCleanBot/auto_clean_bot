@@ -41,8 +41,8 @@ def generate_launch_description():
         'max_steering_rate':15.0,
         'acceleration_limit':20.0,
         'deceleration_limit':-20.0,
-        'pursuit_control_rate':0.6,
-        'stanley_control_rate':0.4,
+        'pursuit_control_rate':0.1,
+        'stanley_control_rate':0.9,
         'sta_lat_rate':0.4, # stanley控制中的横向偏差系数
         'feedforward_rate':0.2,
         'speed_pid_kp':0.5,
