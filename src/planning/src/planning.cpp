@@ -313,7 +313,7 @@ void PlanningNode::TimerCallback() {
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
 
     // 输出耗时信息
-    RCLCPP_INFO(this->get_logger(), "TimerCallback 总耗时: %ld ms", duration.count());
+    // RCLCPP_INFO(this->get_logger(), "TimerCallback 总耗时: %ld ms", duration.count());
 }
 
 /**
@@ -536,8 +536,8 @@ void PlanningNode::UpdateObstacleInfoFromOccupancyGrid() {
     // 获取栅格地图的旋转信息
     double grid_yaw = tf2::getYaw(info.origin.orientation);
 
-    RCLCPP_INFO(this->get_logger(), "Occupancy grid size: %dx%d, resolution: %.2f, origin: (%.2f, %.2f), yaw: %.2f",
-                width, height, resolution, origin_x, origin_y, grid_yaw);
+    // RCLCPP_INFO(this->get_logger(), "Occupancy grid size: %dx%d, resolution: %.2f, origin: (%.2f, %.2f), yaw: %.2f",
+    //             width, height, resolution, origin_x, origin_y, grid_yaw);
 
     // 遍历车辆前方区域，检查障碍物
     for (int grid_x = 0; grid_x < width; ++grid_x) {
@@ -554,7 +554,6 @@ void PlanningNode::UpdateObstacleInfoFromOccupancyGrid() {
             double local_y = grid_y * resolution;
 
             // 应用旋转变换，将相对坐标转换为考虑航向的坐标
-            // 使用标准的2D旋转矩阵
             double rotated_x = local_x * cos(grid_yaw) - local_y * sin(grid_yaw);
             double rotated_y = local_x * sin(grid_yaw) + local_y * cos(grid_yaw);
 
@@ -562,10 +561,27 @@ void PlanningNode::UpdateObstacleInfoFromOccupancyGrid() {
             double global_x = origin_x + rotated_x;
             double global_y = origin_y + rotated_y;
 
-            // 转换为相对于车辆的坐标
-            double relative_x = global_x - cur_local_.east;
-            double relative_y = global_y - cur_local_.north;
+            // 计算全局坐标差
+            double dx = global_x - cur_local_.east;
+            double dy = global_y - cur_local_.north;
 
+            // 获取车辆航向角（顺时针为正，单位：弧度）
+            double vehicle_heading = cur_local_.yaw * M_PI / 180.0;
+
+            // 为提高效率和可读性，预先计算 sin 和 cos 值
+            double cos_heading = cos(vehicle_heading);
+            double sin_heading = sin(vehicle_heading);
+
+            // 将全局坐标差转换到车辆坐标系下
+            // 车前方为y轴正方向，车右侧为x轴正方向
+            //
+            // 根据向量投影公式：
+            // relative_x = dx * cos(h) - dy * sin(h)
+            // relative_y = dx * sin(h) + dy * cos(h)
+            // h 为顺时针为正的航向角
+
+            double relative_x = dx * cos_heading - dy * sin_heading; // 车右侧为x轴正方向
+            double relative_y = dx * sin_heading + dy * cos_heading; // 车前方为y轴正方向
             // 计算距离
             double distance = std::sqrt(relative_x * relative_x + relative_y * relative_y);
 
@@ -579,25 +595,29 @@ void PlanningNode::UpdateObstacleInfoFromOccupancyGrid() {
 
             // 添加调试信息，记录边界判断结果
             if (is_in_boundary) {
-                RCLCPP_DEBUG(this->get_logger(), "点 (%.2f, %.2f) 在边界内", global_x, global_y);
-            } else {
-                RCLCPP_DEBUG(this->get_logger(), "点 (%.2f, %.2f) 在边界外", global_x, global_y);
+                RCLCPP_INFO(this->get_logger(),
+                            "车辆当前位置：(%.2f, %.2f, %.0f deg),点 (%.2f, %.2f) 在边界内，相对位置：(%.2f, %.2f)",
+                            cur_local_.east, cur_local_.north, cur_local_.yaw, global_x, global_y, relative_x,
+                            relative_y);
             }
 
-            // 存储检测到的障碍物点（无论是否在边界内）
-            ObstaclePoint obstacle_point;
-            obstacle_point.x = global_x;
-            obstacle_point.y = global_y;
-            obstacle_point.in_boundary = is_in_boundary;
-            detected_obstacle_points_.push_back(obstacle_point);
+            // 存储检测到的障碍物点
+            if (is_in_boundary) {
+                ObstaclePoint obstacle_point;
+                obstacle_point.x = global_x;
+                obstacle_point.y = global_y;
+                obstacle_point.in_boundary = is_in_boundary;
+                detected_obstacle_points_.push_back(obstacle_point);
+            }
 
             if (!is_in_boundary) {
                 continue;
             }
 
+            // 根据车辆坐标系判断障碍物位置
             if (relative_y > 0.0 && relative_y < min_obstacle_distance_) { // 车辆前方
                 obstacle_info_[1] = 1;                                     // 使用1表示检测到障碍物
-                RCLCPP_INFO(this->get_logger(), "前方发现障碍物，距离：%.2f 米，位置：(%.2f, %.2f)", distance,
+                RCLCPP_INFO(this->get_logger(), "前方发现障碍物，距离：%.2f 米，相对位置：(%.2f, %.2f)", distance,
                             relative_x, relative_y);
             }
         }
@@ -616,8 +636,8 @@ bool PlanningNode::IsObstacleInBoundaryByPosition(double global_x, double global
     int right_idx = FindNearestBoundaryPoint(right_boundary_, global_x, global_y);
 
     // 检查索引是否有效
-    if (left_idx < 0 || right_idx < 0 || left_idx >= left_boundary_.points.size() - 1 ||
-        right_idx >= right_boundary_.points.size() - 1) {
+    if (left_idx < 0 || right_idx < 0 || left_idx >= left_boundary_.points.size() ||
+        right_idx >= right_boundary_.points.size()) {
         return false;
     }
 
@@ -644,7 +664,7 @@ bool PlanningNode::IsObstacleInBoundaryByPosition(double global_x, double global
     // 对于右边界，障碍物应该在边界的左侧（叉积为正）
     double right_cross = right_vec_x * obs_vec_y - right_vec_y * obs_vec_x;
 
-    // 添加额外的距离检查，确保点不会太远离边界
+    // 计算点到左右边界的距离
     double dist_to_left = std::sqrt(std::pow(global_x - left_point.east, 2) + std::pow(global_y - left_point.north, 2));
     double dist_to_right =
         std::sqrt(std::pow(global_x - right_point.east, 2) + std::pow(global_y - right_point.north, 2));
@@ -653,11 +673,13 @@ bool PlanningNode::IsObstacleInBoundaryByPosition(double global_x, double global
     double boundary_width =
         std::sqrt(std::pow(left_point.east - right_point.east, 2) + std::pow(left_point.north - right_point.north, 2));
 
-    // 如果点到任一边界的距离超过边界宽度的一半，认为它在边界外
-    if (dist_to_left > boundary_width * 0.6 || dist_to_right > boundary_width * 0.6) {
+    // 修改：使用更宽松的条件判断点是否在边界内
+    // 1. 如果点到任一边界的距离超过边界宽度的0.9倍，认为它在边界外
+    if (dist_to_left > boundary_width * 0.9 || dist_to_right > boundary_width * 0.9) {
         return false;
     }
 
+    // 2. 使用叉积判断点是否在边界内
     // 障碍物在左边界右侧且在右边界左侧，则在边界内
     return (left_cross < 0 && right_cross > 0);
 }
