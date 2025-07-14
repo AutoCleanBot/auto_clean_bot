@@ -4,6 +4,16 @@
 #include <rclcpp/executors/multi_threaded_executor.hpp>
 #include <thread>
 
+double NormalizeAngle(double angle) {
+    while (angle > M_PI) {
+        angle -= 2 * M_PI;
+    }
+    while (angle < -M_PI) {
+        angle += 2 * M_PI;
+    }
+    return angle;
+}
+
 /*
  * *TODO 边界点的接受和处理
  */
@@ -239,17 +249,30 @@ void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
         return;
     }
 
+    // 找到当前车辆位置到轨迹上的最近点，同时考虑航向
+    double cur_yaw_rad = cur_local_.yaw * M_PI / 180.0; // 当前车辆航向(弧度)
+    double min_combined_cost = 1000000.0;
+
     for (std::size_t i = 0; i < g_traj_.points.size(); i++) {
+        // 计算距离成本
         double dist = std::sqrt(std::pow(g_traj_.points[i].east - cur_local_.east, 2) +
                                 std::pow(g_traj_.points[i].north - cur_local_.north, 2));
-        if (dist < min_dist) {
-            min_dist = dist;
+
+        // 计算航向成本 - 将轨迹点航向转为弧度并计算差值
+        double path_yaw_rad = g_traj_.points[i].yaw * M_PI / 180.0;
+        double yaw_diff = std::abs(NormalizeAngle(path_yaw_rad - cur_yaw_rad));
+
+        // 组合成本：距离 + 航向差异权重
+        double yaw_weight = 2.0; // 航向差异的权重，可调整
+        double combined_cost = dist + yaw_weight * yaw_diff;
+
+        if (combined_cost < min_combined_cost) {
+            min_combined_cost = combined_cost;
             closet_idx_ = i;
         }
     }
-    // RCLCPP_INFO(this->get_logger(), "min_dist: %f, min_idx: %ld", min_dist, closet_idx_);
-    // 根据min_idx, 找到min_idx的前5m和后20m
 
+    // 其余代码保持不变
     double cur_dis_cnt = 0.0;
     std::size_t start_idx = closet_idx_;
     while (cur_dis_cnt < start_dist_ && start_idx >= 1) {
@@ -705,6 +728,7 @@ void PlanningNode::PublishVisualization(const bot_msg::msg::ADCTrajectory &pub_t
 
     // 创建轨迹可视化
     auto trajectory_marker = CreateTrajectoryMarker(pub_traj);
+    RCLCPP_INFO(this->get_logger(), "轨迹点数: %ld", trajectory_marker.points.size());
     if (trajectory_marker.points.size() > 0) {
         trajectory_marker.header.stamp = current_time;
         trajectory_marker.header.frame_id = frame_id;

@@ -3,13 +3,44 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <pwd.h>
 #include <sstream>
+#include <unistd.h>
 
 namespace map {
 
+// 添加一个辅助函数来展开波浪号
+std::string expandTilde(const std::string &path) {
+    if (path.empty() || path[0] != '~') {
+        return path;
+    }
+
+    // 获取当前用户的主目录
+    const char *home = getenv("HOME");
+    if (home == nullptr) {
+        struct passwd *pwd = getpwuid(getuid());
+        if (pwd) {
+            home = pwd->pw_dir;
+        }
+    }
+
+    if (home == nullptr) {
+        return path; // 如果无法获取主目录，返回原始路径
+    }
+
+    // 替换波浪号
+    if (path.length() == 1) { // 仅有 "~"
+        return home;
+    }
+    if (path[1] == '/') { // "~/xxx"
+        return std::string(home) + path.substr(1);
+    }
+    return path; // "~xxx" 其他情况返回原始路径
+}
+
 MapNode::MapNode() : Node("map_node") {
     // 声明并获取参数
-    this->declare_parameter("map_files_dir", "/home/limer/auto_clean_bot/map_files");
+    this->declare_parameter("map_files_dir", "~/auto_clean_bot/map_files");
     this->declare_parameter("left_boundary_file", "local_record_4_left_boundary.csv");
     this->declare_parameter("right_boundary_file", "local_record_4_right_boundary.csv");
     this->declare_parameter("left_boundary_name", "left_boundary");

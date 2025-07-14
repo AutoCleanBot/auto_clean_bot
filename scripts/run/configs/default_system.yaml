@@ -4,7 +4,7 @@
 system:
   name: "auto_clean_bot"
   version: "1.0.0"
-  workspace: "/home/limer/auto_clean_bot"
+  workspace: "~/auto_clean_bot"
 
 # 全局设置
 global:

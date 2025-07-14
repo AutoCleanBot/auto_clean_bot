@@ -3,11 +3,10 @@ from launch import LaunchDescription
 from launch_ros.actions import Node
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
-from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
-    # 获取地图文件目录的默认路径
-    default_map_files_dir = os.path.join(os.environ['HOME'], 'auto_clean_bot', 'map_files')
+    # 获取地图文件目录的默认路径 (展开波浪号)
+    default_map_files_dir = os.path.expanduser("~/auto_clean_bot/map_files")
     
     # 声明启动参数
     map_files_dir = LaunchConfiguration('map_files_dir')

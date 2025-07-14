@@ -1,4 +1,3 @@
-import os
 from launch import LaunchDescription
 from launch_ros.actions import Node
 from launch.actions import DeclareLaunchArgument
@@ -38,7 +37,8 @@ def generate_launch_description():
         'traj_pub_interval' : 0.1, # 路径发布间隔, 秒
         'planning_spd' : 3.0,     # 规划速度, m/s
         'path_end_dist' : 2.0,    # 路径结束距离, m
-        'reverse_moving' : False  # 是否反向行驶
+        'reverse_moving' : False, # 是否反向行驶
+        'test_mode' : False       # 启用测试模式，生成测试轨迹
     }
     
     # 配置节点，并将参数字典直接传递给参数字段
