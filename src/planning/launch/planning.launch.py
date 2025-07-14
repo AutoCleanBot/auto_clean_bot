@@ -25,10 +25,10 @@ def generate_launch_description():
         'visualization_topic_name' : '/planning/visualization',  # 可视化话题名
         'use_occupancy_grid' : True,   # 是否使用占用栅格地图进行障碍物检测
         
-        'min_obstacle_distance' : 10.0,  # 最小障碍物距离阈值(米)
+        'min_obstacle_distance' : 15.0,  # 最小障碍物距离阈值(米)
         'front_obstacle_width' : 1.0,    # 前方障碍物区域宽度(±米)
         'side_obstacle_width' : 1.0,     # 侧方障碍物区域距离(±米外)
-        'occupied_threshold' : 30,        # 占用阈值 (0-100)
+        'occupied_threshold' : 20,        # 占用阈值 (0-100)
         
         'path_type' : 4,         # 路径标号
         'process_frq' : 10.0,    # 处理频率, Hz

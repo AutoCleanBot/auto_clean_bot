@@ -41,6 +41,9 @@ ament_target_dependencies(planning_node
   nav_msgs
   visualization_msgs
   geometry_msgs
+  tf2
+  tf2_ros
+  tf2_geometry_msgs
 )
 
 if(BUILD_TESTING)
