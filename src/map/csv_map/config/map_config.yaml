@@ -1,11 +1,11 @@
 map_node:
   ros__parameters:
     # 地图文件目录
-    map_files_dir: "/home/limer/auto_clean_bot/map_files"
+    map_files_dir: "/home/nvidia/auto_clean_bot/map_files"
     
     # 边界文件名
-    left_boundary_file: "local_record_2_left_boundary.csv"
-    right_boundary_file: "local_record_2_right_boundary.csv"
+    left_boundary_file: "local_record_4_left_boundary.csv"
+    right_boundary_file: "local_record_4_right_boundary.csv"
     
     # 边界名称
     left_boundary_name: "left_boundary"

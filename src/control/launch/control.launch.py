@@ -42,14 +42,14 @@ def generate_launch_description():
         'max_steering_rate':15.0,
         'acceleration_limit':20.0,
         'deceleration_limit':-20.0,
-        'pursuit_control_rate':0.1,
-        'stanley_control_rate':0.9,
+        'pursuit_control_rate':0.6,
+        'stanley_control_rate':0.4,
         'sta_lat_rate':0.4, # stanley控制中的横向偏差系数
         'feedforward_rate':0.2,
         'speed_pid_kp':0.5,
         'speed_pid_ki':0.1,
         'speed_pid_kd':0.0,
-        'zero_point_draft':-3.0,     # 零点漂移
+        'zero_point_draft':-3.5,     # 零点漂移
         'turning_radius_ratio':1.0,
         'max_speed_change_rate':1.0, # 最大速度变化率
         'smooth_window_size':20,     # 平滑窗口大小
