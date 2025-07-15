@@ -39,3 +39,7 @@
     # 降采样配置
     enable_downsampling: true    # 是否启用降采样
     voxel_leaf_size: 0.1        # 体素网格叶子大小 (米)，值越小保留的点越多，处理时间越长
+
+    # roi配置
+    enable_use_roi: true
+    roi_size: 30.0

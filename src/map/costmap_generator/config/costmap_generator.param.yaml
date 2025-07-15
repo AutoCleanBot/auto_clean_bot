@@ -1,7 +1,7 @@
 /**:
   ros__parameters:
     update_rate: 10.0
-    grid_resolution: 0.1
+    grid_resolution: 0.15
     grid_length_x: 30.0
     grid_length_y: 30.0
     grid_position_x: 0.0
@@ -17,5 +17,5 @@
     costmap_frame: "map"
     costmap_topic: "/costmap"
     occupancy_grid_topic: "/occupancy_grid"
-    enable_gridmap_output: true  # 设置为true启用GridMap输出，false只输出OccupancyGrid
+    enable_gridmap_output: false  # 设置为true启用GridMap输出，false只输出OccupancyGrid
 

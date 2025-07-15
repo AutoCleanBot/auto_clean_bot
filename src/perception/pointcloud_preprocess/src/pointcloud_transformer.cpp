@@ -28,6 +28,10 @@ PointCloudTransformerNode::PointCloudTransformerNode(const rclcpp::NodeOptions &
     input_topic_ = declare_parameter("input_topic", "~/input/points");
     output_topic_ = declare_parameter("output_topic", "~/output/points");
 
+    // 读取roi参数
+    enable_use_roi_ = declare_parameter("enable_use_roi", false);
+    roi_size_ = declare_parameter("roi_width", 20.0);
+
     // 声明并获取车辆过滤参数
     filter_vehicle_points_ = declare_parameter("filter_vehicle_points", false);
     vehicle_front_length_ = declare_parameter("vehicle_front_length", 2.7);
@@ -83,6 +87,10 @@ PointCloudTransformerNode::PointCloudTransformerNode(const rclcpp::NodeOptions &
     RCLCPP_INFO(get_logger(), "Output topic: %s", output_topic_.c_str());
     RCLCPP_INFO(get_logger(), "Output frame: %s", output_frame_.c_str());
     RCLCPP_INFO(get_logger(), "Vehicle filter enabled: %s", filter_vehicle_points_ ? "true" : "false");
+    RCLCPP_INFO(get_logger(), "ROI enabled: %s", enable_use_roi_ ? "true" : "false");
+    if (enable_use_roi_) {
+        RCLCPP_INFO(get_logger(), "ROI width: %.2fm", roi_size_);
+    }
     if (filter_vehicle_points_) {
         RCLCPP_INFO(get_logger(), "Radar coordinate system: X+ = front, Y+ = left, Z+ = up");
         RCLCPP_INFO(get_logger(), "Vehicle dimensions (X axis): front=%.2fm, back=%.2fm", vehicle_front_length_,
@@ -99,7 +107,18 @@ PointCloudTransformerNode::PointCloudTransformerNode(const rclcpp::NodeOptions &
 }
 
 void PointCloudTransformerNode::pointCloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
+    static int count = 0;
+    // 计算处理点云时间
+    rclcpp::Time start_time = this->now();
     transformPointCloud(msg);
+    rclcpp::Time end_time = this->now();
+    double process_time = (end_time - start_time).seconds() * 1000.0; // 转换为毫秒
+    if (count++ % 10 == 0) {
+        RCLCPP_INFO(this->get_logger(), "Point cloud processing completed in %.2f ms", process_time);
+    }
+    if (count >= 10000) {
+        count = 0;
+    }
 }
 
 void PointCloudTransformerNode::timerCallback() {
@@ -388,9 +407,45 @@ void PointCloudTransformerNode::filterVehiclePoints(sensor_msgs::msg::PointCloud
                  pcl_cloud->size() - filtered_cloud->size());
 }
 
+void PointCloudTransformerNode::FilterROI(const sensor_msgs::msg::PointCloud2::SharedPtr &input_cloud) {
+    // 将ROS2点云消息转换为PCL点云
+    pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud(new pcl::PointCloud<pcl::PointXYZ>());
+    pcl::fromROSMsg(*input_cloud, *pcl_cloud);
+
+    // 创建CropBox滤波器
+    pcl::CropBox<pcl::PointXYZ> crop_box;
+    crop_box.setInputCloud(pcl_cloud);
+
+    // 设置ROI的最小和最大点
+    Eigen::Vector4f min_point, max_point;
+    min_point[0] = -roi_size_;
+    min_point[1] = -roi_size_;
+    min_point[2] = -3.0;
+    min_point[3] = 1.0;
+
+    max_point[0] = roi_size_;
+    max_point[1] = roi_size_;
+    max_point[2] = 20.0;
+    max_point[3] = 1.0;
+
+    crop_box.setMin(min_point);
+    crop_box.setMax(max_point);
+
+    // 应用滤波器
+    pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_cloud(new pcl::PointCloud<pcl::PointXYZ>());
+    crop_box.filter(*filtered_cloud);
+
+    // 将过滤后的PCL点云转换回ROS2消息
+    pcl::toROSMsg(*filtered_cloud, *input_cloud);
+}
+
 void PointCloudTransformerNode::transformPointCloud(const sensor_msgs::msg::PointCloud2::SharedPtr &input_cloud) {
     RCLCPP_INFO(get_logger(), "Transforming point cloud from '%s' to '%s'", input_cloud->header.frame_id.c_str(),
                 output_frame_.c_str());
+
+    if (enable_use_roi_) {
+        FilterROI(input_cloud);
+    }
 
     // 确定源坐标系
     std::string source_frame;

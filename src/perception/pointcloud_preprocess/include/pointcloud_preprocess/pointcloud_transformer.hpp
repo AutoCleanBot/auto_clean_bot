@@ -51,6 +51,10 @@ class PointCloudTransformerNode : public rclcpp::Node {
     bool enable_downsampling_; // 是否启用降采样
     double voxel_leaf_size_;   // 体素网格叶子大小
 
+    // roi参数
+    bool enable_use_roi_;
+    double roi_size_;
+
     // 订阅和发布
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr input_cloud_sub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr output_cloud_pub_;
@@ -68,6 +72,8 @@ class PointCloudTransformerNode : public rclcpp::Node {
 
     // 处理点云
     void transformPointCloud(const sensor_msgs::msg::PointCloud2::SharedPtr &input_cloud);
+
+    void FilterROI(const sensor_msgs::msg::PointCloud2::SharedPtr &input_cloud);
 
     // 过滤车辆内部点云
     void filterVehiclePoints(sensor_msgs::msg::PointCloud2 &cloud, const std::string &frame_id) const;

@@ -235,12 +235,10 @@ bool PlanningNode::IsPathTail() {
 }
 
 void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
-    double min_dist = 1000000.0;
-
-    // 检查是否有路径数据
     if (g_traj_.points.empty()) {
         RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "No trajectory points available");
 
+        // 检查是否有路径数据
         // 即使没有路径点，也发布一个空轨迹以保持话题活跃
         bot_msg::msg::ADCTrajectory empty_traj;
         empty_traj.header.stamp = this->now();
@@ -249,6 +247,7 @@ void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
         return;
     }
 
+    double min_dist = 1000000.0;
     // 找到当前车辆位置到轨迹上的最近点，同时考虑航向
     double cur_yaw_rad = cur_local_.yaw * M_PI / 180.0; // 当前车辆航向(弧度)
     double min_combined_cost = 1000000.0;
@@ -260,17 +259,26 @@ void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
 
         // 计算航向成本 - 将轨迹点航向转为弧度并计算差值
         double path_yaw_rad = g_traj_.points[i].yaw * M_PI / 180.0;
-        double yaw_diff = std::abs(NormalizeAngle(path_yaw_rad - cur_yaw_rad));
+        double yaw_diff = std::abs(NormalizeAngle(path_yaw_rad) - NormalizeAngle(cur_yaw_rad));
 
         // 组合成本：距离 + 航向差异权重
-        double yaw_weight = 2.0; // 航向差异的权重，可调整
-        double combined_cost = dist + yaw_weight * yaw_diff;
+        double yaw_weight = 1.0; // 航向差异的权重，可调整
+        // double combined_cost = dist + yaw_weight * yaw_diff;
+        double combined_cost = dist;
 
         if (combined_cost < min_combined_cost) {
             min_combined_cost = combined_cost;
             closet_idx_ = i;
         }
     }
+    // for (std::size_t i = 0; i < g_traj_.points.size(); i++) {
+    //     double dist = std::sqrt(std::pow(g_traj_.points[i].east - cur_local_.east, 2) +
+    //                             std::pow(g_traj_.points[i].north - cur_local_.north, 2));
+    //     if (dist < min_dist) {
+    //         min_dist = dist;
+    //         closet_idx_ = i;
+    //     }
+    // }
 
     // 其余代码保持不变
     double cur_dis_cnt = 0.0;
@@ -292,8 +300,10 @@ void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
     for (std::size_t i = start_idx; i <= preview_idx; i++) {
         pub_traj.points.push_back(g_traj_.points[i]);
     }
-    // RCLCPP_INFO(this->get_logger(), "cur_dis_cnt: %f, start_idx: %ld, preview_idx: %ld", cur_dis_cnt, start_idx,
-    //             preview_idx);
+    if (timer_cnt_ % 10 == 0)
+        RCLCPP_INFO(this->get_logger(),
+                    "cur_east: %f, cur_north: %f,closet_idx: %ld,cur_dis_cnt: %f, start_idx: %ld, preview_idx: %ld",
+                    cur_local_.east, cur_local_.north, closet_idx_, cur_dis_cnt, start_idx, preview_idx);
 }
 
 // TODO 待验证,更新机制是有有问题
@@ -336,7 +346,13 @@ void PlanningNode::TimerCallback() {
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
 
     // 输出耗时信息
-    // RCLCPP_INFO(this->get_logger(), "TimerCallback 总耗时: %ld ms", duration.count());
+    if (timer_cnt_ % 10 == 0)
+        RCLCPP_INFO(this->get_logger(), "TimerCallback 总耗时: %ld ms", duration.count());
+
+    ++timer_cnt_;
+    if (timer_cnt_ > 99) {
+        timer_cnt_ = 1;
+    }
 }
 
 /**
@@ -559,7 +575,8 @@ void PlanningNode::UpdateObstacleInfoFromOccupancyGrid() {
     // 获取栅格地图的旋转信息
     double grid_yaw = tf2::getYaw(info.origin.orientation);
 
-    // RCLCPP_INFO(this->get_logger(), "Occupancy grid size: %dx%d, resolution: %.2f, origin: (%.2f, %.2f), yaw: %.2f",
+    // RCLCPP_INFO(this->get_logger(), "Occupancy grid size: %dx%d, resolution: %.2f, origin: (%.2f, %.2f), yaw:
+    // %.2f",
     //             width, height, resolution, origin_x, origin_y, grid_yaw);
 
     // 遍历车辆前方区域，检查障碍物
@@ -728,7 +745,7 @@ void PlanningNode::PublishVisualization(const bot_msg::msg::ADCTrajectory &pub_t
 
     // 创建轨迹可视化
     auto trajectory_marker = CreateTrajectoryMarker(pub_traj);
-    RCLCPP_INFO(this->get_logger(), "轨迹点数: %ld", trajectory_marker.points.size());
+    // RCLCPP_INFO(this->get_logger(), "轨迹点数: %ld", trajectory_marker.points.size());
     if (trajectory_marker.points.size() > 0) {
         trajectory_marker.header.stamp = current_time;
         trajectory_marker.header.frame_id = frame_id;
