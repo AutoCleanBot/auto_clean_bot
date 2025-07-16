@@ -43,6 +43,28 @@ def generate_launch_description():
         default_value='10.0',
         description='Frequency to publish boundary information'
     )
+
+    # 方向稳定性参数
+    direction_stability_weight = LaunchConfiguration('direction_stability_weight')
+    declare_direction_stability_weight = DeclareLaunchArgument(
+        'direction_stability_weight',
+        default_value='2.0',
+        description='Direction stability weight for boundary selection'
+    )
+
+    max_index_jump = LaunchConfiguration('max_index_jump')
+    declare_max_index_jump = DeclareLaunchArgument(
+        'max_index_jump',
+        default_value='30.0',
+        description='Maximum allowed index jump for boundary points'
+    )
+
+    yaw_weight = LaunchConfiguration('yaw_weight')
+    declare_yaw_weight = DeclareLaunchArgument(
+        'yaw_weight',
+        default_value='3.0',
+        description='Yaw difference weight for boundary selection'
+    )
     
     # 配置地图节点
     map_node = Node(
@@ -57,7 +79,10 @@ def generate_launch_description():
             'boundary_length': boundary_length,
             'publish_frequency': publish_frequency,
             'left_boundary_name': 'left_boundary',
-            'right_boundary_name': 'right_boundary'
+            'right_boundary_name': 'right_boundary',
+            'direction_stability_weight': direction_stability_weight,
+            'max_index_jump': max_index_jump,
+            'yaw_weight': yaw_weight
         }]
     )
     
@@ -67,5 +92,8 @@ def generate_launch_description():
         declare_right_boundary_file,
         declare_boundary_length,
         declare_publish_frequency,
+        declare_direction_stability_weight,
+        declare_max_index_jump,
+        declare_yaw_weight,
         map_node
-    ]) 
+    ])

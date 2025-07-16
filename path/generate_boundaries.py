@@ -329,9 +329,9 @@ def main():
     
     parser = argparse.ArgumentParser(description='Generate path boundaries from trajectory.')
     parser.add_argument('input_file', type=str, help='Path to the input trajectory CSV file.')
-    parser.add_argument('--width', type=float, default=1.75,
+    parser.add_argument('--width', type=float, default=1.5,
                         help='Half of the lane width (distance from center to one boundary). Default: 1.75m.')
-    parser.add_argument('--plot', action='store_true',
+    parser.add_argument('--plot', action='store_true', default=True,
                         help='Generate and save a plot of the boundaries.')
     
     args = parser.parse_args()

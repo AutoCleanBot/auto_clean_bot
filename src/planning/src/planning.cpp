@@ -101,6 +101,11 @@ void PlanningNode::InitParams() {
     this->declare_parameter("front_obstacle_width", 1.0);
     this->declare_parameter("side_obstacle_width", 2.0);
     this->declare_parameter("occupied_threshold", 50);
+
+    // 方向稳定性参数
+    this->declare_parameter("direction_stability_weight", 2.0);
+    this->declare_parameter("max_index_jump", 50.0);
+    this->declare_parameter("yaw_weight", 3.0);
     local_topic_name_ = this->get_parameter("local_topic_name").as_string();
     service_name_ = this->get_parameter("service_name").as_string();
     process_frq_ = this->get_parameter("process_frq").as_double();
@@ -127,6 +132,11 @@ void PlanningNode::InitParams() {
     side_obstacle_width_ = this->get_parameter("side_obstacle_width").as_double();
     occupied_threshold_ = this->get_parameter("occupied_threshold").as_int();
 
+    // 获取方向稳定性参数
+    direction_stability_weight_ = this->get_parameter("direction_stability_weight").as_double();
+    max_index_jump_ = this->get_parameter("max_index_jump").as_double();
+    yaw_weight_ = this->get_parameter("yaw_weight").as_double();
+
     RCLCPP_INFO(this->get_logger(), "local_topic_name: %s", local_topic_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "service_name: %s", service_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "traj_topic_name: %s", traj_topic_name_.c_str());
@@ -140,6 +150,9 @@ void PlanningNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "path_end_dist: %f", path_end_dist_);
     RCLCPP_INFO(this->get_logger(), "left_boundary_topic_name: %s", left_boundary_topic_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "right_boundary_topic_name: %s", right_boundary_topic_name_.c_str());
+    RCLCPP_INFO(this->get_logger(), "direction_stability_weight: %f", direction_stability_weight_);
+    RCLCPP_INFO(this->get_logger(), "max_index_jump: %f", max_index_jump_);
+    RCLCPP_INFO(this->get_logger(), "yaw_weight: %f", yaw_weight_);
 }
 
 void PlanningNode::InitGlobalPath() {
@@ -248,9 +261,13 @@ void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
     }
 
     double min_dist = 1000000.0;
-    // 找到当前车辆位置到轨迹上的最近点，同时考虑航向
+    // 找到当前车辆位置到轨迹上的最近点，同时考虑航向和方向稳定性
     double cur_yaw_rad = cur_local_.yaw * M_PI / 180.0; // 当前车辆航向(弧度)
     double min_combined_cost = 1000000.0;
+
+    // 方向稳定性参数
+    static std::size_t last_closest_idx = 0;
+    static bool first_run = true;
 
     for (std::size_t i = 0; i < g_traj_.points.size(); i++) {
         // 计算距离成本
@@ -261,24 +278,56 @@ void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
         double path_yaw_rad = g_traj_.points[i].yaw * M_PI / 180.0;
         double yaw_diff = std::abs(NormalizeAngle(path_yaw_rad) - NormalizeAngle(cur_yaw_rad));
 
-        // 组合成本：距离 + 航向差异权重
-        double yaw_weight = 1.0; // 航向差异的权重，可调整
-        // double combined_cost = dist + yaw_weight * yaw_diff;
-        double combined_cost = dist;
+        // 计算方向稳定性成本
+        double stability_cost = 0.0;
+        if (!first_run) {
+            // 计算与上次最近点的索引差异
+            double index_diff = std::abs(static_cast<double>(i) - static_cast<double>(last_closest_idx));
+
+            // 如果索引跳跃过大，增加惩罚
+            if (index_diff > max_index_jump_) {
+                stability_cost = direction_stability_weight_ * (index_diff - max_index_jump_);
+            }
+
+            // 检查是否可能发生方向反转
+            if (index_diff > g_traj_.points.size() / 4) {
+                // 计算轨迹方向变化
+                if (last_closest_idx < g_traj_.points.size() && i < g_traj_.points.size()) {
+                    double last_path_yaw = g_traj_.points[last_closest_idx].yaw * M_PI / 180.0;
+                    double current_path_yaw = g_traj_.points[i].yaw * M_PI / 180.0;
+                    double direction_change = std::abs(NormalizeAngle(current_path_yaw - last_path_yaw));
+
+                    // 如果方向变化超过90度，可能是反向，增加大的惩罚
+                    if (direction_change > M_PI / 2) {
+                        stability_cost += direction_stability_weight_ * 10.0;
+                    }
+                }
+            }
+        }
+
+        // 组合成本：距离 + 航向差异权重 + 方向稳定性成本
+        double combined_cost = dist + yaw_weight_ * yaw_diff + stability_cost;
 
         if (combined_cost < min_combined_cost) {
             min_combined_cost = combined_cost;
             closet_idx_ = i;
         }
     }
-    // for (std::size_t i = 0; i < g_traj_.points.size(); i++) {
-    //     double dist = std::sqrt(std::pow(g_traj_.points[i].east - cur_local_.east, 2) +
-    //                             std::pow(g_traj_.points[i].north - cur_local_.north, 2));
-    //     if (dist < min_dist) {
-    //         min_dist = dist;
-    //         closet_idx_ = i;
-    //     }
-    // }
+
+    // 添加调试日志监控方向稳定性
+    if (!first_run) {
+        double index_change = static_cast<double>(closet_idx_) - static_cast<double>(last_closest_idx);
+        if (std::abs(index_change) > max_index_jump_) {
+            RCLCPP_WARN(this->get_logger(),
+                        "Large trajectory index jump detected: from %zu to %zu (change: %.1f), "
+                        "vehicle pos: (%.2f, %.2f), yaw: %.1f°",
+                        last_closest_idx, closet_idx_, index_change, cur_local_.east, cur_local_.north, cur_local_.yaw);
+        }
+    }
+
+    // 更新历史信息
+    last_closest_idx = closet_idx_;
+    first_run = false;
 
     // 其余代码保持不变
     double cur_dis_cnt = 0.0;

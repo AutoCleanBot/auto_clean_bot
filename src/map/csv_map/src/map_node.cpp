@@ -3,9 +3,18 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <pwd.h>
 #include <sstream>
 #include <unistd.h>
+
+double NormalizeAngle(double angle) {
+    while (angle > M_PI)
+        angle -= 2 * M_PI;
+    while (angle < -M_PI)
+        angle += 2 * M_PI;
+    return angle;
+}
 
 namespace map {
 
@@ -48,6 +57,11 @@ MapNode::MapNode() : Node("map_node") {
     this->declare_parameter("boundary_length", 50.0);
     this->declare_parameter("publish_frequency", 10.0);
 
+    // 方向稳定性参数
+    this->declare_parameter("direction_stability_weight", 2.0);
+    this->declare_parameter("max_index_jump", 30.0);
+    this->declare_parameter("yaw_weight", 3.0);
+
     map_files_dir_ = this->get_parameter("map_files_dir").as_string();
     std::string left_boundary_file = this->get_parameter("left_boundary_file").as_string();
     std::string right_boundary_file = this->get_parameter("right_boundary_file").as_string();
@@ -55,6 +69,11 @@ MapNode::MapNode() : Node("map_node") {
     right_boundary_name_ = this->get_parameter("right_boundary_name").as_string();
     boundary_length_ = this->get_parameter("boundary_length").as_double();
     publish_frequency_ = this->get_parameter("publish_frequency").as_double();
+
+    // 获取方向稳定性参数
+    direction_stability_weight_ = this->get_parameter("direction_stability_weight").as_double();
+    max_index_jump_ = this->get_parameter("max_index_jump").as_double();
+    yaw_weight_ = this->get_parameter("yaw_weight").as_double();
 
     // 构建边界文件的完整路径
     left_boundary_file_path_ = map_files_dir_ + "/" + left_boundary_file;
@@ -88,6 +107,12 @@ MapNode::MapNode() : Node("map_node") {
     timer_ =
         this->create_wall_timer(std::chrono::duration<double>(timer_period), std::bind(&MapNode::timerCallback, this));
 
+    // 输出方向稳定性参数
+    RCLCPP_INFO(this->get_logger(), "Direction stability parameters:");
+    RCLCPP_INFO(this->get_logger(), "  direction_stability_weight: %f", direction_stability_weight_);
+    RCLCPP_INFO(this->get_logger(), "  max_index_jump: %f", max_index_jump_);
+    RCLCPP_INFO(this->get_logger(), "  yaw_weight: %f", yaw_weight_);
+
     RCLCPP_INFO(this->get_logger(), "Map node initialized");
 }
 
@@ -96,6 +121,7 @@ MapNode::~MapNode() { RCLCPP_INFO(this->get_logger(), "Map node shutting down");
 void MapNode::localizationCallback(const bot_msg::msg::LocalizationInfo::SharedPtr msg) {
     current_east_ = msg->east;
     current_north_ = msg->north;
+    current_yaw_ = msg->yaw;
     localization_received_ = true;
 }
 
@@ -189,18 +215,77 @@ bool MapNode::loadBoundaryFile(const std::string &file_path, std::vector<Boundar
 
 size_t MapNode::findClosestPointIndex(const std::vector<BoundaryPoint> &boundary_points, double east, double north) {
     size_t closest_idx = 0;
-    double min_distance = std::numeric_limits<double>::max();
+    double min_combined_cost = std::numeric_limits<double>::max();
 
-    for (size_t i = 0; i < boundary_points.size(); ++i) {
-        double dx = boundary_points[i].east - east;
-        double dy = boundary_points[i].north - north;
-        double distance = std::sqrt(dx * dx + dy * dy);
+    // 方向稳定性参数 - 为左右边界分别维护历史
+    static std::map<const std::vector<BoundaryPoint> *, size_t> last_closest_indices;
+    static std::map<const std::vector<BoundaryPoint> *, bool> first_runs;
 
-        if (distance < min_distance) {
-            min_distance = distance;
+    // 获取或初始化当前边界的历史信息
+    auto &last_closest_idx = last_closest_indices[&boundary_points];
+    auto &first_run = first_runs[&boundary_points];
+
+    double cur_yaw_rad = current_yaw_ * M_PI / 180.0; // 当前车辆航向(弧度)
+
+    for (std::size_t i = 0; i < boundary_points.size(); i++) {
+        // 计算距离成本
+        double dist = std::sqrt(std::pow(boundary_points[i].east - current_east_, 2) +
+                                std::pow(boundary_points[i].north - current_north_, 2));
+
+        // 计算航向成本 - 将边界点航向转为弧度并计算差值
+        double path_yaw_rad = boundary_points[i].yaw * M_PI / 180.0;
+        double yaw_diff = std::abs(NormalizeAngle(path_yaw_rad) - NormalizeAngle(cur_yaw_rad));
+
+        // 计算方向稳定性成本
+        double stability_cost = 0.0;
+        if (!first_run) {
+            // 计算与上次最近点的索引差异
+            double index_diff = std::abs(static_cast<double>(i) - static_cast<double>(last_closest_idx));
+
+            // 如果索引跳跃过大，增加惩罚
+            if (index_diff > max_index_jump_) {
+                stability_cost = direction_stability_weight_ * (index_diff - max_index_jump_);
+            }
+
+            // 检查是否可能发生方向反转
+            if (index_diff > boundary_points.size() / 4) {
+                // 计算边界方向变化
+                if (last_closest_idx < boundary_points.size() && i < boundary_points.size()) {
+                    double last_path_yaw = boundary_points[last_closest_idx].yaw * M_PI / 180.0;
+                    double current_path_yaw = boundary_points[i].yaw * M_PI / 180.0;
+                    double direction_change = std::abs(NormalizeAngle(current_path_yaw - last_path_yaw));
+
+                    // 如果方向变化超过90度，可能是反向，增加大的惩罚
+                    if (direction_change > M_PI / 2) {
+                        stability_cost += direction_stability_weight_ * 10.0;
+                    }
+                }
+            }
+        }
+
+        // 组合成本：距离 + 航向差异权重 + 方向稳定性成本
+        double combined_cost = dist + yaw_weight_ * yaw_diff + stability_cost;
+
+        if (combined_cost < min_combined_cost) {
+            min_combined_cost = combined_cost;
             closest_idx = i;
         }
     }
+
+    // 添加调试日志监控方向稳定性
+    if (!first_run) {
+        double index_change = static_cast<double>(closest_idx) - static_cast<double>(last_closest_idx);
+        if (std::abs(index_change) > max_index_jump_) {
+            RCLCPP_WARN(this->get_logger(),
+                        "Large boundary index jump detected: from %zu to %zu (change: %.1f), "
+                        "vehicle pos: (%.2f, %.2f), yaw: %.1f°",
+                        last_closest_idx, closest_idx, index_change, current_east_, current_north_, current_yaw_);
+        }
+    }
+
+    // 更新历史信息
+    last_closest_idx = closest_idx;
+    first_run = false;
 
     return closest_idx;
 }
