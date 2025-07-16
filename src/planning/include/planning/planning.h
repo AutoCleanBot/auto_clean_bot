@@ -45,6 +45,9 @@ class PlanningNode : public rclcpp::Node {
     void UpdateObstacleInfoFromOccupancyGrid();
     void FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj);
     bool IsPathTail();
+
+    // 优化的最近点搜索辅助函数
+    double calculateTrajectoryPointCost(size_t index, double cur_yaw_rad, size_t last_closest_idx, bool first_run);
     void LeftBoundaryCallback(const bot_msg::msg::Boundary::SharedPtr msg);
     void RightBoundaryCallback(const bot_msg::msg::Boundary::SharedPtr msg);
     bool IsObstacleInBoundaryByPosition(double global_x, double global_y);

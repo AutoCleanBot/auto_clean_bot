@@ -227,48 +227,78 @@ size_t MapNode::findClosestPointIndex(const std::vector<BoundaryPoint> &boundary
 
     double cur_yaw_rad = current_yaw_ * M_PI / 180.0; // 当前车辆航向(弧度)
 
-    for (std::size_t i = 0; i < boundary_points.size(); i++) {
-        // 计算距离成本
-        double dist = std::sqrt(std::pow(boundary_points[i].east - current_east_, 2) +
-                                std::pow(boundary_points[i].north - current_north_, 2));
+    // 优化搜索策略：局部搜索 + 全局备份
+    size_t search_start = 0;
+    size_t search_end = boundary_points.size();
 
-        // 计算航向成本 - 将边界点航向转为弧度并计算差值
-        double path_yaw_rad = boundary_points[i].yaw * M_PI / 180.0;
-        double yaw_diff = std::abs(NormalizeAngle(path_yaw_rad) - NormalizeAngle(cur_yaw_rad));
+    if (!first_run && last_closest_idx < boundary_points.size()) {
+        // 局部搜索范围：以上次最近点为中心的邻域
+        size_t local_search_radius = static_cast<size_t>(max_index_jump_ * 1.5);
 
-        // 计算方向稳定性成本
-        double stability_cost = 0.0;
-        if (!first_run) {
-            // 计算与上次最近点的索引差异
-            double index_diff = std::abs(static_cast<double>(i) - static_cast<double>(last_closest_idx));
+        search_start = (last_closest_idx > local_search_radius) ? (last_closest_idx - local_search_radius) : 0;
+        search_end = std::min(last_closest_idx + local_search_radius + 1, boundary_points.size());
 
-            // 如果索引跳跃过大，增加惩罚
-            if (index_diff > max_index_jump_) {
-                stability_cost = direction_stability_weight_ * (index_diff - max_index_jump_);
-            }
+        // RCLCPP_DEBUG(this->get_logger(), "Local search range: [%zu, %zu) around last_idx: %zu",
+        //              search_start, search_end, last_closest_idx);
+    }
 
-            // 检查是否可能发生方向反转
-            if (index_diff > boundary_points.size() / 4) {
-                // 计算边界方向变化
-                if (last_closest_idx < boundary_points.size() && i < boundary_points.size()) {
-                    double last_path_yaw = boundary_points[last_closest_idx].yaw * M_PI / 180.0;
-                    double current_path_yaw = boundary_points[i].yaw * M_PI / 180.0;
-                    double direction_change = std::abs(NormalizeAngle(current_path_yaw - last_path_yaw));
-
-                    // 如果方向变化超过90度，可能是反向，增加大的惩罚
-                    if (direction_change > M_PI / 2) {
-                        stability_cost += direction_stability_weight_ * 10.0;
-                    }
-                }
-            }
-        }
-
-        // 组合成本：距离 + 航向差异权重 + 方向稳定性成本
-        double combined_cost = dist + yaw_weight_ * yaw_diff + stability_cost;
+    // 局部搜索
+    for (std::size_t i = search_start; i < search_end; i++) {
+        double combined_cost = calculatePointCost(boundary_points, i, cur_yaw_rad, last_closest_idx, first_run);
 
         if (combined_cost < min_combined_cost) {
             min_combined_cost = combined_cost;
             closest_idx = i;
+        }
+    }
+
+    // 如果局部搜索没有找到足够好的结果，进行全局搜索
+    bool need_global_search = false;
+    if (!first_run) {
+        double distance_to_found = std::sqrt(std::pow(boundary_points[closest_idx].east - current_east_, 2) +
+                                             std::pow(boundary_points[closest_idx].north - current_north_, 2));
+
+        // 如果找到的点距离太远，可能需要全局搜索
+        if (distance_to_found > 10.0) { // 10米阈值，可配置
+            need_global_search = true;
+            RCLCPP_WARN(this->get_logger(), "Local search result too far (%.2fm), performing global search",
+                        distance_to_found);
+        }
+    }
+
+    // 全局搜索（首次运行或局部搜索失败时）
+    if (first_run || need_global_search) {
+        double global_min_cost = min_combined_cost;
+        size_t global_closest_idx = closest_idx;
+
+        // 跳跃式搜索：每隔几个点采样，然后在最佳区域细化
+        size_t step_size = std::max(1UL, boundary_points.size() / 100); // 最多检查100个采样点
+
+        for (std::size_t i = 0; i < boundary_points.size(); i += step_size) {
+            double combined_cost = calculatePointCost(boundary_points, i, cur_yaw_rad, last_closest_idx, first_run);
+
+            if (combined_cost < global_min_cost) {
+                global_min_cost = combined_cost;
+                global_closest_idx = i;
+            }
+        }
+
+        // 在最佳采样点周围进行细化搜索
+        if (global_closest_idx != closest_idx) {
+            size_t refine_start = (global_closest_idx > step_size) ? (global_closest_idx - step_size) : 0;
+            size_t refine_end = std::min(global_closest_idx + step_size + 1, boundary_points.size());
+
+            for (std::size_t i = refine_start; i < refine_end; i++) {
+                double combined_cost = calculatePointCost(boundary_points, i, cur_yaw_rad, last_closest_idx, first_run);
+
+                if (combined_cost < global_min_cost) {
+                    global_min_cost = combined_cost;
+                    global_closest_idx = i;
+                }
+            }
+
+            min_combined_cost = global_min_cost;
+            closest_idx = global_closest_idx;
         }
     }
 
@@ -288,6 +318,51 @@ size_t MapNode::findClosestPointIndex(const std::vector<BoundaryPoint> &boundary
     first_run = false;
 
     return closest_idx;
+}
+
+double MapNode::calculatePointCost(const std::vector<BoundaryPoint> &boundary_points, size_t index, double cur_yaw_rad,
+                                   size_t last_closest_idx, bool first_run) {
+    if (index >= boundary_points.size()) {
+        return std::numeric_limits<double>::max();
+    }
+
+    // 计算距离成本
+    double dist = std::sqrt(std::pow(boundary_points[index].east - current_east_, 2) +
+                            std::pow(boundary_points[index].north - current_north_, 2));
+
+    // 计算航向成本 - 将边界点航向转为弧度并计算差值
+    double path_yaw_rad = boundary_points[index].yaw * M_PI / 180.0;
+    double yaw_diff = std::abs(NormalizeAngle(path_yaw_rad) - NormalizeAngle(cur_yaw_rad));
+
+    // 计算方向稳定性成本
+    double stability_cost = 0.0;
+    if (!first_run) {
+        // 计算与上次最近点的索引差异
+        double index_diff = std::abs(static_cast<double>(index) - static_cast<double>(last_closest_idx));
+
+        // 如果索引跳跃过大，增加惩罚
+        if (index_diff > max_index_jump_) {
+            stability_cost = direction_stability_weight_ * (index_diff - max_index_jump_);
+        }
+
+        // 检查是否可能发生方向反转
+        if (index_diff > boundary_points.size() / 4) {
+            // 计算边界方向变化
+            if (last_closest_idx < boundary_points.size() && index < boundary_points.size()) {
+                double last_path_yaw = boundary_points[last_closest_idx].yaw * M_PI / 180.0;
+                double current_path_yaw = boundary_points[index].yaw * M_PI / 180.0;
+                double direction_change = std::abs(NormalizeAngle(current_path_yaw - last_path_yaw));
+
+                // 如果方向变化超过90度，可能是反向，增加大的惩罚
+                if (direction_change > M_PI / 2) {
+                    stability_cost += direction_stability_weight_ * 10.0;
+                }
+            }
+        }
+    }
+
+    // 组合成本：距离 + 航向差异权重 + 方向稳定性成本
+    return dist + yaw_weight_ * yaw_diff + stability_cost;
 }
 
 void MapNode::calculateBoundarySegment(const std::vector<BoundaryPoint> &boundary_points, size_t start_index,

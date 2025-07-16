@@ -35,6 +35,10 @@ class MapNode : public rclcpp::Node {
     // 查找最近点索引
     size_t findClosestPointIndex(const std::vector<BoundaryPoint> &boundary_points, double east, double north);
 
+    // 计算单个点的成本（用于优化搜索）
+    double calculatePointCost(const std::vector<BoundaryPoint> &boundary_points, size_t index, double cur_yaw_rad,
+                              size_t last_closest_idx, bool first_run);
+
     // 计算指定长度的边界点
     void calculateBoundarySegment(const std::vector<BoundaryPoint> &boundary_points, size_t start_index, double length,
                                   std::vector<bot_msg::msg::BoundaryPoint> &segment_points);
