@@ -241,7 +241,9 @@ bool PlanningNode::IsPathTail() {
     auto cur_east = cur_local_.east;
     auto cur_north = cur_local_.north;
     double dis = sqrt(pow(tail_east - cur_east, 2) + pow(tail_north - cur_north, 2));
-    if (dis < path_end_dist_ || closet_idx_ == path_len - 1) {
+    double yaw_diff = std::abs(NormalizeAngle(g_traj_.points[path_len - 1].yaw * M_PI / 180.0) -
+                               NormalizeAngle(cur_local_.yaw * M_PI / 180.0));
+    if (yaw_diff < M_PI / 2 && (dis < path_end_dist_ || closet_idx_ < path_len - 10)) {
         return true;
     }
     return false;

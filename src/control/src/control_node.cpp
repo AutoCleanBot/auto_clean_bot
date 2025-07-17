@@ -102,7 +102,7 @@ ControlNode::ControlNode() : Node("control_node") {
 }
 
 void ControlNode::LateralController() {
-    const double kMinStanleyControlSpd = 0.5;
+
     // 检查输入数据是否有效
     if (!adc_trajectory_msg_ || !localization_info_msg_) {
         RCLCPP_WARN(this->get_logger(), "LateralController: Missing trajectory or localization data");
@@ -119,7 +119,7 @@ void ControlNode::LateralController() {
     double cur_east = localization_info_msg_->east;
     // double cur_up = localization_info_msg_->up;
     double cur_spd = localization_info_msg_->vel_speed;
-    double effective_stanley_spd = std::max(cur_spd, kMinStanleyControlSpd);
+    double effective_stanley_spd = std::max(cur_spd, stanley_min_eff_spd_);
     double cur_yaw = NormalizeAngle(localization_info_msg_->yaw * M_PI / 180.0); // 当前航向角, 弧度
 
     // 1. 找到当前车辆位置到轨迹上的最近点
@@ -593,6 +593,7 @@ void ControlNode::InitParams() {
     this->declare_parameter<double>("feedforward_rate", 0.0);
     this->declare_parameter<double>("heading_error_rate", 0.0);
     this->declare_parameter<double>("sta_lat_rate", 0.1);
+    this->declare_parameter<double>("stanley_min_eff_spd", 1.5);
     this->declare_parameter<double>("turning_radius_ratio", 1.0);
     this->declare_parameter<double>("zero_point_draft", 0.0);
     this->declare_parameter("speed_pid_kp", 0.5);
@@ -629,6 +630,7 @@ void ControlNode::InitParams() {
     speed_pid_ki_ = this->get_parameter("speed_pid_ki").as_double();
     speed_pid_kd_ = this->get_parameter("speed_pid_kd").as_double();
     speed_pid_kf_ = this->get_parameter("speed_pid_kf").as_double();
+    stanley_min_eff_spd_ = this->get_parameter("stanley_min_eff_spd").as_double();
 
     // Print parameters
     RCLCPP_INFO(this->get_logger(), "Publish rate: %f", publish_rate_);
@@ -648,6 +650,7 @@ void ControlNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "Pursuit control rate: %f", pursuit_control_rate_);
     RCLCPP_INFO(this->get_logger(), "Stanley control rate: %f", stanley_control_rate_);
     RCLCPP_INFO(this->get_logger(), "Stanley lat control rate: %f", sta_lat_rate_);
+    RCLCPP_INFO(this->get_logger(), "Stanley min eff spd: %f", stanley_min_eff_spd_);
     RCLCPP_INFO(this->get_logger(), "Feedforward rate: %f", feedforward_rate_);
     RCLCPP_INFO(this->get_logger(), "Chassis info topic name: %s", chassis_info_topic_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "Debug log file path: %s", log_file_path_.c_str());

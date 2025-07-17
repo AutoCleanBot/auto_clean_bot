@@ -29,7 +29,7 @@ RemoteControllerNode::RemoteControllerNode() : Node("remote_controller_node") {
     // 创建一个线程循环读取CAN数据
     can1_thread_ = std::thread(&RemoteControllerNode::Can1ThreadFunc, this);
 
-    publisher_ = this->create_publisher<std_msgs::msg::Int32>("key_num_topic", 10);
+    publisher_ = this->create_publisher<std_msgs::msg::Int32>("/remote_controller/key_num", 10);
 
     timer_ =
         this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&RemoteControllerNode::timer_callback, this));
