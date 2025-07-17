@@ -10,6 +10,7 @@
 #include <nav_msgs/msg/occupancy_grid.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/color_rgba.hpp>
+#include <std_msgs/msg/int32.hpp>
 #include <tf2/utils.h>
 #include <visualization_msgs/msg/marker.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
@@ -40,6 +41,7 @@ class PlanningNode : public rclcpp::Node {
     void LocalizationInfoCallback(const bot_msg::msg::LocalizationInfo::SharedPtr msg);
     void ObstaclesCallback(const bot_msg::msg::Obstacles::SharedPtr msg);
     void OccupancyGridCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
+    void RemoteControlCallback(const std_msgs::msg::Int32::SharedPtr msg);
     void UpdatePlanningStatus();
     void UpdateObstacleInfo();
     void UpdateObstacleInfoFromOccupancyGrid();
@@ -68,7 +70,7 @@ class PlanningNode : public rclcpp::Node {
   private:
     rclcpp::TimerBase::SharedPtr timer_;
     bot_msg::msg::LocalizationInfo cur_local_;
-    bot_msg::msg::ADCTrajectory g_traj_;                                                    // 暂时的全局路径
+    bot_msg::msg::ADCTrajectory g_traj_;
     rclcpp::Subscription<bot_msg::msg::LocalizationInfo>::SharedPtr sub_localization_info_; // 订阅localization信息
     rclcpp::Publisher<bot_msg::msg::ADCTrajectory>::SharedPtr pub_traj_;                    // 发布路径
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pub_visualization_;  // 发布可视化信息
@@ -76,15 +78,18 @@ class PlanningNode : public rclcpp::Node {
     rclcpp::Subscription<bot_msg::msg::Boundary>::SharedPtr sub_left_boundary_;             // 订阅左边界信息
     rclcpp::Subscription<bot_msg::msg::Boundary>::SharedPtr sub_right_boundary_;            // 订阅右边界信息
     rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr sub_occupancy_grid_;      // 订阅占用栅格地图
+    rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr sub_remote_control_;              // 订阅远程控制信息
 
-    std::string local_topic_name_;                // 定位话题名
-    std::string service_name_;                    // 服务名称
-    std::string traj_topic_name_;                 // 轨迹发布话题名
-    std::string perc_topic_name_;                 // 感知话题名
-    std::string left_boundary_topic_name_;        // 左边界话题名
-    std::string right_boundary_topic_name_;       // 右边界话题名
-    std::string occupancy_grid_topic_name_;       // 占用栅格地图话题名
-    std::string visualization_topic_name_;        // 可视化话题名
+    std::string local_topic_name_;          // 定位话题名
+    std::string service_name_;              // 服务名称
+    std::string traj_topic_name_;           // 轨迹发布话题名
+    std::string perc_topic_name_;           // 感知话题名
+    std::string left_boundary_topic_name_;  // 左边界话题名
+    std::string right_boundary_topic_name_; // 右边界话题名
+    std::string occupancy_grid_topic_name_; // 占用栅格地图话题名
+    std::string visualization_topic_name_;  // 可视化话题名
+    std::string remote_control_topic_name_; // 远程控制话题名
+
     double process_frq_;                          // 处理频率
     int path_type_;                               // 路径类型
     double preview_dist_;                         // 预览距离
@@ -102,6 +107,9 @@ class PlanningNode : public rclcpp::Node {
     std::array<int, 3> obstacle_info_;            // 障碍物信息 0: 左前,1 正前方,2 右前, 存储的是障碍物的标号
     bool use_occupancy_grid_;                     // 是否使用占用栅格地图进行障碍物检测
     bool test_mode_;                              // 测试模式，不依赖routing服务
+    bool remote_control_enabled_;                 // 是否启用远程控制, 启动远程遥控,则等待遥控才能启动
+    bool key_stop_;                               // key_stop_
+    int32_t remote_control_cmd_;                  // 远程控制命令
 
     // 占用栅格地图障碍物检测参数
     double min_obstacle_distance_; // 最小障碍物距离阈值

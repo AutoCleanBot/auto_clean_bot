@@ -22,6 +22,7 @@ def generate_launch_description():
         'right_boundary_topic_name' : '/map/right_boundary',
         'occupancy_grid_topic_name' : '/occupancy_grid',  # 占用栅格地图话题
         'visualization_topic_name' : '/planning/visualization',  # 可视化话题名
+        'remote_control_topic_name' : '/remote_control/cmd',  # 远程控制话题名
         'use_occupancy_grid' : True,   # 是否使用占用栅格地图进行障碍物检测
         
         'min_obstacle_distance' : 15.0,  # 最小障碍物距离阈值(米)

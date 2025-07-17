@@ -72,10 +72,18 @@ PlanningNode::PlanningNode() : Node("planning_node"), timer_cnt_(0) {
     // 添加占用栅格地图订阅
     sub_occupancy_grid_ = this->create_subscription<nav_msgs::msg::OccupancyGrid>(
         occupancy_grid_topic_name_, 10, std::bind(&PlanningNode::OccupancyGridCallback, this, std::placeholders::_1));
-
-    planning_status_ = PlanningStatus::Planning;
+    sub_remote_control_ = this->create_subscription<std_msgs::msg::Int32>(
+        remote_control_topic_name_, 10, std::bind(&PlanningNode::RemoteControlCallback, this, std::placeholders::_1));
+    if (!remote_control_enabled_) {
+        planning_status_ = PlanningStatus::Planning;
+        key_stop_ = false;
+    } else {
+        planning_status_ = PlanningStatus::Stop;
+        key_stop_ = true;
+    }
     reverse_moving_ = false; // 如果未设置,则默认是前进
 }
+
 void PlanningNode::InitParams() {
     this->declare_parameter("local_topic_name", "/localization_info");
     this->declare_parameter("process_frq", 10.0);
@@ -95,6 +103,8 @@ void PlanningNode::InitParams() {
     this->declare_parameter("use_occupancy_grid", true);
     this->declare_parameter("test_mode", false);
     this->declare_parameter("visualization_topic_name", "/planning/visualization");
+    this->declare_parameter("remote_control_topic_name", "/remote_control/cmd");
+    this->declare_parameter("remote_control_enabled", false);
 
     // 占用栅格地图障碍物检测参数
     this->declare_parameter("min_obstacle_distance", 10.0);
@@ -122,9 +132,11 @@ void PlanningNode::InitParams() {
     left_boundary_topic_name_ = this->get_parameter("left_boundary_topic_name").as_string();
     right_boundary_topic_name_ = this->get_parameter("right_boundary_topic_name").as_string();
     occupancy_grid_topic_name_ = this->get_parameter("occupancy_grid_topic_name").as_string();
+    remote_control_topic_name_ = this->get_parameter("remote_control_topic_name").as_string();
     use_occupancy_grid_ = this->get_parameter("use_occupancy_grid").as_bool();
     test_mode_ = this->get_parameter("test_mode").as_bool();
     visualization_topic_name_ = this->get_parameter("visualization_topic_name").as_string();
+    remote_control_enabled_ = this->get_parameter("remote_control_enabled").as_bool();
 
     // 获取占用栅格地图障碍物检测参数
     min_obstacle_distance_ = this->get_parameter("min_obstacle_distance").as_double();
@@ -140,6 +152,8 @@ void PlanningNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "local_topic_name: %s", local_topic_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "service_name: %s", service_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "traj_topic_name: %s", traj_topic_name_.c_str());
+    RCLCPP_INFO(this->get_logger(), "perc_topic_name: %s", perc_topic_name_.c_str());
+    RCLCPP_INFO(this->get_logger(), "remote_control_topic_name: %s", remote_control_topic_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "process_frq: %f", process_frq_);
     RCLCPP_INFO(this->get_logger(), "path_type: %d", path_type_);
     RCLCPP_INFO(this->get_logger(), "preview_dist: %f", preview_dist_);
@@ -208,6 +222,13 @@ void PlanningNode::InitGlobalPath() {
 void PlanningNode::ObstaclesCallback(const bot_msg::msg::Obstacles::SharedPtr msg) {
     RCLCPP_INFO(this->get_logger(), "ObstaclesCallback, size: %d", msg->obstacles.size());
     obstacles_ = *msg;
+}
+
+void PlanningNode::RemoteControlCallback(const std_msgs::msg::Int32::SharedPtr msg) {
+    remote_control_cmd_ = msg->data;
+    if (remote_control_cmd_ == 2) {
+        key_stop_ = true;
+    }
 }
 
 // 占用栅格地图回调函数
@@ -804,10 +825,19 @@ bool PlanningNode::IsObstacleInBoundaryByPosition(double global_x, double global
 
 void PlanningNode::UpdatePlanningStatus() {
     bool is_path_tail = IsPathTail();
-    if (obstacle_info_[1] != -1 || is_path_tail) {
-        planning_status_ = PlanningStatus::Stop;
-    } else {
-        planning_status_ = PlanningStatus::Planning;
+    // 按键1是启动,按键2是停止
+    if (planning_status_ == PlanningStatus::Stop) {
+        if (remote_control_cmd_ == 1) {
+            planning_status_ = PlanningStatus::Planning;
+            key_stop_ = false;
+        }
+        if (!key_stop_ && obstacle_info_[1] == -1 && !is_path_tail) {
+            planning_status_ = PlanningStatus::Planning;
+        }
+    } else if (planning_status_ == PlanningStatus::Planning) {
+        if (remote_control_cmd_ == 2 || obstacle_info_[1] != -1 || is_path_tail) {
+            planning_status_ = PlanningStatus::Stop;
+        }
     }
 }
 
