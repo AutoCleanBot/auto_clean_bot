@@ -276,6 +276,7 @@ launch_base_node_system() {
     launch_node "地图节点" "csv_map" "map_with_config.launch.py" ""
     launch_node "路由节点" "routing" "routing.launch.py" ""
     launch_node "规划节点" "planning" "planning.launch.py" ""
+    launch_node "遥控器节点" "remote_controller" "remote_controller.launch.py" ""
 }
 
 # 清理函数

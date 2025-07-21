@@ -4,8 +4,8 @@ map_node:
     map_files_dir: "~/auto_clean_bot/map_files"
     
     # 边界文件名
-    left_boundary_file: "local_record_1_left_boundary.csv"
-    right_boundary_file: "local_record_1_right_boundary.csv"
+    left_boundary_file: "local_record_3_left_boundary.csv"
+    right_boundary_file: "local_record_3_right_boundary.csv"
     
     # 边界名称
     left_boundary_name: "left_boundary"
@@ -19,5 +19,5 @@ map_node:
 
     # 方向稳定性参数
     direction_stability_weight: 2.0  # 方向稳定性权重
-    max_index_jump: 30.0            # 最大索引跳跃限制
+    max_index_jump: 100.0            # 最大索引跳跃限制,点数
     yaw_weight: 3.0                 # 航向差异权重

@@ -13,6 +13,7 @@ ip link set can0 down
 modprobe can
 modprobe can_raw
 modprobe can_dev
+modprobe mttcan
 
 # 设置CAN0接口波特率（这里设置为500kbps）
 ip link set can0 type can bitrate 250000

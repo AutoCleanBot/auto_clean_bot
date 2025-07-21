@@ -154,6 +154,7 @@ void PlanningNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "traj_topic_name: %s", traj_topic_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "perc_topic_name: %s", perc_topic_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "remote_control_topic_name: %s", remote_control_topic_name_.c_str());
+    RCLCPP_INFO(this->get_logger(), "remote_control_enabled: %d", remote_control_enabled_);
     RCLCPP_INFO(this->get_logger(), "process_frq: %f", process_frq_);
     RCLCPP_INFO(this->get_logger(), "path_type: %d", path_type_);
     RCLCPP_INFO(this->get_logger(), "preview_dist: %f", preview_dist_);
@@ -225,7 +226,13 @@ void PlanningNode::ObstaclesCallback(const bot_msg::msg::Obstacles::SharedPtr ms
 }
 
 void PlanningNode::RemoteControlCallback(const std_msgs::msg::Int32::SharedPtr msg) {
-    remote_control_cmd_ = msg->data;
+    static int pre_key_value = 0;
+    int key_value = msg->data;
+    if (key_value != pre_key_value && key_value != 0) {
+        remote_control_cmd_ = key_value;
+    }
+    pre_key_value = key_value;
+    // RCLCPP_INFO(this->get_logger(), "RemoteControlCallback, cmd: %d", remote_control_cmd_);
     if (remote_control_cmd_ == 2) {
         key_stop_ = true;
     }

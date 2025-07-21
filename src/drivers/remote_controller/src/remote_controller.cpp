@@ -39,7 +39,7 @@ void RemoteControllerNode::timer_callback() {
 
     auto message = std_msgs::msg::Int32();
 
-    message.data = key_num;
+    message.data = g_key_num;
     RCLCPP_INFO(this->get_logger(), "Publishing: '%d'", message.data);
     publisher_->publish(message);
 }
@@ -120,6 +120,8 @@ void RemoteControllerNode::Can1ThreadFunc() {
     int empty_reads_count = 0;
     int activity;
     int id;
+    static int pre_key_num = 0;
+    int key_num = 0;
 
     while (rclcpp::ok()) {
 
@@ -177,7 +179,6 @@ void RemoteControllerNode::Can1ThreadFunc() {
                 if (frame.data[0] == 0x08) {
                     key_num = 0x04;
                 }
-
                 if (frame.data[1] == 0x01) {
                     key_num = 0x05;
                 }
@@ -186,6 +187,10 @@ void RemoteControllerNode::Can1ThreadFunc() {
                 }
             }
         }
+        if (key_num != pre_key_num && key_num != 0) {
+            g_key_num = key_num;
+        }
+        pre_key_num = key_num;
     }
 }
 

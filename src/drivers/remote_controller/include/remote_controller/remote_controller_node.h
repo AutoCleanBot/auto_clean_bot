@@ -29,7 +29,7 @@ class RemoteControllerNode : public rclcpp::Node {
     int can_baudrate_;
     int can_fd = 0; // can1 接口的文件，描述符
     std::thread can1_thread_;
-    int key_num; // 用于发布按键数值
+    int g_key_num; // 用于发布按键数值
 
     void InitParams();
     bool InitCansocket(std::string can_device_name, int baudrate);

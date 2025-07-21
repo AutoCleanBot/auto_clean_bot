@@ -261,8 +261,9 @@ size_t MapNode::findClosestPointIndex(const std::vector<BoundaryPoint> &boundary
         // 如果找到的点距离太远，可能需要全局搜索
         if (distance_to_found > 10.0) { // 10米阈值，可配置
             need_global_search = true;
-            RCLCPP_WARN(this->get_logger(), "Local search result too far (%.2fm), performing global search",
-                        distance_to_found);
+            RCLCPP_WARN(this->get_logger(),
+                        "cur pos: (%.2f, %.2f),Local search result too far (%.2fm), performing global search",
+                        current_east_, current_north_, distance_to_found);
         }
     }
 
