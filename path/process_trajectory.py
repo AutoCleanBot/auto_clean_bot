@@ -159,9 +159,13 @@ def visualize_and_save_results(original_df, processed_df, output_image_file):
     print(f"Image successfully saved to {output_image_file}")
 
 def main():
-    INPUT_FILE = 'local_record_1.csv'
+    import argparse
+    parser = argparse.ArgumentParser(description='smooth and densify path from trajectory.')
+    parser.add_argument('input_file', type=str, help='Path to the input trajectory CSV file.')
+    
+    INPUT_FILE = parser.parse_args().input_file
     TEMP_FILE = 'temp_processed_path.csv'
-    OUTPUT_IMAGE = 'processing_result.png'
+    OUTPUT_IMAGE = INPUT_FILE.replace('.csv', '_processed.png')
     DENSIFY_MAX_DISTANCE, SAVGOL_WINDOW, SAVGOL_POLYORDER = 0.1, 101, 3
     
     try:
