@@ -264,7 +264,7 @@ bool PlanningNode::IsPathTail() {
     double dis = sqrt(pow(tail_east - cur_east, 2) + pow(tail_north - cur_north, 2));
     double yaw_diff = std::abs(NormalizeAngle(g_traj_.points[path_len - 1].yaw * M_PI / 180.0) -
                                NormalizeAngle(cur_local_.yaw * M_PI / 180.0));
-    if (yaw_diff < M_PI / 2 && (dis < path_end_dist_ || closet_idx_ < path_len - 10)) {
+    if (yaw_diff < M_PI / 2 && (dis < path_end_dist_ || closet_idx_ > path_len - 20)) {
         return true;
     }
     return false;
@@ -838,6 +838,24 @@ void PlanningNode::UpdatePlanningStatus() {
         if (remote_control_cmd_ == 2 || obstacle_info_[1] != -1 || is_path_tail) {
             planning_status_ = PlanningStatus::Stop;
         }
+    }
+    if (timer_cnt_ % 10 == 0) {
+        std::string status_text = "Planning status: ";
+        if (planning_status_ == PlanningStatus::Stop) {
+            if (remote_control_cmd_ == 2) {
+                status_text += "STOP (by remote control)";
+            } else if (obstacle_info_[1] != -1) {
+                status_text += "STOP (by obstacle)";
+            } else if (is_path_tail) {
+                status_text += "STOP (reached path tail)";
+            } else {
+                status_text += "STOP (unknown reason)";
+            }
+            status_text += "STOP";
+        } else {
+            status_text += "PLANNING";
+        }
+        RCLCPP_INFO(this->get_logger(), "%s", status_text.c_str());
     }
 }
 
