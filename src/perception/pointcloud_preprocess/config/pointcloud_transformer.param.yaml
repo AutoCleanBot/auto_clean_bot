@@ -3,9 +3,9 @@
     update_rate: 10.0 # 参数更新频率 (Hz)
     input_frame: "lidar_link" # 输入点云坐标系，空字符串表示使用sensor_frame
     output_frame: "base_link" # 输出点云坐标系
-    use_sensor_frame: true # 是否使用传感器坐标系作为输入坐标系
+    use_sensor_frame: false # 是否使用传感器坐标系作为输入坐标系
     timeout: 0.1 # TF查询超时时间 (秒)
-    use_latest_transforms: false # 是否使用最新的变换而不是点云时间戳对应的变换
+    use_latest_transforms: true  # 是否使用最新的变换而不是点云时间戳对应的变换（可以避免TF查询延迟）
     
     # 话题配置
     input_topic: "/rslidar_sdk/drivers/front_lidar" # 输入点云话题
@@ -38,7 +38,7 @@
 
     # 降采样配置
     enable_downsampling: true    # 是否启用降采样
-    voxel_leaf_size: 0.1        # 体素网格叶子大小 (米)，值越小保留的点越多，处理时间越长
+    voxel_leaf_size: 0.15       # 体素网格叶子大小 (米)，适当增大以减少点数量，提升变换性能
 
     # roi配置
     enable_use_roi: true
@@ -47,4 +47,5 @@
     # 性能统计配置
     enable_timing_logs: true         # 是否启用耗时日志输出
     timing_log_interval: 10          # 耗时日志输出间隔（每N帧输出一次）
-    enable_detailed_timing: true    # 是否启用详细的分步耗时统计（包含各步骤时间分布）
+    enable_detailed_timing: true     # 是否启用详细的分步耗时统计（包含各步骤时间分布）
+    optimize_for_speed: true         # 是否启用速度优化模式（降采样在变换前进行）

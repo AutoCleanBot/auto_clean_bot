@@ -68,6 +68,7 @@ PointCloudTransformerNode::PointCloudTransformerNode(const rclcpp::NodeOptions &
     enable_timing_logs_ = declare_parameter("enable_timing_logs", true);
     timing_log_interval_ = declare_parameter("timing_log_interval", 10);
     enable_detailed_timing_ = declare_parameter("enable_detailed_timing", false);
+    optimize_for_speed_ = declare_parameter("optimize_for_speed", true);
 
     // 初始化性能统计变量
     frame_count_ = 0;
@@ -122,6 +123,20 @@ PointCloudTransformerNode::PointCloudTransformerNode(const rclcpp::NodeOptions &
         RCLCPP_INFO(get_logger(), "Timing log interval: every %d frames", timing_log_interval_);
         RCLCPP_INFO(get_logger(), "Detailed timing enabled: %s", enable_detailed_timing_ ? "true" : "false");
     }
+    RCLCPP_INFO(get_logger(), "Speed optimization enabled: %s", optimize_for_speed_ ? "true" : "false");
+    if (optimize_for_speed_) {
+        RCLCPP_INFO(get_logger(), "  - Downsampling will be performed BEFORE coordinate transformation");
+    } else {
+        RCLCPP_INFO(get_logger(), "  - Downsampling will be performed AFTER coordinate transformation");
+    }
+
+    // 添加关键参数的确认信息
+    RCLCPP_INFO(get_logger(), "=== Current Configuration ===");
+    RCLCPP_INFO(get_logger(), "Vehicle filtering: %s", filter_vehicle_points_ ? "ENABLED" : "DISABLED");
+    RCLCPP_INFO(get_logger(), "Downsampling: %s", enable_downsampling_ ? "ENABLED" : "DISABLED");
+    RCLCPP_INFO(get_logger(), "ROI filtering: %s", enable_use_roi_ ? "ENABLED" : "DISABLED");
+    RCLCPP_INFO(get_logger(), "Use sensor frame: %s", use_sensor_frame_ ? "true" : "false");
+    RCLCPP_INFO(get_logger(), "============================");
 }
 
 void PointCloudTransformerNode::pointCloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
@@ -364,11 +379,14 @@ void PointCloudTransformerNode::timerCallback() {
 
 void PointCloudTransformerNode::filterVehiclePoints(sensor_msgs::msg::PointCloud2 &cloud,
                                                     const std::string &frame_id) const {
-    if (!filter_vehicle_points_) {
-        return; // 如果过滤功能未启用，直接返回
-    }
-
     double start_time = getCurrentTimeMs();
+
+    if (!filter_vehicle_points_) {
+        // 如果过滤功能未启用，记录0耗时后直接返回
+        double end_time = getCurrentTimeMs();
+        total_vehicle_filter_time_ += (end_time - start_time);
+        return;
+    }
 
     // 将ROS2点云消息转换为PCL点云
     pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud(new pcl::PointCloud<pcl::PointXYZ>());
@@ -487,11 +505,22 @@ void PointCloudTransformerNode::FilterROI(const sensor_msgs::msg::PointCloud2::S
 }
 
 void PointCloudTransformerNode::transformPointCloud(const sensor_msgs::msg::PointCloud2::SharedPtr &input_cloud) {
-    // RCLCPP_INFO(get_logger(), "Transforming point cloud from '%s' to '%s'", input_cloud->header.frame_id.c_str(),
-    //             output_frame_.c_str());
+    // 添加调试信息（每100帧输出一次）
+    static int debug_count = 0;
+    if (++debug_count % 100 == 0) {
+        RCLCPP_INFO(get_logger(), "Point cloud frame_id: '%s', target: '%s', use_sensor_frame: %s",
+                    input_cloud->header.frame_id.c_str(), output_frame_.c_str(), use_sensor_frame_ ? "true" : "false");
+    }
 
     if (enable_use_roi_) {
         FilterROI(input_cloud);
+    }
+
+    // 速度优化：在坐标变换前先进行降采样，减少需要变换的点数量
+    if (optimize_for_speed_ && enable_downsampling_) {
+        sensor_msgs::msg::PointCloud2 temp_cloud = *input_cloud;
+        downsamplePointCloud(temp_cloud);
+        *input_cloud = temp_cloud;
     }
 
     // 确定源坐标系
@@ -510,7 +539,10 @@ void PointCloudTransformerNode::transformPointCloud(const sensor_msgs::msg::Poin
         // 源坐标系和目标坐标系相同，应用车辆点云过滤和降采样后直接发布
         sensor_msgs::msg::PointCloud2 processed_cloud = *input_cloud;
         filterVehiclePoints(processed_cloud, output_frame_);
-        downsamplePointCloud(processed_cloud);
+        // 如果未启用速度优化，在这里进行降采样
+        if (!optimize_for_speed_ && enable_downsampling_) {
+            downsamplePointCloud(processed_cloud);
+        }
         output_cloud_pub_->publish(processed_cloud);
         return;
     }
@@ -538,7 +570,10 @@ void PointCloudTransformerNode::transformPointCloud(const sensor_msgs::msg::Poin
 
         // 对转换后的点云应用车辆点云过滤和降采样
         filterVehiclePoints(transformed_cloud, output_frame_);
-        downsamplePointCloud(transformed_cloud);
+        // 如果未启用速度优化，在这里进行降采样
+        if (!optimize_for_speed_ && enable_downsampling_) {
+            downsamplePointCloud(transformed_cloud);
+        }
 
         // 发布转换后的点云
         transformed_cloud.header.frame_id = output_frame_;
@@ -553,11 +588,14 @@ void PointCloudTransformerNode::transformPointCloud(const sensor_msgs::msg::Poin
 }
 
 void PointCloudTransformerNode::downsamplePointCloud(sensor_msgs::msg::PointCloud2 &cloud) const {
-    if (!enable_downsampling_) {
-        return; // 如果降采样功能未启用，直接返回
-    }
-
     double start_time = getCurrentTimeMs();
+
+    if (!enable_downsampling_) {
+        // 如果降采样功能未启用，记录0耗时后直接返回
+        double end_time = getCurrentTimeMs();
+        total_downsampling_time_ += (end_time - start_time);
+        return;
+    }
 
     // 将ROS2点云消息转换为PCL点云
     pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud(new pcl::PointCloud<pcl::PointXYZ>());

@@ -60,6 +60,7 @@ class PointCloudTransformerNode : public rclcpp::Node {
     bool enable_timing_logs_;     // 是否启用耗时日志
     int timing_log_interval_;     // 耗时日志输出间隔（每N帧输出一次）
     bool enable_detailed_timing_; // 是否启用详细的分步耗时统计
+    bool optimize_for_speed_;     // 是否启用速度优化模式
 
     // 订阅和发布
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr input_cloud_sub_;
