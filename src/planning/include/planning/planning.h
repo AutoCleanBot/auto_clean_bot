@@ -5,6 +5,7 @@
 #include "bot_msg/msg/boundary.hpp"
 #include "bot_msg/msg/localization_info.hpp"
 #include "bot_msg/msg/obstacles.hpp"
+#include <chrono>
 #include <geometry_msgs/msg/point.hpp>
 #include <limits>
 #include <nav_msgs/msg/occupancy_grid.hpp>
@@ -128,6 +129,28 @@ class PlanningNode : public rclcpp::Node {
 
     // 存储检测到的障碍物点
     std::vector<ObstaclePoint> detected_obstacle_points_;
+
+    // 性能统计参数
+    bool enable_timing_logs_;     // 是否启用耗时日志
+    int timing_log_interval_;     // 耗时日志输出间隔（每N帧输出一次）
+    bool enable_detailed_timing_; // 是否启用详细的分步耗时统计
+    bool enable_zero_copy_;       // 是否启用零拷贝优化
+
+    // 性能统计变量
+    mutable int frame_count_;                       // 处理的帧数计数
+    mutable double total_processing_time_;          // 总处理时间（毫秒）
+    mutable double total_obstacle_detection_time_;  // 障碍物检测总时间（毫秒）
+    mutable double total_trajectory_planning_time_; // 轨迹规划总时间（毫秒）
+    mutable double total_visualization_time_;       // 可视化总时间（毫秒）
+    mutable double total_occupancy_grid_time_;      // 占用栅格地图处理总时间（毫秒）
+
+    // 性能统计辅助函数
+    void logTimingStatistics() const;
+    void resetTimingStatistics() const;
+    double getCurrentTimeMs() const;
+
+    // 零拷贝优化函数
+    void updateObstacleInfoFromOccupancyGridZeroCopy();
 
     // 创建障碍物点可视化标记
     visualization_msgs::msg::Marker CreateObstaclePointsMarker();

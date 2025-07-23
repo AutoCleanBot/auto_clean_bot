@@ -115,6 +115,12 @@ void PlanningNode::InitParams() {
     this->declare_parameter("direction_stability_weight", 2.0);
     this->declare_parameter("max_index_jump", 50.0);
     this->declare_parameter("yaw_weight", 3.0);
+
+    // 性能统计参数
+    this->declare_parameter("enable_timing_logs", true);
+    this->declare_parameter("timing_log_interval", 10);
+    this->declare_parameter("enable_detailed_timing", false);
+    this->declare_parameter("enable_zero_copy", true);
     local_topic_name_ = this->get_parameter("local_topic_name").as_string();
     service_name_ = this->get_parameter("service_name").as_string();
     process_frq_ = this->get_parameter("process_frq").as_double();
@@ -148,6 +154,20 @@ void PlanningNode::InitParams() {
     max_index_jump_ = this->get_parameter("max_index_jump").as_double();
     yaw_weight_ = this->get_parameter("yaw_weight").as_double();
 
+    // 获取性能统计参数
+    enable_timing_logs_ = this->get_parameter("enable_timing_logs").as_bool();
+    timing_log_interval_ = this->get_parameter("timing_log_interval").as_int();
+    enable_detailed_timing_ = this->get_parameter("enable_detailed_timing").as_bool();
+    enable_zero_copy_ = this->get_parameter("enable_zero_copy").as_bool();
+
+    // 初始化性能统计变量
+    frame_count_ = 0;
+    total_processing_time_ = 0.0;
+    total_obstacle_detection_time_ = 0.0;
+    total_trajectory_planning_time_ = 0.0;
+    total_visualization_time_ = 0.0;
+    total_occupancy_grid_time_ = 0.0;
+
     RCLCPP_INFO(this->get_logger(), "local_topic_name: %s", local_topic_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "service_name: %s", service_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "traj_topic_name: %s", traj_topic_name_.c_str());
@@ -167,6 +187,14 @@ void PlanningNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "direction_stability_weight: %f", direction_stability_weight_);
     RCLCPP_INFO(this->get_logger(), "max_index_jump: %f", max_index_jump_);
     RCLCPP_INFO(this->get_logger(), "yaw_weight: %f", yaw_weight_);
+
+    // 性能统计配置信息
+    RCLCPP_INFO(this->get_logger(), "Timing logs enabled: %s", enable_timing_logs_ ? "true" : "false");
+    if (enable_timing_logs_) {
+        RCLCPP_INFO(this->get_logger(), "Timing log interval: every %d frames", timing_log_interval_);
+        RCLCPP_INFO(this->get_logger(), "Detailed timing enabled: %s", enable_detailed_timing_ ? "true" : "false");
+    }
+    RCLCPP_INFO(this->get_logger(), "Zero-copy optimization enabled: %s", enable_zero_copy_ ? "true" : "false");
 }
 
 void PlanningNode::InitGlobalPath() {
@@ -415,17 +443,26 @@ void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
 // TODO 路径终点的处理机制
 void PlanningNode::TimerCallback() {
     // 开始计时
-    auto start_time = std::chrono::high_resolution_clock::now();
+    double start_time = getCurrentTimeMs();
 
-    // 基于当前的当前定位信息, 找到当前位置在全局路径上的最近点
-    // 根据配置选择障碍物检测方法
+    // 障碍物检测
+    double obstacle_start_time = getCurrentTimeMs();
     if (use_occupancy_grid_) {
-        UpdateObstacleInfoFromOccupancyGrid();
+        if (enable_zero_copy_) {
+            updateObstacleInfoFromOccupancyGridZeroCopy();
+        } else {
+            UpdateObstacleInfoFromOccupancyGrid();
+        }
     } else {
         UpdateObstacleInfo();
     }
+    double obstacle_end_time = getCurrentTimeMs();
+    total_obstacle_detection_time_ += (obstacle_end_time - obstacle_start_time);
+
     UpdatePlanningStatus();
 
+    // 轨迹规划
+    double trajectory_start_time = getCurrentTimeMs();
     bot_msg::msg::ADCTrajectory pub_traj_path;
     FillPubTraj(pub_traj_path);
     // 填充速度
@@ -442,17 +479,38 @@ void PlanningNode::TimerCallback() {
     pub_traj_path.header.frame_id = "map";
     pub_traj_path.direction = reverse_moving_ ? 1 : 0;
     this->pub_traj_->publish(pub_traj_path);
+    double trajectory_end_time = getCurrentTimeMs();
+    total_trajectory_planning_time_ += (trajectory_end_time - trajectory_start_time);
 
-    // 发布可视化信息
+    // 可视化
+    double visualization_start_time = getCurrentTimeMs();
     PublishVisualization(pub_traj_path);
+    double visualization_end_time = getCurrentTimeMs();
+    total_visualization_time_ += (visualization_end_time - visualization_start_time);
 
-    // 结束计时并计算耗时
-    auto end_time = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+    // 结束计时并计算总耗时
+    double end_time = getCurrentTimeMs();
+    double process_time = end_time - start_time;
 
-    // 输出耗时信息
-    if (timer_cnt_ % 10 == 0)
-        RCLCPP_INFO(this->get_logger(), "TimerCallback 总耗时: %ld ms", duration.count());
+    // 更新统计信息
+    frame_count_++;
+    total_processing_time_ += process_time;
+
+    // 根据配置输出耗时日志
+    if (enable_timing_logs_ && (frame_count_ % timing_log_interval_ == 0)) {
+        if (enable_detailed_timing_) {
+            logTimingStatistics();
+        } else {
+            double avg_time = total_processing_time_ / frame_count_;
+            RCLCPP_INFO(this->get_logger(), "Frame %d: Current=%.2fms, Average=%.2fms", frame_count_, process_time,
+                        avg_time);
+        }
+    }
+
+    // 防止计数器溢出，每10000帧重置一次统计
+    if (frame_count_ >= 10000) {
+        resetTimingStatistics();
+    }
 
     ++timer_cnt_;
     if (timer_cnt_ > 99) {
@@ -650,6 +708,8 @@ double PlanningNode::CalculatePointToBoundaryDistance(double east, double north,
  * @brief 基于占用栅格地图更新障碍物信息
  */
 void PlanningNode::UpdateObstacleInfoFromOccupancyGrid() {
+    double grid_start_time = getCurrentTimeMs();
+
     obstacle_info_.fill(-1);
 
     // 清空之前的障碍物点
@@ -767,6 +827,10 @@ void PlanningNode::UpdateObstacleInfoFromOccupancyGrid() {
             }
         }
     }
+
+    // 记录占用栅格地图处理耗时
+    double grid_end_time = getCurrentTimeMs();
+    total_occupancy_grid_time_ += (grid_end_time - grid_start_time);
 }
 
 /**
@@ -1188,6 +1252,163 @@ double PlanningNode::calculateTrajectoryPointCost(size_t index, double cur_yaw_r
 
     // 组合成本：距离 + 航向差异权重 + 方向稳定性成本
     return dist + yaw_weight_ * yaw_diff + stability_cost;
+}
+
+double PlanningNode::getCurrentTimeMs() const {
+    auto now = std::chrono::high_resolution_clock::now();
+    auto duration = now.time_since_epoch();
+    return std::chrono::duration_cast<std::chrono::microseconds>(duration).count() / 1000.0;
+}
+
+void PlanningNode::logTimingStatistics() const {
+    if (frame_count_ == 0)
+        return;
+
+    double avg_total = total_processing_time_ / frame_count_;
+    double avg_obstacle = total_obstacle_detection_time_ / frame_count_;
+    double avg_trajectory = total_trajectory_planning_time_ / frame_count_;
+    double avg_visualization = total_visualization_time_ / frame_count_;
+    double avg_occupancy = total_occupancy_grid_time_ / frame_count_;
+
+    RCLCPP_INFO(get_logger(), "=== Planning Processing Statistics (Frame %d) ===", frame_count_);
+    RCLCPP_INFO(get_logger(), "Total Processing:      %.2f ms (avg)", avg_total);
+    RCLCPP_INFO(get_logger(), "  - Obstacle Detection: %.2f ms (avg)", avg_obstacle);
+    RCLCPP_INFO(get_logger(), "  - Trajectory Planning:%.2f ms (avg)", avg_trajectory);
+    RCLCPP_INFO(get_logger(), "  - Visualization:      %.2f ms (avg)", avg_visualization);
+    RCLCPP_INFO(get_logger(), "  - Occupancy Grid:     %.2f ms (avg)", avg_occupancy);
+
+    // 计算各步骤占总时间的百分比
+    if (avg_total > 0) {
+        RCLCPP_INFO(get_logger(), "Time Distribution:");
+        RCLCPP_INFO(get_logger(), "  - Obstacle Detection: %.1f%%", (avg_obstacle / avg_total) * 100.0);
+        RCLCPP_INFO(get_logger(), "  - Trajectory Planning:%.1f%%", (avg_trajectory / avg_total) * 100.0);
+        RCLCPP_INFO(get_logger(), "  - Visualization:      %.1f%%", (avg_visualization / avg_total) * 100.0);
+        RCLCPP_INFO(get_logger(), "  - Occupancy Grid:     %.1f%%", (avg_occupancy / avg_total) * 100.0);
+    }
+    RCLCPP_INFO(get_logger(), "Zero-copy mode: %s", enable_zero_copy_ ? "ENABLED" : "DISABLED");
+    RCLCPP_INFO(get_logger(), "================================================");
+}
+
+void PlanningNode::updateObstacleInfoFromOccupancyGridZeroCopy() {
+    double grid_start_time = getCurrentTimeMs();
+
+    obstacle_info_.fill(-1);
+    detected_obstacle_points_.clear();
+
+    // 检查占用栅格地图是否有效
+    if (occupancy_grid_.data.empty() || occupancy_grid_.info.width == 0 || occupancy_grid_.info.height == 0) {
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "Occupancy grid is empty or invalid");
+        return;
+    }
+
+    // 检查边界线是否有效
+    if (left_boundary_.points.empty() || right_boundary_.points.empty()) {
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "Boundary lines are empty");
+        return;
+    }
+
+    // 零拷贝优化：直接访问栅格数据，避免不必要的拷贝
+    const auto &info = occupancy_grid_.info;
+    const auto &data = occupancy_grid_.data; // 直接引用，避免拷贝
+
+    const double resolution = info.resolution;
+    const int width = info.width;
+    const int height = info.height;
+    const double origin_x = info.origin.position.x;
+    const double origin_y = info.origin.position.y;
+    const double grid_yaw = tf2::getYaw(info.origin.orientation);
+
+    // 预计算三角函数值，避免重复计算
+    const double cos_grid_yaw = cos(grid_yaw);
+    const double sin_grid_yaw = sin(grid_yaw);
+    const double vehicle_heading = cur_local_.yaw * M_PI / 180.0;
+    const double cos_heading = cos(vehicle_heading);
+    const double sin_heading = sin(vehicle_heading);
+
+    // 预分配障碍物点容器，避免频繁内存分配
+    detected_obstacle_points_.reserve(1000); // 预估容量
+
+    // 优化的栅格遍历：只检查车辆前方的相关区域
+    const double max_check_distance = min_obstacle_distance_ + 2.0; // 减少缓冲区，从5米减到2米
+
+    // 计算需要检查的栅格范围（在车辆坐标系下）
+    const int check_range_cells = static_cast<int>(max_check_distance / resolution) + 1;
+
+    // 将车辆位置转换到栅格坐标系
+    double vehicle_local_x = (cur_local_.east - origin_x) * cos_grid_yaw + (cur_local_.north - origin_y) * sin_grid_yaw;
+    double vehicle_local_y =
+        -(cur_local_.east - origin_x) * sin_grid_yaw + (cur_local_.north - origin_y) * cos_grid_yaw;
+    int vehicle_grid_x = static_cast<int>(vehicle_local_x / resolution);
+    int vehicle_grid_y = static_cast<int>(vehicle_local_y / resolution);
+
+    // 限制搜索范围，避免越界
+    int start_x = std::max(0, vehicle_grid_x - check_range_cells);
+    int end_x = std::min(width, vehicle_grid_x + check_range_cells);
+    int start_y = std::max(0, vehicle_grid_y - check_range_cells);
+    int end_y = std::min(height, vehicle_grid_y + check_range_cells);
+
+    // 遍历限定区域内的栅格
+    for (int grid_x = start_x; grid_x < end_x; ++grid_x) {
+        for (int grid_y = start_y; grid_y < end_y; ++grid_y) {
+            int index = grid_y * width + grid_x;
+
+            // 检查栅格是否被占用（直接访问数据，无拷贝）
+            if (data[index] < occupied_threshold_) {
+                continue;
+            }
+
+            // 快速计算全局坐标（减少重复计算）
+            double local_x = grid_x * resolution;
+            double local_y = grid_y * resolution;
+            double rotated_x = local_x * cos_grid_yaw - local_y * sin_grid_yaw;
+            double rotated_y = local_x * sin_grid_yaw + local_y * cos_grid_yaw;
+            double global_x = origin_x + rotated_x;
+            double global_y = origin_y + rotated_y;
+
+            // 快速距离检查（避免sqrt计算）
+            double dx = global_x - cur_local_.east;
+            double dy = global_y - cur_local_.north;
+            double distance_squared = dx * dx + dy * dy;
+            double max_distance_squared = min_obstacle_distance_ * min_obstacle_distance_;
+
+            if (distance_squared > max_distance_squared) {
+                continue;
+            }
+
+            // 转换到车辆坐标系（使用预计算的三角函数值）
+            double relative_x = dx * cos_heading - dy * sin_heading;
+            double relative_y = dx * sin_heading + dy * cos_heading;
+
+            // 快速边界检查（简化版本，提高性能）
+            bool is_in_boundary = IsObstacleInBoundaryByPosition(global_x, global_y);
+
+            if (is_in_boundary) {
+                // 使用emplace_back避免临时对象创建
+                detected_obstacle_points_.emplace_back(ObstaclePoint{global_x, global_y, true});
+
+                // 根据车辆坐标系判断障碍物位置
+                if (relative_y > 0.0 && relative_y < min_obstacle_distance_) {
+                    obstacle_info_[1] = 1;
+                    RCLCPP_INFO(this->get_logger(), "前方发现障碍物，距离：%.2f 米，相对位置：(%.2f, %.2f)",
+                                sqrt(distance_squared), relative_x, relative_y);
+                }
+            }
+        }
+    }
+
+    // 记录占用栅格地图处理耗时
+    double grid_end_time = getCurrentTimeMs();
+    total_occupancy_grid_time_ += (grid_end_time - grid_start_time);
+}
+
+void PlanningNode::resetTimingStatistics() const {
+    RCLCPP_INFO(get_logger(), "Resetting timing statistics after %d frames", frame_count_);
+    frame_count_ = 0;
+    total_processing_time_ = 0.0;
+    total_obstacle_detection_time_ = 0.0;
+    total_trajectory_planning_time_ = 0.0;
+    total_visualization_time_ = 0.0;
+    total_occupancy_grid_time_ = 0.0;
 }
 
 PlanningNode::~PlanningNode() { RCLCPP_INFO(this->get_logger(), "planning node stopped"); }

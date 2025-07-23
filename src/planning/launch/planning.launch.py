@@ -46,7 +46,13 @@ def generate_launch_description():
         'planning_spd' : 3.0,     # 规划速度, m/s
         'path_end_dist' : 3.0,    # 路径结束距离, m
         'reverse_moving' : False, # 是否反向行驶
-        'test_mode' : False       # 启用测试模式，生成测试轨迹
+        'test_mode' : False,      # 启用测试模式，生成测试轨迹
+
+        # 性能统计配置
+        'enable_timing_logs' : True,         # 是否启用耗时日志输出
+        'timing_log_interval' : 10,          # 耗时日志输出间隔（每N帧输出一次）
+        'enable_detailed_timing' : True,    # 是否启用详细的分步耗时统计（包含各步骤时间分布）
+        'enable_zero_copy' : True            # 是否启用零拷贝优化（提高栅格地图处理性能）
     }
     
     # 配置节点，并将参数字典直接传递给参数字段
