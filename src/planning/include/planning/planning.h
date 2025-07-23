@@ -136,6 +136,11 @@ class PlanningNode : public rclcpp::Node {
     bool enable_detailed_timing_; // 是否启用详细的分步耗时统计
     bool enable_zero_copy_;       // 是否启用零拷贝优化
 
+    // 栅格地图优化参数
+    int max_obstacles_to_check_;      // 最大检查的障碍物数量
+    double grid_sampling_resolution_; // 栅格采样分辨率（米）
+    bool skip_boundary_check_;        // 是否跳过复杂的边界检查
+
     // 性能统计变量
     mutable int frame_count_;                       // 处理的帧数计数
     mutable double total_processing_time_;          // 总处理时间（毫秒）

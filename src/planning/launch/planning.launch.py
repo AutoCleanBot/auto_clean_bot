@@ -51,8 +51,13 @@ def generate_launch_description():
         # 性能统计配置
         'enable_timing_logs' : True,         # 是否启用耗时日志输出
         'timing_log_interval' : 10,          # 耗时日志输出间隔（每N帧输出一次）
-        'enable_detailed_timing' : True,    # 是否启用详细的分步耗时统计（包含各步骤时间分布）
-        'enable_zero_copy' : True            # 是否启用零拷贝优化（提高栅格地图处理性能）
+        'enable_detailed_timing' : True,     # 是否启用详细的分步耗时统计（包含各步骤时间分布）
+        'enable_zero_copy' : True,           # 是否启用零拷贝优化（提高栅格地图处理性能）
+
+        # 栅格地图优化配置
+        'max_obstacles_to_check' : 30,       # 最大检查的障碍物数量（减少计算量）
+        'grid_sampling_resolution' : 0.15,   # 栅格采样分辨率，米（增大以减少计算点数）
+        'skip_boundary_check' : False         # 使用完整的边界检查（未优化版本）
     }
     
     # 配置节点，并将参数字典直接传递给参数字段

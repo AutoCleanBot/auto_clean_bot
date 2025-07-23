@@ -121,6 +121,11 @@ void PlanningNode::InitParams() {
     this->declare_parameter("timing_log_interval", 10);
     this->declare_parameter("enable_detailed_timing", false);
     this->declare_parameter("enable_zero_copy", true);
+
+    // 栅格地图优化参数
+    this->declare_parameter("max_obstacles_to_check", 50);
+    this->declare_parameter("grid_sampling_resolution", 0.1);
+    this->declare_parameter("skip_boundary_check", true);
     local_topic_name_ = this->get_parameter("local_topic_name").as_string();
     service_name_ = this->get_parameter("service_name").as_string();
     process_frq_ = this->get_parameter("process_frq").as_double();
@@ -160,6 +165,11 @@ void PlanningNode::InitParams() {
     enable_detailed_timing_ = this->get_parameter("enable_detailed_timing").as_bool();
     enable_zero_copy_ = this->get_parameter("enable_zero_copy").as_bool();
 
+    // 获取栅格地图优化参数
+    max_obstacles_to_check_ = this->get_parameter("max_obstacles_to_check").as_int();
+    grid_sampling_resolution_ = this->get_parameter("grid_sampling_resolution").as_double();
+    skip_boundary_check_ = this->get_parameter("skip_boundary_check").as_bool();
+
     // 初始化性能统计变量
     frame_count_ = 0;
     total_processing_time_ = 0.0;
@@ -195,6 +205,13 @@ void PlanningNode::InitParams() {
         RCLCPP_INFO(this->get_logger(), "Detailed timing enabled: %s", enable_detailed_timing_ ? "true" : "false");
     }
     RCLCPP_INFO(this->get_logger(), "Zero-copy optimization enabled: %s", enable_zero_copy_ ? "true" : "false");
+
+    // 栅格地图优化配置信息
+    RCLCPP_INFO(this->get_logger(), "=== Grid Map Optimization Settings ===");
+    RCLCPP_INFO(this->get_logger(), "Max obstacles to check: %d", max_obstacles_to_check_);
+    RCLCPP_INFO(this->get_logger(), "Grid sampling resolution: %.2f m", grid_sampling_resolution_);
+    RCLCPP_INFO(this->get_logger(), "Skip boundary check: %s", skip_boundary_check_ ? "true" : "false");
+    RCLCPP_INFO(this->get_logger(), "======================================");
 }
 
 void PlanningNode::InitGlobalPath() {
@@ -1334,6 +1351,12 @@ void PlanningNode::updateObstacleInfoFromOccupancyGridZeroCopy() {
     // 计算需要检查的栅格范围（在车辆坐标系下）
     const int check_range_cells = static_cast<int>(max_check_distance / resolution) + 1;
 
+    // 采样优化：根据配置的采样分辨率调整采样步长
+    int sampling_step = 1;
+    if (resolution < grid_sampling_resolution_) {
+        sampling_step = static_cast<int>(grid_sampling_resolution_ / resolution);
+    }
+
     // 将车辆位置转换到栅格坐标系
     double vehicle_local_x = (cur_local_.east - origin_x) * cos_grid_yaw + (cur_local_.north - origin_y) * sin_grid_yaw;
     double vehicle_local_y =
@@ -1347,9 +1370,15 @@ void PlanningNode::updateObstacleInfoFromOccupancyGridZeroCopy() {
     int start_y = std::max(0, vehicle_grid_y - check_range_cells);
     int end_y = std::min(height, vehicle_grid_y + check_range_cells);
 
-    // 遍历限定区域内的栅格
-    for (int grid_x = start_x; grid_x < end_x; ++grid_x) {
-        for (int grid_y = start_y; grid_y < end_y; ++grid_y) {
+    // 遍历限定区域内的栅格（使用采样步长优化）
+    int obstacle_count = 0;
+
+    for (int grid_x = start_x; grid_x < end_x; grid_x += sampling_step) {
+        for (int grid_y = start_y; grid_y < end_y; grid_y += sampling_step) {
+            // 早期退出：如果已经检查了足够多的障碍物点，就停止
+            if (obstacle_count >= max_obstacles_to_check_) {
+                break;
+            }
             int index = grid_y * width + grid_x;
 
             // 检查栅格是否被占用（直接访问数据，无拷贝）
@@ -1379,16 +1408,17 @@ void PlanningNode::updateObstacleInfoFromOccupancyGridZeroCopy() {
             double relative_x = dx * cos_heading - dy * sin_heading;
             double relative_y = dx * sin_heading + dy * cos_heading;
 
-            // 快速边界检查（简化版本，提高性能）
+            // 恢复完整的边界检查（未优化版本）
             bool is_in_boundary = IsObstacleInBoundaryByPosition(global_x, global_y);
 
             if (is_in_boundary) {
                 // 使用emplace_back避免临时对象创建
                 detected_obstacle_points_.emplace_back(ObstaclePoint{global_x, global_y, true});
+                obstacle_count++;
 
                 // 根据车辆坐标系判断障碍物位置
-                if (relative_y > 0.0 && relative_y < min_obstacle_distance_) {
-                    obstacle_info_[1] = 1;
+                if (relative_y > 0.0 && relative_y < min_obstacle_distance_) { // 车辆前方
+                    obstacle_info_[1] = 1;                                     // 使用1表示检测到障碍物
                     RCLCPP_INFO(this->get_logger(), "前方发现障碍物，距离：%.2f 米，相对位置：(%.2f, %.2f)",
                                 sqrt(distance_squared), relative_x, relative_y);
                 }
