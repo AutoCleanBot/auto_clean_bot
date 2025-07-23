@@ -64,6 +64,19 @@ PointCloudTransformerNode::PointCloudTransformerNode(const rclcpp::NodeOptions &
     enable_downsampling_ = declare_parameter("enable_downsampling", false);
     voxel_leaf_size_ = declare_parameter("voxel_leaf_size", 0.1);
 
+    // 声明并获取性能统计参数
+    enable_timing_logs_ = declare_parameter("enable_timing_logs", true);
+    timing_log_interval_ = declare_parameter("timing_log_interval", 10);
+    enable_detailed_timing_ = declare_parameter("enable_detailed_timing", false);
+
+    // 初始化性能统计变量
+    frame_count_ = 0;
+    total_processing_time_ = 0.0;
+    total_roi_filter_time_ = 0.0;
+    total_transform_time_ = 0.0;
+    total_vehicle_filter_time_ = 0.0;
+    total_downsampling_time_ = 0.0;
+
     // 设置TF监听器
     tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
@@ -104,20 +117,42 @@ PointCloudTransformerNode::PointCloudTransformerNode(const rclcpp::NodeOptions &
     if (enable_downsampling_) {
         RCLCPP_INFO(get_logger(), "Voxel leaf size: %.3fm", voxel_leaf_size_);
     }
+    RCLCPP_INFO(get_logger(), "Timing logs enabled: %s", enable_timing_logs_ ? "true" : "false");
+    if (enable_timing_logs_) {
+        RCLCPP_INFO(get_logger(), "Timing log interval: every %d frames", timing_log_interval_);
+        RCLCPP_INFO(get_logger(), "Detailed timing enabled: %s", enable_detailed_timing_ ? "true" : "false");
+    }
 }
 
 void PointCloudTransformerNode::pointCloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
-    static int count = 0;
-    // 计算处理点云时间
-    rclcpp::Time start_time = this->now();
+    // 记录开始时间
+    double start_time = getCurrentTimeMs();
+
+    // 处理点云
     transformPointCloud(msg);
-    rclcpp::Time end_time = this->now();
-    double process_time = (end_time - start_time).seconds() * 1000.0; // 转换为毫秒
-    if (count++ % 10 == 0) {
-        RCLCPP_INFO(this->get_logger(), "Point cloud processing completed in %.2f ms", process_time);
+
+    // 记录结束时间并计算总处理时间
+    double end_time = getCurrentTimeMs();
+    double process_time = end_time - start_time;
+
+    // 更新统计信息
+    frame_count_++;
+    total_processing_time_ += process_time;
+
+    // 根据配置输出耗时日志
+    if (enable_timing_logs_ && (frame_count_ % timing_log_interval_ == 0)) {
+        if (enable_detailed_timing_) {
+            logTimingStatistics();
+        } else {
+            double avg_time = total_processing_time_ / frame_count_;
+            RCLCPP_INFO(this->get_logger(), "Frame %d: Current=%.2fms, Average=%.2fms", frame_count_, process_time,
+                        avg_time);
+        }
     }
-    if (count >= 10000) {
-        count = 0;
+
+    // 防止计数器溢出，每10000帧重置一次统计
+    if (frame_count_ >= 10000) {
+        resetTimingStatistics();
     }
 }
 
@@ -333,6 +368,8 @@ void PointCloudTransformerNode::filterVehiclePoints(sensor_msgs::msg::PointCloud
         return; // 如果过滤功能未启用，直接返回
     }
 
+    double start_time = getCurrentTimeMs();
+
     // 将ROS2点云消息转换为PCL点云
     pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud(new pcl::PointCloud<pcl::PointXYZ>());
     pcl::fromROSMsg(cloud, *pcl_cloud);
@@ -405,9 +442,15 @@ void PointCloudTransformerNode::filterVehiclePoints(sensor_msgs::msg::PointCloud
 
     RCLCPP_DEBUG(get_logger(), "Filtered vehicle points: removed %ld points",
                  pcl_cloud->size() - filtered_cloud->size());
+
+    // 记录车辆过滤耗时
+    double end_time = getCurrentTimeMs();
+    total_vehicle_filter_time_ += (end_time - start_time);
 }
 
 void PointCloudTransformerNode::FilterROI(const sensor_msgs::msg::PointCloud2::SharedPtr &input_cloud) {
+    double start_time = getCurrentTimeMs();
+
     // 将ROS2点云消息转换为PCL点云
     pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud(new pcl::PointCloud<pcl::PointXYZ>());
     pcl::fromROSMsg(*input_cloud, *pcl_cloud);
@@ -437,11 +480,15 @@ void PointCloudTransformerNode::FilterROI(const sensor_msgs::msg::PointCloud2::S
 
     // 将过滤后的PCL点云转换回ROS2消息
     pcl::toROSMsg(*filtered_cloud, *input_cloud);
+
+    // 记录ROI过滤耗时
+    double end_time = getCurrentTimeMs();
+    total_roi_filter_time_ += (end_time - start_time);
 }
 
 void PointCloudTransformerNode::transformPointCloud(const sensor_msgs::msg::PointCloud2::SharedPtr &input_cloud) {
-    RCLCPP_INFO(get_logger(), "Transforming point cloud from '%s' to '%s'", input_cloud->header.frame_id.c_str(),
-                output_frame_.c_str());
+    // RCLCPP_INFO(get_logger(), "Transforming point cloud from '%s' to '%s'", input_cloud->header.frame_id.c_str(),
+    //             output_frame_.c_str());
 
     if (enable_use_roi_) {
         FilterROI(input_cloud);
@@ -470,6 +517,7 @@ void PointCloudTransformerNode::transformPointCloud(const sensor_msgs::msg::Poin
 
     // 转换点云到目标坐标系
     try {
+        double transform_start_time = getCurrentTimeMs();
         sensor_msgs::msg::PointCloud2 transformed_cloud;
 
         if (use_latest_transforms_) {
@@ -483,6 +531,10 @@ void PointCloudTransformerNode::transformPointCloud(const sensor_msgs::msg::Poin
                                                                tf2::durationFromSec(timeout_));
             tf2::doTransform(*input_cloud, transformed_cloud, transform);
         }
+
+        // 记录坐标变换耗时
+        double transform_end_time = getCurrentTimeMs();
+        total_transform_time_ += (transform_end_time - transform_start_time);
 
         // 对转换后的点云应用车辆点云过滤和降采样
         filterVehiclePoints(transformed_cloud, output_frame_);
@@ -504,6 +556,8 @@ void PointCloudTransformerNode::downsamplePointCloud(sensor_msgs::msg::PointClou
     if (!enable_downsampling_) {
         return; // 如果降采样功能未启用，直接返回
     }
+
+    double start_time = getCurrentTimeMs();
 
     // 将ROS2点云消息转换为PCL点云
     pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud(new pcl::PointCloud<pcl::PointXYZ>());
@@ -533,6 +587,54 @@ void PointCloudTransformerNode::downsamplePointCloud(sensor_msgs::msg::PointClou
 
     RCLCPP_DEBUG(get_logger(), "Downsampled point cloud: %ld -> %ld points (%.1f%% reduction)", original_size,
                  downsampled_size, reduction_ratio * 100.0);
+
+    // 记录降采样耗时
+    double end_time = getCurrentTimeMs();
+    total_downsampling_time_ += (end_time - start_time);
+}
+
+double PointCloudTransformerNode::getCurrentTimeMs() const {
+    auto now = std::chrono::high_resolution_clock::now();
+    auto duration = now.time_since_epoch();
+    return std::chrono::duration_cast<std::chrono::microseconds>(duration).count() / 1000.0;
+}
+
+void PointCloudTransformerNode::logTimingStatistics() const {
+    if (frame_count_ == 0)
+        return;
+
+    double avg_total = total_processing_time_ / frame_count_;
+    double avg_roi = total_roi_filter_time_ / frame_count_;
+    double avg_transform = total_transform_time_ / frame_count_;
+    double avg_vehicle = total_vehicle_filter_time_ / frame_count_;
+    double avg_downsample = total_downsampling_time_ / frame_count_;
+
+    RCLCPP_INFO(get_logger(), "=== Point Cloud Processing Statistics (Frame %d) ===", frame_count_);
+    RCLCPP_INFO(get_logger(), "Total Processing:    %.2f ms (avg)", avg_total);
+    RCLCPP_INFO(get_logger(), "  - ROI Filter:      %.2f ms (avg)", avg_roi);
+    RCLCPP_INFO(get_logger(), "  - Transform:       %.2f ms (avg)", avg_transform);
+    RCLCPP_INFO(get_logger(), "  - Vehicle Filter:  %.2f ms (avg)", avg_vehicle);
+    RCLCPP_INFO(get_logger(), "  - Downsampling:    %.2f ms (avg)", avg_downsample);
+
+    // 计算各步骤占总时间的百分比
+    if (avg_total > 0) {
+        RCLCPP_INFO(get_logger(), "Time Distribution:");
+        RCLCPP_INFO(get_logger(), "  - ROI Filter:      %.1f%%", (avg_roi / avg_total) * 100.0);
+        RCLCPP_INFO(get_logger(), "  - Transform:       %.1f%%", (avg_transform / avg_total) * 100.0);
+        RCLCPP_INFO(get_logger(), "  - Vehicle Filter:  %.1f%%", (avg_vehicle / avg_total) * 100.0);
+        RCLCPP_INFO(get_logger(), "  - Downsampling:    %.1f%%", (avg_downsample / avg_total) * 100.0);
+    }
+    RCLCPP_INFO(get_logger(), "================================================");
+}
+
+void PointCloudTransformerNode::resetTimingStatistics() const {
+    RCLCPP_INFO(get_logger(), "Resetting timing statistics after %d frames", frame_count_);
+    frame_count_ = 0;
+    total_processing_time_ = 0.0;
+    total_roi_filter_time_ = 0.0;
+    total_transform_time_ = 0.0;
+    total_vehicle_filter_time_ = 0.0;
+    total_downsampling_time_ = 0.0;
 }
 
 } // namespace pointcloud_preprocess

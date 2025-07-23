@@ -43,3 +43,8 @@
     # roi配置
     enable_use_roi: true
     roi_size: 30.0
+
+    # 性能统计配置
+    enable_timing_logs: true         # 是否启用耗时日志输出
+    timing_log_interval: 10          # 耗时日志输出间隔（每N帧输出一次）
+    enable_detailed_timing: true    # 是否启用详细的分步耗时统计（包含各步骤时间分布）

@@ -1,6 +1,7 @@
 #ifndef POINTCLOUD_PREPROCESS__POINTCLOUD_TRANSFORMER_HPP_
 #define POINTCLOUD_PREPROCESS__POINTCLOUD_TRANSFORMER_HPP_
 
+#include <chrono>
 #include <memory>
 #include <string>
 #include <vector>
@@ -55,6 +56,11 @@ class PointCloudTransformerNode : public rclcpp::Node {
     bool enable_use_roi_;
     double roi_size_;
 
+    // 性能统计参数
+    bool enable_timing_logs_;     // 是否启用耗时日志
+    int timing_log_interval_;     // 耗时日志输出间隔（每N帧输出一次）
+    bool enable_detailed_timing_; // 是否启用详细的分步耗时统计
+
     // 订阅和发布
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr input_cloud_sub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr output_cloud_pub_;
@@ -65,6 +71,14 @@ class PointCloudTransformerNode : public rclcpp::Node {
 
     // 定时器
     rclcpp::TimerBase::SharedPtr timer_;
+
+    // 性能统计变量
+    mutable int frame_count_;                  // 处理的帧数计数
+    mutable double total_processing_time_;     // 总处理时间（毫秒）
+    mutable double total_roi_filter_time_;     // ROI过滤总时间（毫秒）
+    mutable double total_transform_time_;      // 坐标变换总时间（毫秒）
+    mutable double total_vehicle_filter_time_; // 车辆过滤总时间（毫秒）
+    mutable double total_downsampling_time_;   // 降采样总时间（毫秒）
 
     // 回调函数
     void pointCloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg);
@@ -80,6 +94,11 @@ class PointCloudTransformerNode : public rclcpp::Node {
 
     // 降采样点云
     void downsamplePointCloud(sensor_msgs::msg::PointCloud2 &cloud) const;
+
+    // 性能统计辅助函数
+    void logTimingStatistics() const;
+    void resetTimingStatistics() const;
+    double getCurrentTimeMs() const;
 };
 
 } // namespace pointcloud_preprocess
