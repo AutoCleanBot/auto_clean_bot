@@ -242,7 +242,7 @@ PointsToCostmap::assignPoints2GridCell(const pcl::PointCloud<pcl::PointXYZ> &in_
 Eigen::MatrixXf PointsToCostmap::calculateCostmap(const double maximum_height_thres, const double minimum_height_thres,
                                                   const double grid_min_value, const double grid_max_value,
                                                   const GridMap &gridmap, const std::string &gridmap_layer_name,
-                                                  const std::vector<std::vector<std::vector<double>>> grid_vec) {
+                                                  const std::vector<std::vector<std::vector<double>>> &grid_vec) {
     // 从网格地图获取指定图层作为代价地图的基础
     Eigen::MatrixXf costmap = gridmap[gridmap_layer_name];
     // 计算网格大小：矩阵行数对应X轴，列数对应Y轴

@@ -85,7 +85,7 @@ class PointsToCostmap {
     Eigen::MatrixXf calculateCostmap(const double maximum_height_thres, const double minimum_height_thres,
                                      const double grid_min_value, const double grid_max_value, const GridMap &gridmap,
                                      const std::string &gridmap_layer_name,
-                                     const std::vector<std::vector<std::vector<double>>> grid_vec);
+                                     const std::vector<std::vector<std::vector<double>>> &grid_vec);
 };
 } // namespace costmap_generator
 

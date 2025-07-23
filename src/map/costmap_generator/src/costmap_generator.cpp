@@ -255,10 +255,10 @@ void CostmapGenerator::publishCostmap(const GridMap &costmap, const geometry_msg
 
     // Publish OccupancyGrid
     auto occupancy_start = std::chrono::high_resolution_clock::now();
-    nav_msgs::msg::OccupancyGrid occupancy_grid;
+    auto occupancy_grid = std::make_unique<nav_msgs::msg::OccupancyGrid>();
 
     try {
-        costmap.toOccupancyGrid(LayerName::combined, grid_min_value_, grid_max_value_, occupancy_grid);
+        costmap.toOccupancyGrid(LayerName::combined, grid_min_value_, grid_max_value_, *occupancy_grid);
     } catch (const std::exception &e) {
         RCLCPP_ERROR(this->get_logger(), "Error converting to OccupancyGrid: %s", e.what());
         return;
@@ -304,21 +304,21 @@ void CostmapGenerator::publishCostmap(const GridMap &costmap, const geometry_msg
     origin.orientation = tf.transform.rotation;
 
     // 设置占用栅格地图的原点和方向
-    occupancy_grid.info.origin = origin;
+    occupancy_grid->info.origin = origin;
 
     // 确保时间戳是最新的
-    occupancy_grid.header.stamp = this->now();
-    occupancy_grid.header.frame_id = costmap_frame_;
+    occupancy_grid->header.stamp = this->now();
+    occupancy_grid->header.frame_id = costmap_frame_;
 
     RCLCPP_INFO(this->get_logger(),
                 "Publishing OccupancyGrid: origin=(%.2f, %.2f), grid_position = (%.2f, %.2f),"
                 "grid_size = (%dx%d), resolution = %.2f",
-                origin.position.x, origin.position.y, grid_position_x_, grid_position_y_, occupancy_grid.info.width,
-                occupancy_grid.info.height, occupancy_grid.info.resolution);
+                origin.position.x, origin.position.y, grid_position_x_, grid_position_y_, occupancy_grid->info.width,
+                occupancy_grid->info.height, occupancy_grid->info.resolution);
 
     // 发布占用栅格地图
     auto publish_start = std::chrono::high_resolution_clock::now();
-    pub_occupancy_grid_->publish(occupancy_grid);
+    pub_occupancy_grid_->publish(std::move(occupancy_grid));
     auto publish_end = std::chrono::high_resolution_clock::now();
     auto publish_duration = std::chrono::duration_cast<std::chrono::microseconds>(publish_end - publish_start);
     RCLCPP_DEBUG(this->get_logger(), "OccupancyGrid publish time: %ld μs", publish_duration.count());
@@ -416,11 +416,6 @@ Eigen::MatrixXf CostmapGenerator::generatePointsCostmap(const sensor_msgs::msg::
     transformed_points.header.frame_id = costmap_frame_;
     transformed_points.header.stamp = this->now();
 
-    // 如果需要，发布转换后的点云
-    if (is_pub_pnt_cloud_) {
-        pub_pnt_cloud_->publish(transformed_points);
-    }
-
     // 转换为PCL点云
     auto pcl_start = std::chrono::high_resolution_clock::now();
     pcl::PointCloud<pcl::PointXYZ> pcl_pointcloud;
@@ -428,6 +423,11 @@ Eigen::MatrixXf CostmapGenerator::generatePointsCostmap(const sensor_msgs::msg::
     auto pcl_end = std::chrono::high_resolution_clock::now();
     auto pcl_duration = std::chrono::duration_cast<std::chrono::milliseconds>(pcl_end - pcl_start);
     RCLCPP_INFO(this->get_logger(), "PCL conversion time: %ld ms", pcl_duration.count());
+    // 然后再发布点云（如果需要的话）
+    if (is_pub_pnt_cloud_) {
+        auto transformed_points_ptr = std::make_unique<sensor_msgs::msg::PointCloud2>(std::move(transformed_points));
+        pub_pnt_cloud_->publish(std::move(transformed_points_ptr));
+    }
 
     // 在生成代价地图前清空当前图层
     costmap_[LayerName::points].setZero();
