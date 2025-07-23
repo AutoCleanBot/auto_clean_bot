@@ -24,10 +24,10 @@ void LocalRecordTest::TimerCallback() {
     bot_msg::msg::LocalizationInfo localization_info_msg;
     // localization_info_msg.north = 10.0;
     // localization_info_msg.east = 0.0;
-    localization_info_msg.north = 43.952;
-    localization_info_msg.east = 14.864;
+    localization_info_msg.north = -3.5665911;
+    localization_info_msg.east = 139.3354229;
     localization_info_msg.up = 0.0; // 添加高度信息
-    localization_info_msg.yaw = 272.102;
+    localization_info_msg.yaw = -52.35947635;
     localization_info_msg.roll = 0.0;  // 添加横滚角
     localization_info_msg.pitch = 0.0; // 添加俯仰角
 

@@ -244,9 +244,10 @@ void CostmapGenerator::publishCostmap(const GridMap &costmap, const geometry_msg
     // 根据配置决定是否发布GridMap
     if (enable_gridmap_output_ && pub_costmap_) {
         auto gridmap_start = std::chrono::high_resolution_clock::now();
-        grid_map_msgs::msg::GridMap grid_map_msg;
-        costmap.toMessage(grid_map_msg);
-        pub_costmap_->publish(grid_map_msg);
+        // 使用智能指针实现真正的零拷贝
+        auto grid_map_msg = std::make_unique<grid_map_msgs::msg::GridMap>();
+        costmap.toMessage(*grid_map_msg);
+        pub_costmap_->publish(std::move(grid_map_msg));
         auto gridmap_end = std::chrono::high_resolution_clock::now();
         auto gridmap_duration = std::chrono::duration_cast<std::chrono::milliseconds>(gridmap_end - gridmap_start);
         RCLCPP_INFO(this->get_logger(), "GridMap publishing time: %ld ms", gridmap_duration.count());

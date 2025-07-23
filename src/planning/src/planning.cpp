@@ -81,7 +81,6 @@ PlanningNode::PlanningNode() : Node("planning_node"), timer_cnt_(0) {
         planning_status_ = PlanningStatus::Stop;
         key_stop_ = true;
     }
-    reverse_moving_ = false; // 如果未设置,则默认是前进
 }
 
 void PlanningNode::InitParams() {
@@ -832,36 +831,58 @@ bool PlanningNode::IsObstacleInBoundaryByPosition(double global_x, double global
 
 void PlanningNode::UpdatePlanningStatus() {
     bool is_path_tail = IsPathTail();
+    bool has_front_obstacle = (obstacle_info_[1] != -1);
+
+    // 状态稳定性计数器
+    static int obstacle_stable_count = 0;
+    static int clear_stable_count = 0;
+    const int STABILITY_THRESHOLD = 3; // 需要连续3次检测结果一致才切换状态
+
+    // 更新稳定性计数器
+    if (has_front_obstacle) {
+        obstacle_stable_count++;
+        clear_stable_count = 0;
+    } else {
+        clear_stable_count++;
+        obstacle_stable_count = 0;
+    }
+
     // 按键1是启动,按键2是停止
     if (planning_status_ == PlanningStatus::Stop) {
         if (remote_control_cmd_ == 1) {
             planning_status_ = PlanningStatus::Planning;
             key_stop_ = false;
+            obstacle_stable_count = 0;
+            clear_stable_count = 0;
         }
-        if (!key_stop_ && obstacle_info_[1] == -1 && !is_path_tail) {
+        // 只有在连续检测到无障碍物时才切换到PLANNING
+        if (!key_stop_ && clear_stable_count >= STABILITY_THRESHOLD && !is_path_tail) {
             planning_status_ = PlanningStatus::Planning;
         }
     } else if (planning_status_ == PlanningStatus::Planning) {
-        if (remote_control_cmd_ == 2 || obstacle_info_[1] != -1 || is_path_tail) {
+        // 只有在连续检测到障碍物时才切换到STOP
+        if (remote_control_cmd_ == 2 || obstacle_stable_count >= STABILITY_THRESHOLD || is_path_tail) {
             planning_status_ = PlanningStatus::Stop;
         }
     }
+
     if (timer_cnt_ % 10 == 0) {
         std::string status_text = "Planning status: ";
         if (planning_status_ == PlanningStatus::Stop) {
             if (remote_control_cmd_ == 2) {
                 status_text += "STOP (by remote control)";
-            } else if (obstacle_info_[1] != -1) {
+            } else if (has_front_obstacle) {
                 status_text += "STOP (by obstacle)";
             } else if (is_path_tail) {
                 status_text += "STOP (reached path tail)";
             } else {
                 status_text += "STOP (unknown reason)";
             }
-            status_text += "STOP";
         } else {
             status_text += "PLANNING";
         }
+        status_text += " [obs_count:" + std::to_string(obstacle_stable_count) +
+                       ", clear_count:" + std::to_string(clear_stable_count) + "]";
         RCLCPP_INFO(this->get_logger(), "%s", status_text.c_str());
     }
 }

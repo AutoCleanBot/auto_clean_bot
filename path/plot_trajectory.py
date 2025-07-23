@@ -89,8 +89,7 @@ def parse_arguments():
         formatter_class=SmartFormatter
     )
     
-    parser.add_argument('-i', '--input', type=str, required=True,
-                        help='R|输入轨迹CSV文件路径\n使用Tab键可以自动补全文件路径')
+    parser.add_argument('input_file', type=str, help='Path to the input trajectory CSV file.')
     
     parser.add_argument('-o', '--output', type=str, default=None,
                         help='输出图像文件路径 (默认: 与输入文件同名加上"_plot.png"后缀)')
@@ -123,7 +122,7 @@ def parse_arguments():
     
     # 设置默认输出文件名
     if args.output is None:
-        input_base = os.path.splitext(args.input)[0]
+        input_base = os.path.splitext(args.input_file)[0]
         args.output = f"{input_base}_plot.png"
     
     # 解析图像尺寸
@@ -155,7 +154,7 @@ def plot_trajectory(df, args):
     if args.title:
         plt.title(args.title, fontsize=16)
     else:
-        base_filename = os.path.basename(args.input)
+        base_filename = os.path.basename(args.input_file)
         plt.title(f"轨迹路径: {base_filename}", fontsize=16)
     
     # 检查是否使用颜色映射
@@ -333,8 +332,8 @@ def main():
     
     try:
         # 读取CSV文件
-        print(f"读取轨迹文件: {args.input}")
-        df = pd.read_csv(args.input)
+        print(f"读取轨迹文件: {args.input_file}")
+        df = pd.read_csv(args.input_file)
         
         # 绘制轨迹
         if plot_trajectory(df, args):
@@ -349,7 +348,7 @@ def main():
             plt.close()
         
     except FileNotFoundError:
-        print(f"错误: 找不到文件 '{args.input}'")
+        print(f"错误: 找不到文件 '{args.input_file}'")
     except Exception as e:
         print(f"发生错误: {e}")
 

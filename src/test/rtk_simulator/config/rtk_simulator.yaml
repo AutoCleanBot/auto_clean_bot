@@ -1,10 +1,10 @@
 rtk_simulator_node:
   ros__parameters:
     # CSV轨迹文件路径
-    csv_file_path: "~/auto_clean_bot/path/local_record_1.csv"
+    csv_file_path: "~/auto_clean_bot/path/local_record_4.csv"
 
     # 发布频率 (Hz)
-    publish_frequency: 10.0
+    publish_frequency: 5.0
 
     # 噪声范围 (百分比)
     noise_min_percentage: 0.0   # 最小噪声百分比

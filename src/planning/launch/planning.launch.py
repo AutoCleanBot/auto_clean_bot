@@ -23,7 +23,7 @@ def generate_launch_description():
         'occupancy_grid_topic_name' : '/occupancy_grid',  # 占用栅格地图话题
         'visualization_topic_name' : '/planning/visualization',  # 可视化话题名
         'remote_control_topic_name' : '/remote_controller/cmd',  # 远程控制话题名
-        'remote_control_enabled' : True,  # 是否启用远程控制
+        'remote_control_enabled' : False,  # 是否启用远程控制
         
         'use_occupancy_grid' : True,   # 是否使用占用栅格地图进行障碍物检测
         
@@ -37,7 +37,7 @@ def generate_launch_description():
         'max_index_jump' : 100.0,             # 最大索引跳跃限制
         'yaw_weight' : 3.0,                  # 航向差异权重
         
-        'path_type' : 3,         # 路径标号
+        'path_type' : 1,         # 路径标号
         'process_frq' : 10.0,    # 处理频率, Hz
         'preview_dist' : 12.0,   # 预览距离, m
         'preview_time' : 1.0,     # 预瞄时间, s
