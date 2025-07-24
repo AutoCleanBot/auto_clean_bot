@@ -1,6 +1,7 @@
 #pragma once
 
 #include <bot_msg/msg/localization_info.hpp>
+#include <chrono>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <memory>
 #include <rclcpp/rclcpp.hpp>
@@ -91,5 +92,11 @@ class RTKNode : public rclcpp::Node {
     double heading_offset_;                    // the offset of heading (degrees)
 
     bool enable_debug_log_; // enable debug log
+
+    // 日志频率控制
+    int log_interval_;                                            // 日志输出间隔（每N次解析输出一次）
+    mutable int parse_count_;                                     // 解析计数器
+    mutable int error_count_;                                     // 错误计数器
+    mutable std::chrono::steady_clock::time_point last_log_time_; // 上次日志输出时间
 };
 } // namespace rtk

@@ -32,7 +32,8 @@ def generate_launch_description():
         'gnss_frame_id' : 'map',
         'gnss_publish_rate' : 50.0,  # 频率为50Hz
         'enable_debug_log': True,
-        'heading_offset':-90.0         # 航向偏移量,° 
+        'log_interval': 30,            # 日志输出间隔（每25次解析输出一次，适合50Hz频率）
+        'heading_offset':-90.0         # 航向偏移量,°
     }
     
     # 配置节点，并将参数字典直接传递给参数字段

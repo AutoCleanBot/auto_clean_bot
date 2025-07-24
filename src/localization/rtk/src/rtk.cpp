@@ -112,6 +112,21 @@ void RTKNode::WGS84toENU(const Giavp &giavp) {
  * @param info_str
  */
 void RTKNode::ParseRTKInfo(const std::string &info_str) {
+    // 更新解析计数器
+    parse_count_++;
+
+    // 检查是否应该输出日志（基于计数器和时间间隔）
+    bool should_log = false;
+    if (enable_debug_log_) {
+        if (log_interval_ > 0) {
+            // 基于计数器的日志频率控制
+            should_log = (parse_count_ % log_interval_ == 0);
+        } else {
+            // 如果log_interval_为0或负数，则每次都输出（保持原有行为）
+            should_log = true;
+        }
+    }
+
     Giavp giavp;
     int parsed_fields = sscanf(
         info_str.c_str(),
@@ -120,35 +135,39 @@ void RTKNode::ParseRTKInfo(const std::string &info_str) {
         &giavp.longitude_deg, &giavp.altitude_m, &giavp.ve_m_s, &giavp.vn_m_s, &giavp.vu_m_s, &giavp.baseline,
         &giavp.nvsv1, &giavp.nvsv2, &giavp.status, &giavp.speed_status, &giavp.vehicle_speed_m_s, &giavp.acc_x_m_s2,
         &giavp.acc_y_m_s2, &giavp.acc_z_m_s2, &giavp.gyro_x_deg_s, &giavp.gyro_y_deg_s, &giavp.gyro_z_deg_s);
+
+    // 解析错误时总是输出错误日志（不受频率限制）
     if (parsed_fields != 23 && enable_debug_log_) {
         RCLCPP_ERROR(this->get_logger(), "parsed_fields:%d,Failed to parse RTK info: %s", parsed_fields,
                      info_str.c_str());
     }
-    if (enable_debug_log_) {
+
+    // 根据频率控制输出调试日志
+    if (should_log) {
         RCLCPP_INFO(this->get_logger(), "Received a full packet: %s", info_str.c_str());
         RCLCPP_INFO(this->get_logger(),
-                    "Received RTK info: "
+                    "Received RTK info (Parse #%d): "
                     "week:%d, time_sec:%lf, heading_deg:%lf, pitch_deg:%lf, roll_deg:%lf, latitude_deg:%lf, "
                     "longitude_deg:%lf, altitude_m:%lf, ve_m_s:%lf, vn_m_s:%lf, vu_m_s:%lf, baseline:%lf, nvsv1:%d, "
                     "nvsv2:%d, status:%d, speed_status:%lf, vehicle_speed_m_s:%lf, acc_x_m_s2:%lf, acc_y_m_s2:%lf, "
                     "acc_z_m_s2:%lf, gyro_x_deg_s:%lf, gyro_y_deg_s:%lf, gyro_z_deg_s:%lf",
-                    giavp.week, giavp.time_sec, giavp.heading_deg, giavp.pitch_deg, giavp.roll_deg, giavp.latitude_deg,
-                    giavp.longitude_deg, giavp.altitude_m, giavp.ve_m_s, giavp.vn_m_s, giavp.vu_m_s, giavp.baseline,
-                    giavp.nvsv1, giavp.nvsv2, giavp.status, giavp.speed_status, giavp.vehicle_speed_m_s,
+                    parse_count_, giavp.week, giavp.time_sec, giavp.heading_deg, giavp.pitch_deg, giavp.roll_deg,
+                    giavp.latitude_deg, giavp.longitude_deg, giavp.altitude_m, giavp.ve_m_s, giavp.vn_m_s, giavp.vu_m_s,
+                    giavp.baseline, giavp.nvsv1, giavp.nvsv2, giavp.status, giavp.speed_status, giavp.vehicle_speed_m_s,
                     giavp.acc_x_m_s2, giavp.acc_y_m_s2, giavp.acc_z_m_s2, giavp.gyro_x_deg_s, giavp.gyro_y_deg_s,
                     giavp.gyro_z_deg_s);
     }
 
     giavp.heading_deg += heading_offset_; // 由于安装位置的不同需要做航向的偏移
-    if(giavp.heading_deg >= 360){
+    if (giavp.heading_deg >= 360) {
         giavp.heading_deg -= 360;
-    }else if(giavp.heading_deg < 0){
+    } else if (giavp.heading_deg < 0) {
         giavp.heading_deg += 360;
     }
 
     // 为所有消息使用相同的时间戳，避免时间戳不同步问题
     rclcpp::Time current_timestamp = this->get_clock()->now();
-    
+
     // simply publish the parsed RTK info
     rtk_msg_.header.stamp = current_timestamp;
     rtk_msg_.header.frame_id = this->local_frame_id_;
@@ -205,8 +224,7 @@ void RTKNode::ParseRTKInfo(const std::string &info_str) {
         tf2::Quaternion orientation;
         //! 由于ros默认的航向偏转为逆时针，而rtk的航向偏转为顺时针，所以需要取反
         //! 同时由于roll和pitch在低速无人驾驶中几乎为0，所以可以近似认为航向就是yaw
-        orientation.setRPY(0, 0,
-                           -giavp.heading_deg * M_PI / 180.0);
+        orientation.setRPY(0, 0, -giavp.heading_deg * M_PI / 180.0);
         gnss_pose_enu_msg_.pose.orientation.x = orientation.x();
         gnss_pose_enu_msg_.pose.orientation.y = orientation.y();
         gnss_pose_enu_msg_.pose.orientation.z = orientation.z();
@@ -231,7 +249,15 @@ void RTKNode::InfoReadLoop() {
         char buf[512] = {0};
         int ret = read(sockfd_, buf, sizeof(buf));
         if (ret < 0) {
-            RCLCPP_WARN(this->get_logger(), "Read error: %s", strerror(errno));
+            error_count_++;
+            // 限制错误日志频率：每50次错误输出一次，或者每5秒输出一次
+            auto now = std::chrono::steady_clock::now();
+            auto time_since_last_log = std::chrono::duration_cast<std::chrono::seconds>(now - last_log_time_).count();
+
+            if ((error_count_ % 50 == 0) || (time_since_last_log >= 5)) {
+                RCLCPP_WARN(this->get_logger(), "Read error (count: %d): %s", error_count_, strerror(errno));
+                last_log_time_ = now;
+            }
         }
         data += buf;
         // RCLCPP_INFO(this->get_logger(), "Received data: %s", data.c_str());
@@ -255,6 +281,7 @@ void RTKNode::InitParams() {
     this->declare_parameter<int>("baud_rate", 460800);
     this->declare_parameter<int>("timeout_ms", 20);
     this->declare_parameter<bool>("enable_debug_log", false);
+    this->declare_parameter<int>("log_interval", 10); // 每10次解析输出一次日志
     this->declare_parameter<double>("base_latitude", 0.0);
     this->declare_parameter<double>("base_longtitude", 0.0);
     this->declare_parameter<double>("base_altitude", 0.0);
@@ -286,10 +313,16 @@ void RTKNode::InitParams() {
     this->get_parameter("gnss_topic_name", this->gnss_pose_enu_topic_name_);
     this->get_parameter("gnss_publish_rate", this->gnss_pose_enu_publish_rate_);
     this->get_parameter("enable_debug_log", this->enable_debug_log_);
+    this->get_parameter("log_interval", this->log_interval_);
     this->get_parameter("base_latitude", this->base_latitude_deg_);
     this->get_parameter("base_longtitude", this->base_longitude_deg_);
     this->get_parameter("base_altitude", this->base_altitude_m_);
     this->get_parameter("heading_offset", this->heading_offset_);
+
+    // 初始化日志频率控制变量
+    parse_count_ = 0;
+    error_count_ = 0;
+    last_log_time_ = std::chrono::steady_clock::now();
 
     // print the parameters
     RCLCPP_INFO(this->get_logger(), "Device name: %s", this->device_name_.c_str());
@@ -305,6 +338,7 @@ void RTKNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "GNSS pose ENU topic name: %s", this->gnss_pose_enu_topic_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "GNSS pose ENU publish rate: %lf", this->gnss_pose_enu_publish_rate_);
     RCLCPP_INFO(this->get_logger(), "Enable debug log: %d", this->enable_debug_log_);
+    RCLCPP_INFO(this->get_logger(), "Log interval: %d (every %d parses)", this->log_interval_, this->log_interval_);
     RCLCPP_INFO(this->get_logger(), "Base latitude: %lf", this->base_latitude_deg_);
     RCLCPP_INFO(this->get_logger(), "Base longitude: %lf", this->base_longitude_deg_);
     RCLCPP_INFO(this->get_logger(), "Base altitude: %lf", this->base_altitude_m_);
