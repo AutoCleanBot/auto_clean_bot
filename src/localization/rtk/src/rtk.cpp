@@ -142,6 +142,12 @@ void RTKNode::ParseRTKInfo(const std::string &info_str) {
                      info_str.c_str());
     }
 
+    giavp.heading_deg += heading_offset_; // 由于安装位置的不同需要做航向的偏移
+    if (giavp.heading_deg >= 360) {
+        giavp.heading_deg -= 360;
+    } else if (giavp.heading_deg < 0) {
+        giavp.heading_deg += 360;
+    }
     // 根据频率控制输出调试日志
     if (should_log) {
         RCLCPP_INFO(this->get_logger(), "Received a full packet: %s", info_str.c_str());
@@ -156,13 +162,6 @@ void RTKNode::ParseRTKInfo(const std::string &info_str) {
                     giavp.baseline, giavp.nvsv1, giavp.nvsv2, giavp.status, giavp.speed_status, giavp.vehicle_speed_m_s,
                     giavp.acc_x_m_s2, giavp.acc_y_m_s2, giavp.acc_z_m_s2, giavp.gyro_x_deg_s, giavp.gyro_y_deg_s,
                     giavp.gyro_z_deg_s);
-    }
-
-    giavp.heading_deg += heading_offset_; // 由于安装位置的不同需要做航向的偏移
-    if (giavp.heading_deg >= 360) {
-        giavp.heading_deg -= 360;
-    } else if (giavp.heading_deg < 0) {
-        giavp.heading_deg += 360;
     }
 
     // 为所有消息使用相同的时间戳，避免时间戳不同步问题
@@ -205,7 +204,7 @@ void RTKNode::ParseRTKInfo(const std::string &info_str) {
     imu_msg_.orientation.z = q.z();
     imu_msg_.orientation.w = q.w();
     // log the IMU message
-    if (enable_debug_log_)
+    if (enable_debug_log_ && should_log)
         RCLCPP_INFO(this->get_logger(), "IMU, acc: %lf, %lf, %lf, gyro: %lf, %lf, %lf, orientation: %lf, %lf, %lf, %lf",
                     imu_msg_.linear_acceleration.x, imu_msg_.linear_acceleration.y, imu_msg_.linear_acceleration.z,
                     imu_msg_.angular_velocity.x, imu_msg_.angular_velocity.y, imu_msg_.angular_velocity.z, q.x(), q.y(),
@@ -229,7 +228,7 @@ void RTKNode::ParseRTKInfo(const std::string &info_str) {
         gnss_pose_enu_msg_.pose.orientation.y = orientation.y();
         gnss_pose_enu_msg_.pose.orientation.z = orientation.z();
         gnss_pose_enu_msg_.pose.orientation.w = orientation.w();
-        if (enable_debug_log_) {
+        if (enable_debug_log_ && should_log) {
             // publish the gnss msg
             RCLCPP_INFO(this->get_logger(), "ENU pose: %lf, %lf, %lf, orientation:%lf,%lf,%lf,%lf",
                         gnss_pose_enu_msg_.pose.position.x, gnss_pose_enu_msg_.pose.position.y,
