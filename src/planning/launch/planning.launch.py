@@ -43,9 +43,9 @@ def generate_launch_description():
         'preview_time' : 1.0,     # 预瞄时间, s
         'start_dist' : 5.0,      # 起始距离, m
         'traj_pub_interval' : 0.1, # 路径发布间隔, 秒
-        'planning_spd' : 3.0,     # 规划速度, m/s
-        'path_end_dist' : 3.0,    # 路径结束距离, m
-        'reverse_moving' : False, # 是否反向行驶
+        'planning_spd' : 2.0,     # 规划速度, m/s
+        'path_end_dist' : 5.0,    # 路径结束距离, m
+        'reverse_moving' : True, # 是否反向行驶
         'test_mode' : False,      # 启用测试模式，生成测试轨迹
 
         # 性能统计配置
