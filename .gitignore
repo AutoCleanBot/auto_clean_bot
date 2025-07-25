@@ -37,6 +37,7 @@ running_logs/
 # Ignore any specific files or directories relevant to your project setup
 bags/
 ref_project/
+*copy/
 
 # big files or directories that you don't want to commit
 *.engine
