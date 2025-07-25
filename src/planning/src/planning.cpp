@@ -575,16 +575,30 @@ void PlanningNode::UpdateObstacleInfo() {
             continue;
         }
 
-        // 障碍物在当前车辆正前方
-        if (obstacle.position_y < FRONT_OBSTACLE_WIDTH && obstacle.position_y > -FRONT_OBSTACLE_WIDTH) {
-            if (obstacle.position_x < MIN_OBSTACLE_DISTANCE && obstacle.position_x > 0.0) {
-                obstacle_info_[1] = i;
-                RCLCPP_INFO(this->get_logger(), "前方发现障碍物，距离：%.2f 米，安全距离：%.2f 米，尺寸：%.2f x %.2f",
-                            obstacle.position_x, safe_distance, obstacle_length, obstacle_width);
+        // 根据行驶方向检测障碍物
+        if (reverse_moving_) {
+            // 倒车模式：检测车辆后方障碍物
+            if (obstacle.position_y < FRONT_OBSTACLE_WIDTH && obstacle.position_y > -FRONT_OBSTACLE_WIDTH) {
+                if (obstacle.position_x > -MIN_OBSTACLE_DISTANCE && obstacle.position_x < 0.0) {
+                    obstacle_info_[1] = i;
+                    RCLCPP_INFO(this->get_logger(),
+                                "倒车模式-后方发现障碍物，距离：%.2f 米，安全距离：%.2f 米，尺寸：%.2f x %.2f",
+                                std::abs(obstacle.position_x), safe_distance, obstacle_length, obstacle_width);
+                }
+            }
+        } else {
+            // 前进模式：检测车辆前方障碍物
+            if (obstacle.position_y < FRONT_OBSTACLE_WIDTH && obstacle.position_y > -FRONT_OBSTACLE_WIDTH) {
+                if (obstacle.position_x < MIN_OBSTACLE_DISTANCE && obstacle.position_x > 0.0) {
+                    obstacle_info_[1] = i;
+                    RCLCPP_INFO(this->get_logger(),
+                                "前进模式-前方发现障碍物，距离：%.2f 米，安全距离：%.2f 米，尺寸：%.2f x %.2f",
+                                obstacle.position_x, safe_distance, obstacle_length, obstacle_width);
+                }
             }
         }
         // 障碍物在当前车辆左侧
-        else if (obstacle.position_y > SIDE_OBSTACLE_WIDTH && obstacle.position_y < MIN_OBSTACLE_DISTANCE) {
+        if (obstacle.position_y > SIDE_OBSTACLE_WIDTH && obstacle.position_y < MIN_OBSTACLE_DISTANCE) {
             if (obstacle.position_x < MIN_OBSTACLE_DISTANCE && obstacle.position_x > 0.0) {
                 obstacle_info_[0] = i;
                 RCLCPP_INFO(this->get_logger(), "左侧发现障碍物，距离：%.2f 米，安全距离：%.2f 米，尺寸：%.2f x %.2f",
@@ -592,7 +606,7 @@ void PlanningNode::UpdateObstacleInfo() {
             }
         }
         // 障碍物在当前车辆右侧
-        else if (obstacle.position_y < -SIDE_OBSTACLE_WIDTH && obstacle.position_y > -MIN_OBSTACLE_DISTANCE) {
+        if (obstacle.position_y < -SIDE_OBSTACLE_WIDTH && obstacle.position_y > -MIN_OBSTACLE_DISTANCE) {
             if (obstacle.position_x < MIN_OBSTACLE_DISTANCE && obstacle.position_x > 0.0) {
                 obstacle_info_[2] = i;
                 RCLCPP_INFO(this->get_logger(), "右侧发现障碍物，距离：%.2f 米，安全距离：%.2f 米，尺寸：%.2f x %.2f",
@@ -836,11 +850,26 @@ void PlanningNode::UpdateObstacleInfoFromOccupancyGrid() {
                 continue;
             }
 
-            // 根据车辆坐标系判断障碍物位置
-            if (relative_y > 0.0 && relative_y < min_obstacle_distance_) { // 车辆前方
-                obstacle_info_[1] = 1;                                     // 使用1表示检测到障碍物
-                RCLCPP_INFO(this->get_logger(), "前方发现障碍物，距离：%.2f 米，相对位置：(%.2f, %.2f)", distance,
-                            relative_x, relative_y);
+            // 根据车辆坐标系和行驶方向判断障碍物位置
+            bool obstacle_detected = false;
+            if (reverse_moving_) {
+                // 倒车模式：检测车辆后方障碍物
+                if (relative_y < 0.0 && relative_y > -min_obstacle_distance_) {
+                    obstacle_detected = true;
+                    RCLCPP_INFO(this->get_logger(), "倒车模式-后方发现障碍物，距离：%.2f 米，相对位置：(%.2f, %.2f)",
+                                distance, relative_x, relative_y);
+                }
+            } else {
+                // 前进模式：检测车辆前方障碍物
+                if (relative_y > 0.0 && relative_y < min_obstacle_distance_) {
+                    obstacle_detected = true;
+                    RCLCPP_INFO(this->get_logger(), "前进模式-前方发现障碍物，距离：%.2f 米，相对位置：(%.2f, %.2f)",
+                                distance, relative_x, relative_y);
+                }
+            }
+
+            if (obstacle_detected) {
+                obstacle_info_[1] = 1; // 使用1表示检测到障碍物
             }
         }
     }
@@ -1416,11 +1445,29 @@ void PlanningNode::updateObstacleInfoFromOccupancyGridZeroCopy() {
                 detected_obstacle_points_.emplace_back(ObstaclePoint{global_x, global_y, true});
                 obstacle_count++;
 
-                // 根据车辆坐标系判断障碍物位置
-                if (relative_y > 0.0 && relative_y < min_obstacle_distance_) { // 车辆前方
-                    obstacle_info_[1] = 1;                                     // 使用1表示检测到障碍物
-                    RCLCPP_INFO(this->get_logger(), "前方发现障碍物，距离：%.2f 米，相对位置：(%.2f, %.2f)",
-                                sqrt(distance_squared), relative_x, relative_y);
+                // 根据车辆坐标系和行驶方向判断障碍物位置
+                bool obstacle_detected = false;
+                double distance = sqrt(distance_squared);
+                if (reverse_moving_) {
+                    // 倒车模式：检测车辆后方障碍物
+                    if (relative_y < 0.0 && relative_y > -min_obstacle_distance_) {
+                        obstacle_detected = true;
+                        RCLCPP_INFO(this->get_logger(),
+                                    "倒车模式-后方发现障碍物，距离：%.2f 米，相对位置：(%.2f, %.2f)", distance,
+                                    relative_x, relative_y);
+                    }
+                } else {
+                    // 前进模式：检测车辆前方障碍物
+                    if (relative_y > 0.0 && relative_y < min_obstacle_distance_) {
+                        obstacle_detected = true;
+                        RCLCPP_INFO(this->get_logger(),
+                                    "前进模式-前方发现障碍物，距离：%.2f 米，相对位置：(%.2f, %.2f)", distance,
+                                    relative_x, relative_y);
+                    }
+                }
+
+                if (obstacle_detected) {
+                    obstacle_info_[1] = 1; // 使用1表示检测到障碍物
                 }
             }
         }

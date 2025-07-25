@@ -11,7 +11,7 @@ rtk_simulator_node:
     noise_max_percentage: 1.0   # 最大噪声百分比
 
     # 是否循环播放轨迹
-    loop_trajectory: true
+    loop_trajectory: false
 
     # GNSS pose 相关参数
     gnss_topic_name: "/gnss/pose"

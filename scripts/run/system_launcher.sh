@@ -92,7 +92,7 @@ parse_args() {
                 DELAY="$2"
                 shift 2
                 ;;
-            full|control|perception|planning|mapping|test|base_node)
+            full|control|perception|planning|mapping|test|base_node|car_node)
                 MODE="$1"
                 shift
                 ;;
@@ -194,6 +194,9 @@ launch_by_mode() {
         base_node)
             launch_base_node_system
             ;;
+        car_node)
+            launch_car_node_system
+            ;;        
         *)
             log_error "未知模式: $MODE"
             exit 1
@@ -270,12 +273,27 @@ launch_test_system() {
 launch_base_node_system() {
     log_info "启动基本节点..."
     launch_node "tf转换" "transform" "transform.launch.py" ""
+    launch_node "路由节点" "routing" "routing.launch.py" ""
+    launch_node "规划节点" "planning" "planning.launch.py" ""
     launch_node "点云预处理" "pointcloud_preprocess" "pointcloud_transformer.launch.py" ""
     launch_node "地面滤波" "ground_filter" "ground_filter.launch.py" ""
     launch_node "代价地图构建" "costmap_generator" "costmap_generator.launch.py" ""
     launch_node "地图节点" "csv_map" "map_with_config.launch.py" ""
+    launch_node "遥控器节点" "remote_controller" "remote_controller.launch.py" ""
+}
+
+
+launch_car_node_system() {
+    log_info "启动基本节点..."
+    launch_node "tf转换" "transform" "transform.launch.py" ""
+    launch_node "RTK" "rtk" "rtk.launch.py" ""
+    launch_node "激光雷达" "rslidar_sdk" "start.py" ""
     launch_node "路由节点" "routing" "routing.launch.py" ""
     launch_node "规划节点" "planning" "planning.launch.py" ""
+    launch_node "点云预处理" "pointcloud_preprocess" "pointcloud_transformer.launch.py" ""
+    launch_node "地面滤波" "ground_filter" "ground_filter.launch.py" ""
+    launch_node "代价地图构建" "costmap_generator" "costmap_generator.launch.py" ""
+    launch_node "地图节点" "csv_map" "map_with_config.launch.py" ""
     launch_node "遥控器节点" "remote_controller" "remote_controller.launch.py" ""
 }
 
