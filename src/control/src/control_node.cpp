@@ -333,7 +333,6 @@ void ControlNode::LongitudinalController() {
     const double koffset = 0.2;
     const double SPEED_THRESHOLD = 0.01;
     const double STEP_SIZE = 0.5;
-    const double DECEL_STEP_SIZE = 0.5; // 减速步长
 
     // 检查输入数据是否有效
     if (!adc_trajectory_msg_ || !localization_info_msg_) {
@@ -369,10 +368,9 @@ void ControlNode::LongitudinalController() {
         }
     } else if (final_target_speed < step_target_speed) {
         // 目标速度低于当前阶梯目标 - 需要减速
-        // 对于减速，不等待当前速度达到阶梯目标，而是立即降低阶梯目标
         // 这样可以补偿车辆减速缓慢的问题
         double speed_diff = step_target_speed - final_target_speed;
-        double adaptive_decel_step = DECEL_STEP_SIZE * (1.0 + speed_diff / 2.0); // 速度差越大，减速步长越大
+        double adaptive_decel_step = dec_step_size_ * (1.0 + speed_diff / 2.0); // 速度差越大，减速步长越大
         step_target_speed = std::max(step_target_speed - adaptive_decel_step, final_target_speed);
     } else {
         // 最终目标速度等于当前阶梯目标，无需调整
@@ -595,6 +593,7 @@ void ControlNode::InitParams() {
     this->declare_parameter<double>("sta_lat_rate", 0.1);
     this->declare_parameter<double>("stanley_min_eff_spd", 1.5);
     this->declare_parameter<double>("turning_radius_ratio", 1.0);
+    this->declare_parameter<double>("dec_step_size", 0.5);
     this->declare_parameter<double>("zero_point_draft", 0.0);
     this->declare_parameter("speed_pid_kp", 0.5);
     this->declare_parameter("speed_pid_ki", 0.1);
@@ -631,6 +630,7 @@ void ControlNode::InitParams() {
     speed_pid_kd_ = this->get_parameter("speed_pid_kd").as_double();
     speed_pid_kf_ = this->get_parameter("speed_pid_kf").as_double();
     stanley_min_eff_spd_ = this->get_parameter("stanley_min_eff_spd").as_double();
+    dec_step_size_ = this->get_parameter("dec_step_size").as_double();
 
     // Print parameters
     RCLCPP_INFO(this->get_logger(), "Publish rate: %f", publish_rate_);
@@ -658,6 +658,7 @@ void ControlNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "Speed pid ki: %f", speed_pid_ki_);
     RCLCPP_INFO(this->get_logger(), "Speed pid kd: %f", speed_pid_kd_);
     RCLCPP_INFO(this->get_logger(), "Speed pid kf: %f", speed_pid_kf_);
+    RCLCPP_INFO(this->get_logger(), "Dec step size: %f", dec_step_size_);
 
     return;
 }

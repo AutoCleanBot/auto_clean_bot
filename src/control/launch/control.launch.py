@@ -42,6 +42,7 @@ def generate_launch_description():
         'max_steering_rate':10.0,       # 最大转向角速度, 用来拟合实际的转角响应
         'acceleration_limit':20.0,
         'deceleration_limit':-20.0,
+        'dec_step_size':0.02,            # 减速步长
         'pursuit_control_rate':0.6,
         'stanley_control_rate':0.4,
         'sta_lat_rate':0.4, # stanley控制中的横向偏差系数

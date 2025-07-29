@@ -57,6 +57,7 @@ class ControlNode : public rclcpp::Node {
     double sta_lat_rate_;         // stanley控制中的横向偏差系数, 在低速情况下应该加大该算法的系数
     double feedforward_rate_;     // 前馈控制比例
     double heading_error_rate_;   // 航向误差比例
+    double dec_step_size_;        // 减速步长
     double turning_radius_ratio_; // 方向盘转角与前轮转角的比例
     double zero_point_draft_;     // 零点漂移
 
