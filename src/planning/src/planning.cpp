@@ -958,7 +958,7 @@ void PlanningNode::UpdatePlanningStatus() {
 
     // 按键1是启动,按键2是停止
     if (planning_status_ == PlanningStatus::Stop) {
-        if (remote_control_cmd_ == 1) {
+        if (remote_control_cmd_ == 1 && !is_path_tail && clear_stable_count >= CLEAR_STABILITY_THRESHOLD) {
             planning_status_ = PlanningStatus::Planning;
             key_stop_ = false;
             clear_stable_count = 0;
