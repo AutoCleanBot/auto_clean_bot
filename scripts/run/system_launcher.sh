@@ -279,7 +279,6 @@ launch_base_node_system() {
     launch_node "地面滤波" "ground_filter" "ground_filter.launch.py" ""
     launch_node "代价地图构建" "costmap_generator" "costmap_generator.launch.py" ""
     launch_node "地图节点" "csv_map" "map_with_config.launch.py" ""
-    launch_node "遥控器节点" "remote_controller" "remote_controller.launch.py" ""
 }
 
 

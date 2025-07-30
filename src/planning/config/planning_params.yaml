@@ -15,7 +15,7 @@ planning_node:
     remote_control_topic_name: "/remote_controller/cmd"
     
     # Basic Planning Parameters - 基础规划参数
-    path_type: 1                    # 路径标号
+    path_type: 5                    # 路径标号
     process_frq: 10.0              # 处理频率, Hz
     preview_dist: 12.0             # 预览距离, m
     preview_time: 1.0              # 预瞄时间, s
@@ -23,7 +23,7 @@ planning_node:
     traj_pub_interval: 0.1         # 路径发布间隔, 秒
     planning_spd: 2.0              # 规划速度, m/s
     path_end_dist: 6.0             # 路径结束距离, m
-    reverse_moving: true           # 是否反向行驶
+    reverse_moving: false           # 是否反向行驶
     test_mode: false               # 启用测试模式，生成测试轨迹
     
     # Control and Mode Settings - 控制和模式设置
@@ -42,7 +42,7 @@ planning_node:
     yaw_weight: 3.0                # 航向差异权重
     
     # Performance and Timing Configuration - 性能和计时配置
-    enable_timing_logs: true       # 是否启用耗时日志输出
+    enable_timing_logs: false       # 是否启用耗时日志输出
     timing_log_interval: 10        # 耗时日志输出间隔（每N帧输出一次）
     enable_detailed_timing: true   # 是否启用详细的分步耗时统计（包含各步骤时间分布）
     enable_zero_copy: true         # 是否启用零拷贝优化（提高栅格地图处理性能）
