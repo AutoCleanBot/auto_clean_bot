@@ -283,17 +283,54 @@ launch_base_node_system() {
 
 
 launch_car_node_system() {
-    log_info "启动基本节点..."
+    log_info "启动车辆节点系统..."
+    
+    # 1. 运行CAN初始化脚本
+    log_info "初始化CAN接口..."
+    if [ -f "scripts/init_can_cq.sh" ]; then
+        sudo bash scripts/init_can_cq.sh
+        if [ $? -eq 0 ]; then
+            log_info "CAN接口初始化成功"
+        else
+            log_error "CAN接口初始化失败"
+            exit 1
+        fi
+    else
+        log_warn "未找到CAN初始化脚本: scripts/init_can_cq.sh"
+    fi
+    
+    # 2. 检查并修改planning配置
+    local planning_config="src/planning/config/planning_params.yaml"
+    if [ -f "$planning_config" ]; then
+        log_info "检查规划节点配置..."
+        
+        # 检查remote_control_enabled配置
+        if grep -q "remote_control_enabled: false" "$planning_config"; then
+            log_info "设置remote_control_enabled为true..."
+            sed -i 's/remote_control_enabled: false/remote_control_enabled: true/' "$planning_config"
+            log_info "配置已更新"
+        elif grep -q "remote_control_enabled: true" "$planning_config"; then
+            log_info "remote_control_enabled已为true"
+        else
+            log_warn "未找到remote_control_enabled配置项"
+        fi
+    else
+        log_warn "未找到规划配置文件: $planning_config"
+    fi
+    
+    # 3. 启动节点
     launch_node "tf转换" "transform" "transform.launch.py" ""
     launch_node "RTK" "rtk" "rtk.launch.py" ""
     launch_node "激光雷达" "rslidar_sdk" "start.py" ""
     launch_node "路由节点" "routing" "routing.launch.py" ""
-    launch_node "规划节点" "planning" "planning.launch.py" ""
     launch_node "点云预处理" "pointcloud_preprocess" "pointcloud_transformer.launch.py" ""
     launch_node "地面滤波" "ground_filter" "ground_filter.launch.py" ""
     launch_node "代价地图构建" "costmap_generator" "costmap_generator.launch.py" ""
     launch_node "地图节点" "csv_map" "map_with_config.launch.py" ""
     launch_node "遥控器节点" "remote_controller" "remote_controller.launch.py" ""
+    launch_node "规划节点" "planning" "planning.launch.py" ""
+    launch_node "CAN总线" "canbus_cq" "canbus.launch.py" ""
+    launch_node "车辆控制" "control" "control.launch.py" ""
 }
 
 # 清理函数
