@@ -121,7 +121,6 @@ class PlanningNode : public rclcpp::Node {
     // 方向稳定性参数
     double direction_stability_weight_; // 方向稳定性权重
     double max_index_jump_;             // 最大索引跳跃限制
-    double yaw_weight_;                 // 航向差异权重
 
     // 临时使用变量
     std::size_t closet_idx_ = 0;  // 当前路径下最近点的下标

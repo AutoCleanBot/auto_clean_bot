@@ -114,7 +114,6 @@ void PlanningNode::InitParams() {
     // 方向稳定性参数
     this->declare_parameter("direction_stability_weight", 2.0);
     this->declare_parameter("max_index_jump", 50.0);
-    this->declare_parameter("yaw_weight", 3.0);
 
     // 性能统计参数
     this->declare_parameter("enable_timing_logs", true);
@@ -157,7 +156,6 @@ void PlanningNode::InitParams() {
     // 获取方向稳定性参数
     direction_stability_weight_ = this->get_parameter("direction_stability_weight").as_double();
     max_index_jump_ = this->get_parameter("max_index_jump").as_double();
-    yaw_weight_ = this->get_parameter("yaw_weight").as_double();
 
     // 获取性能统计参数
     enable_timing_logs_ = this->get_parameter("enable_timing_logs").as_bool();
@@ -196,7 +194,6 @@ void PlanningNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "right_boundary_topic_name: %s", right_boundary_topic_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "direction_stability_weight: %f", direction_stability_weight_);
     RCLCPP_INFO(this->get_logger(), "max_index_jump: %f", max_index_jump_);
-    RCLCPP_INFO(this->get_logger(), "yaw_weight: %f", yaw_weight_);
 
     // 性能统计配置信息
     RCLCPP_INFO(this->get_logger(), "Timing logs enabled: %s", enable_timing_logs_ ? "true" : "false");
@@ -313,9 +310,9 @@ bool PlanningNode::IsPathTail() {
     auto cur_east = cur_local_.east;
     auto cur_north = cur_local_.north;
     double dis = sqrt(pow(tail_east - cur_east, 2) + pow(tail_north - cur_north, 2));
-    double yaw_diff = std::abs(NormalizeAngle(g_traj_.points[path_len - 1].yaw * M_PI / 180.0) -
-                               NormalizeAngle(cur_local_.yaw * M_PI / 180.0));
-    if (yaw_diff < M_PI / 2 && (dis < path_end_dist_ || closet_idx_ > path_len - 20)) {
+    
+    // 简化判断：只基于距离或接近路径末尾的索引
+    if (dis < path_end_dist_ || closet_idx_ > path_len - 20) {
         return true;
     }
     return false;
@@ -334,14 +331,12 @@ void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
         return;
     }
 
-    double min_dist = 1000000.0;
-    // 找到当前车辆位置到轨迹上的最近点，同时考虑航向和方向稳定性
-    double cur_yaw_rad = cur_local_.yaw * M_PI / 180.0; // 当前车辆航向(弧度)
-    double min_combined_cost = 1000000.0;
-
-    // 方向稳定性参数
+    // 简化的最近点搜索：只考虑距离和连续性
     static std::size_t last_closest_idx = 0;
     static bool first_run = true;
+
+    size_t closest_idx = 0;
+    double min_cost = std::numeric_limits<double>::max();
 
     // 优化搜索策略：局部搜索 + 全局备份
     size_t search_start = 0;
@@ -353,82 +348,131 @@ void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
 
         search_start = (last_closest_idx > local_search_radius) ? (last_closest_idx - local_search_radius) : 0;
         search_end = std::min(last_closest_idx + local_search_radius + 1, g_traj_.points.size());
+
+        RCLCPP_DEBUG(this->get_logger(), "局部搜索范围: [%zu, %zu) 围绕上次索引: %zu",
+                     search_start, search_end, last_closest_idx);
     }
 
     // 局部搜索
-    for (std::size_t i = search_start; i < search_end; i++) {
-        double combined_cost = calculateTrajectoryPointCost(i, cur_yaw_rad, last_closest_idx, first_run);
+    for (size_t i = search_start; i < search_end; i++) {
+        double distance = std::sqrt(std::pow(g_traj_.points[i].east - cur_local_.east, 2) +
+                                    std::pow(g_traj_.points[i].north - cur_local_.north, 2));
 
-        if (combined_cost < min_combined_cost) {
-            min_combined_cost = combined_cost;
-            closet_idx_ = i;
+        // 计算连续性成本（避免大幅跳跃）
+        double continuity_cost = 0.0;
+        if (!first_run) {
+            double index_diff = std::abs(static_cast<double>(i) - static_cast<double>(last_closest_idx));
+            if (index_diff > max_index_jump_) {
+                continuity_cost = direction_stability_weight_ * (index_diff - max_index_jump_);
+            }
+        }
+
+        // 总成本 = 距离 + 连续性成本
+        double total_cost = distance + continuity_cost;
+
+        if (total_cost < min_cost) {
+            min_cost = total_cost;
+            closest_idx = i;
         }
     }
 
     // 如果局部搜索没有找到足够好的结果，进行全局搜索
     bool need_global_search = false;
     if (!first_run) {
-        double distance_to_found = std::sqrt(std::pow(g_traj_.points[closet_idx_].east - cur_local_.east, 2) +
-                                             std::pow(g_traj_.points[closet_idx_].north - cur_local_.north, 2));
+        double distance_to_found = std::sqrt(std::pow(g_traj_.points[closest_idx].east - cur_local_.east, 2) +
+                                             std::pow(g_traj_.points[closest_idx].north - cur_local_.north, 2));
 
         // 如果找到的点距离太远，可能需要全局搜索
-        if (distance_to_found > 15.0) { // 15米阈值，可配置
+        if (distance_to_found > 15.0) { // 15米阈值
             need_global_search = true;
-            RCLCPP_WARN(this->get_logger(), "Local search result too far (%.2fm), performing global search",
-                        distance_to_found);
+            RCLCPP_WARN(this->get_logger(),
+                        "当前位置: (%.2f, %.2f), 局部搜索结果距离过远 (%.2fm), 执行全局搜索",
+                        cur_local_.east, cur_local_.north, distance_to_found);
         }
     }
 
     // 全局搜索（首次运行或局部搜索失败时）
     if (first_run || need_global_search) {
-        double global_min_cost = min_combined_cost;
-        size_t global_closest_idx = closet_idx_;
+        double global_min_cost = min_cost;
+        size_t global_closest_idx = closest_idx;
 
         // 跳跃式搜索：每隔几个点采样，然后在最佳区域细化
         size_t step_size = std::max(1UL, g_traj_.points.size() / 200); // 最多检查200个采样点
 
-        for (std::size_t i = 0; i < g_traj_.points.size(); i += step_size) {
-            double combined_cost = calculateTrajectoryPointCost(i, cur_yaw_rad, last_closest_idx, first_run);
+        for (size_t i = 0; i < g_traj_.points.size(); i += step_size) {
+            double distance = std::sqrt(std::pow(g_traj_.points[i].east - cur_local_.east, 2) +
+                                        std::pow(g_traj_.points[i].north - cur_local_.north, 2));
 
-            if (combined_cost < global_min_cost) {
-                global_min_cost = combined_cost;
+            // 对于全局搜索，连续性成本权重较小
+            double continuity_cost = 0.0;
+            if (!first_run) {
+                double index_diff = std::abs(static_cast<double>(i) - static_cast<double>(last_closest_idx));
+                if (index_diff > max_index_jump_) {
+                    continuity_cost = direction_stability_weight_ * 0.5 * (index_diff - max_index_jump_);
+                }
+            }
+
+            double total_cost = distance + continuity_cost;
+
+            if (total_cost < global_min_cost) {
+                global_min_cost = total_cost;
                 global_closest_idx = i;
             }
         }
 
         // 在最佳采样点周围进行细化搜索
-        if (global_closest_idx != closet_idx_) {
+        if (global_closest_idx != closest_idx) {
             size_t refine_start = (global_closest_idx > step_size) ? (global_closest_idx - step_size) : 0;
             size_t refine_end = std::min(global_closest_idx + step_size + 1, g_traj_.points.size());
 
-            for (std::size_t i = refine_start; i < refine_end; i++) {
-                double combined_cost = calculateTrajectoryPointCost(i, cur_yaw_rad, last_closest_idx, first_run);
+            for (size_t i = refine_start; i < refine_end; i++) {
+                double distance = std::sqrt(std::pow(g_traj_.points[i].east - cur_local_.east, 2) +
+                                            std::pow(g_traj_.points[i].north - cur_local_.north, 2));
 
-                if (combined_cost < global_min_cost) {
-                    global_min_cost = combined_cost;
+                double continuity_cost = 0.0;
+                if (!first_run) {
+                    double index_diff = std::abs(static_cast<double>(i) - static_cast<double>(last_closest_idx));
+                    if (index_diff > max_index_jump_) {
+                        continuity_cost = direction_stability_weight_ * 0.5 * (index_diff - max_index_jump_);
+                    }
+                }
+
+                double total_cost = distance + continuity_cost;
+
+                if (total_cost < global_min_cost) {
+                    global_min_cost = total_cost;
                     global_closest_idx = i;
                 }
             }
 
-            min_combined_cost = global_min_cost;
-            closet_idx_ = global_closest_idx;
+            min_cost = global_min_cost;
+            closest_idx = global_closest_idx;
         }
     }
 
-    // 添加调试日志监控方向稳定性
+    // 添加调试日志监控连续性
     if (!first_run) {
-        double index_change = static_cast<double>(closet_idx_) - static_cast<double>(last_closest_idx);
+        double index_change = static_cast<double>(closest_idx) - static_cast<double>(last_closest_idx);
         if (std::abs(index_change) > max_index_jump_) {
             RCLCPP_WARN(this->get_logger(),
-                        "Large trajectory index jump detected: from %zu to %zu (change: %.1f), "
-                        "vehicle pos: (%.2f, %.2f), yaw: %.1f°",
-                        last_closest_idx, closet_idx_, index_change, cur_local_.east, cur_local_.north, cur_local_.yaw);
+                        "检测到轨迹索引大幅跳跃: 从 %zu 到 %zu (变化: %.1f), "
+                        "车辆位置: (%.2f, %.2f), 距离: %.2fm",
+                        last_closest_idx, closest_idx, index_change, cur_local_.east, cur_local_.north,
+                        std::sqrt(std::pow(g_traj_.points[closest_idx].east - cur_local_.east, 2) +
+                                  std::pow(g_traj_.points[closest_idx].north - cur_local_.north, 2)));
         }
     }
 
     // 更新历史信息
-    last_closest_idx = closet_idx_;
+    last_closest_idx = closest_idx;
     first_run = false;
+    closet_idx_ = closest_idx;
+
+    RCLCPP_DEBUG(this->get_logger(), "选择轨迹点 %zu, 距离: %.2fm, 总成本: %.2f", 
+                 closest_idx, 
+                 std::sqrt(std::pow(g_traj_.points[closest_idx].east - cur_local_.east, 2) +
+                           std::pow(g_traj_.points[closest_idx].north - cur_local_.north, 2)), 
+                 min_cost);
 
     // 其余代码保持不变
     double cur_dis_cnt = 0.0;
@@ -1273,11 +1317,7 @@ double PlanningNode::calculateTrajectoryPointCost(size_t index, double cur_yaw_r
     double dist = std::sqrt(std::pow(g_traj_.points[index].east - cur_local_.east, 2) +
                             std::pow(g_traj_.points[index].north - cur_local_.north, 2));
 
-    // 计算航向成本 - 将轨迹点航向转为弧度并计算差值
-    double path_yaw_rad = g_traj_.points[index].yaw * M_PI / 180.0;
-    double yaw_diff = std::abs(NormalizeAngle(path_yaw_rad) - NormalizeAngle(cur_yaw_rad));
-
-    // 计算方向稳定性成本
+    // 计算连续性成本（避免大幅跳跃）
     double stability_cost = 0.0;
     if (!first_run) {
         // 计算与上次最近点的索引差异
@@ -1287,25 +1327,10 @@ double PlanningNode::calculateTrajectoryPointCost(size_t index, double cur_yaw_r
         if (index_diff > max_index_jump_) {
             stability_cost = direction_stability_weight_ * (index_diff - max_index_jump_);
         }
-
-        // 检查是否可能发生方向反转
-        if (index_diff > g_traj_.points.size() / 4) {
-            // 计算轨迹方向变化
-            if (last_closest_idx < g_traj_.points.size() && index < g_traj_.points.size()) {
-                double last_path_yaw = g_traj_.points[last_closest_idx].yaw * M_PI / 180.0;
-                double current_path_yaw = g_traj_.points[index].yaw * M_PI / 180.0;
-                double direction_change = std::abs(NormalizeAngle(current_path_yaw - last_path_yaw));
-
-                // 如果方向变化超过90度，可能是反向，增加大的惩罚
-                if (direction_change > M_PI / 2) {
-                    stability_cost += direction_stability_weight_ * 10.0;
-                }
-            }
-        }
     }
 
-    // 组合成本：距离 + 航向差异权重 + 方向稳定性成本
-    return dist + yaw_weight_ * yaw_diff + stability_cost;
+    // 组合成本：距离 + 连续性成本
+    return dist + stability_cost;
 }
 
 double PlanningNode::getCurrentTimeMs() const {
