@@ -278,9 +278,11 @@ void ControlNode::LateralController() {
 
     // 添加前馈控制项
     double curvature_feedforward = std::atan2(wheelbase_ * path_curvature, 1.0);
-
-    front_wheel_rad += feedforward_rate_ * curvature_feedforward;
-
+    if(!reverse_mode_){
+        front_wheel_rad += feedforward_rate_ * curvature_feedforward;
+    }else{
+        front_wheel_rad = pursuit_control;
+    }
     // 3.4 计算最终转向角，并限制在合理范围内
     double steer_angle = front_wheel_rad * 180.0 / M_PI;
     steer_angle = SmoothSteeringAngle(steer_angle, 0.02);
@@ -604,6 +606,7 @@ void ControlNode::InitParams() {
     this->declare_parameter<std::string>("localization_info_topic_name", "/control/local_info");
     this->declare_parameter<std::string>("chassis_info_topic_name", "/control/chassis_info");
     this->declare_parameter<std::string>("log_file_path", "./control_debug.csv");
+    this->declare_parameter<bool>("reverse_mode", false);
     // Get parameters
     publish_rate_ = this->get_parameter("publish_rate").get_value<double>();
     preview_time_ = this->get_parameter("preview_time").get_value<double>();
@@ -631,7 +634,7 @@ void ControlNode::InitParams() {
     speed_pid_kf_ = this->get_parameter("speed_pid_kf").as_double();
     stanley_min_eff_spd_ = this->get_parameter("stanley_min_eff_spd").as_double();
     dec_step_size_ = this->get_parameter("dec_step_size").as_double();
-
+    reverse_mode_ = this->get_parameter("reverse_mode").as_bool();
     // Print parameters
     RCLCPP_INFO(this->get_logger(), "Publish rate: %f", publish_rate_);
     RCLCPP_INFO(this->get_logger(), "Max linear velocity: %f", max_linear_velocity_);
@@ -659,6 +662,7 @@ void ControlNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "Speed pid kd: %f", speed_pid_kd_);
     RCLCPP_INFO(this->get_logger(), "Speed pid kf: %f", speed_pid_kf_);
     RCLCPP_INFO(this->get_logger(), "Dec step size: %f", dec_step_size_);
+    RCLCPP_INFO(this->get_logger(), "Reverse mode: %d", reverse_mode_);
 
     return;
 }

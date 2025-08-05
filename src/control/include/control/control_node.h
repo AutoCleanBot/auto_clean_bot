@@ -93,5 +93,6 @@ class ControlNode : public rclcpp::Node {
     double max_steering_rate_;                 // 最大转向角速度 (度/秒)
     double previous_steering_angle_;           // 上一次的转向角
     double stanley_min_eff_spd_;               // stanley控制中的最小有效速度
-};
+    bool reverse_mode_;
+  };
 } // namespace control
