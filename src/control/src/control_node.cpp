@@ -286,10 +286,10 @@ void ControlNode::LateralController() {
     // 3.4 计算最终转向角，并限制在合理范围内
     double steer_angle = front_wheel_rad * 180.0 / M_PI;
     steer_angle = SmoothSteeringAngle(steer_angle, 0.02);
-    // 零点漂移处理
-    steer_angle += zero_point_draft_;
     // 自行车模型的转角偏差
     steer_angle *= turning_radius_ratio_;
+    // 零点漂移处理
+    steer_angle += zero_point_draft_;
     steer_angle = std::max(-max_steering_angle_, std::min(max_steering_angle_, steer_angle)); // 限制在[-50, 50]度之间
 
     // 4. 赋值给控制命令
