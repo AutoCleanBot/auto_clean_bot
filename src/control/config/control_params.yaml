@@ -1,0 +1,46 @@
+# Control Node Configuration Parameters
+# 控制节点配置参数
+
+control_node:
+  ros__parameters:
+    # 基础控制参数 - Basic Control Parameters
+    publish_rate: 50.0
+    preview_time: 1.5            # 预瞄时间
+    tolerance_distance: 1.5      # 预瞄距离
+    max_steering_angle: 50.0     # 最大前轮转角
+    wheelbase: 1.99              # 轴距
+    max_linear_velocity: 10.0    # 最大线速度
+    max_angular_velocity: 10.0   # 最大角速度
+    max_steering_rate: 10.0      # 最大转向角速度, 用来拟合实际的转角响应
+    
+    # 加速度限制 - Acceleration Limits
+    acceleration_limit: 20.0      # 加速度限制
+    deceleration_limit: -20.0     # 减速度限制
+    dec_step_size: 0.008          # 减速步长
+    
+    # 控制算法参数 - Control Algorithm Parameters
+    pursuit_control_rate: 0.3     # 纯追踪控制权重
+    stanley_control_rate: 0.7     # Stanley控制权重
+    sta_lat_rate: 0.4            # stanley控制中的横向偏差系数
+    stanley_min_eff_spd: 1.0     # stanley控制中的最小有效速度
+    feedforward_rate: 0.2         # 曲率前馈控制权重
+    
+    # PID控制参数 - PID Control Parameters
+    speed_pid_kp: 0.5            # 速度PID比例系数
+    speed_pid_ki: 0.1            # 速度PID积分系数
+    speed_pid_kd: 0.0            # 速度PID微分系数
+    
+    # 系统参数 - System Parameters
+    zero_point_draft: -4.0       # 零点漂移
+    turning_radius_ratio: 1.0    # 转弯半径比例
+    max_speed_change_rate: 1.0   # 最大速度变化率
+    smooth_window_size: 20       # 平滑窗口大小
+    
+    # 话题名称 - Topic Names
+    adc_traj_topic_name: '/planning/trajectory'
+    localization_info_topic_name: '/localization/rtk_info'
+    control_cmd_topic_name: '/control/control_cmd'
+    chassis_info_topic_name: '/chassis_info_topic'
+    
+    # 倒车模式 - Reverse Mode
+    reverse_mode: false           # 倒车模式开关 

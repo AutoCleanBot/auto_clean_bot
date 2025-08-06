@@ -304,6 +304,7 @@ void PlanningNode::LeftBoundaryCallback(const bot_msg::msg::Boundary::SharedPtr 
 void PlanningNode::RightBoundaryCallback(const bot_msg::msg::Boundary::SharedPtr msg) { right_boundary_ = *msg; }
 
 bool PlanningNode::IsPathTail() {
+    double path_end_dist = planning_spd_ * 4.0;
     auto path_len = g_traj_.points.size();
     auto tail_east = g_traj_.points[path_len - 1].east;
     auto tail_north = g_traj_.points[path_len - 1].north;
@@ -312,7 +313,7 @@ bool PlanningNode::IsPathTail() {
     double dis = sqrt(pow(tail_east - cur_east, 2) + pow(tail_north - cur_north, 2));
     
     // 简化判断：只基于距离或接近路径末尾的索引
-    if (dis < path_end_dist_ || closet_idx_ > path_len - 20) {
+    if (dis < path_end_dist || closet_idx_ > path_len - 20) {
         return true;
     }
     return false;

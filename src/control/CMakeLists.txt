@@ -49,6 +49,9 @@ install(TARGETS
 install(DIRECTORY 
 launch DESTINATION share/${PROJECT_NAME})
 
+install(DIRECTORY 
+config DESTINATION share/${PROJECT_NAME})
+
 # Export dependencies and package
 ament_target_dependencies(control_node
   bot_msg
