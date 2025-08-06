@@ -15,7 +15,7 @@ planning_node:
     remote_control_topic_name: "/remote_controller/cmd"
     
     # Basic Planning Parameters - 基础规划参数
-    path_type: 3                    # 路径标号
+    path_type: 2                    # 路径标号
     process_frq: 10.0              # 处理频率, Hz
     preview_dist: 15.0             # 预览距离, m
     preview_time: 1.0              # 预瞄时间, s
