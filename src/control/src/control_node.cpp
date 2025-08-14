@@ -210,6 +210,7 @@ void ControlNode::LateralController() {
     // 使用 (-sin(θ), cos(θ)) 作为法向量进行投影计算
     // 这样计算的结果是在路径的左侧时,横向误差为负; 在路径的右侧时横向误差为正
     double lat_error = dx * std::cos(path_direction) - dy * std::sin(path_direction);
+    double lat_error_s = lat_error * lat_error_threshold_;
     // 3.3 使用混合控制器计算转向角
     // ! 目前计算结果为左正右负
     // ! 注意如果出现当前的需要控制情况为右转为正左转为负的情况的话pursuit_control和stanley_control去除负号即可
@@ -303,7 +304,7 @@ void ControlNode::LateralController() {
                     "east,%.2f,target_yaw,%.2f,cur_yaw,%.2f,cur_north,%.2f,cur_east,%.2f,cur_spd,%.2f,closest_east,%."
                     "2f,closest_north,%.2f,"
                     "closest_yaw,%.2f",
-                    heading_error * 180.0 / M_PI, angular_error * 180.0 / M_PI, lat_error, steer_angle,
+                    heading_error * 180.0 / M_PI, angular_error * 180.0 / M_PI, lat_error_s, steer_angle,
                     pursuit_control * 180.0 / M_PI, stanley_control * 180.0 / M_PI, preview_dist, preview_idx,
                     closest_idx_, target_north, target_east, target_yaw * 180.0 / M_PI, cur_yaw * 180.0 / M_PI,
                     cur_north, cur_east, cur_spd, closest_east, closest_north, closest_yaw * 180.0 / M_PI);
@@ -313,7 +314,7 @@ void ControlNode::LateralController() {
         auto feedback_steer_angle = chassis_info_msg_.steer_angle;
         debug_log_file_ << time_str << "," << pursuit_control_rate_ << "," << stanley_control_rate_ << ","
                         << sta_lat_rate_ << "," << heading_error * 180.0 / M_PI << "," << angular_error * 180.0 / M_PI
-                        << "," << lat_error << "," << pursuit_control * 180.0 / M_PI * adaptive_pursuit_rate << ","
+                        << "," << lat_error_s << "," << pursuit_control * 180.0 / M_PI * adaptive_pursuit_rate << ","
                         << stanley_control * 180.0 / M_PI * adaptive_stanley_rate << "," << steer_angle << ","
                         << feedback_steer_angle << "," << preview_dist << "," << preview_idx << "," << closest_idx_
                         << "," << target_east << "," << target_north << "," << target_yaw * 180.0 / M_PI << ","
@@ -607,6 +608,7 @@ void ControlNode::InitParams() {
     this->declare_parameter<std::string>("chassis_info_topic_name", "/control/chassis_info");
     this->declare_parameter<std::string>("log_file_path", "./control_debug.csv");
     this->declare_parameter<bool>("reverse_mode", false);
+    this->declare_parameter<double>("lat_error_threshold", 0.7);
     // Get parameters
     publish_rate_ = this->get_parameter("publish_rate").get_value<double>();
     preview_time_ = this->get_parameter("preview_time").get_value<double>();
@@ -635,6 +637,7 @@ void ControlNode::InitParams() {
     stanley_min_eff_spd_ = this->get_parameter("stanley_min_eff_spd").as_double();
     dec_step_size_ = this->get_parameter("dec_step_size").as_double();
     reverse_mode_ = this->get_parameter("reverse_mode").as_bool();
+    lat_error_threshold_ = this->get_parameter("lat_error_threshold").as_double();
     // Print parameters
     RCLCPP_INFO(this->get_logger(), "Publish rate: %f", publish_rate_);
     RCLCPP_INFO(this->get_logger(), "Max linear velocity: %f", max_linear_velocity_);
@@ -663,7 +666,7 @@ void ControlNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "Speed pid kf: %f", speed_pid_kf_);
     RCLCPP_INFO(this->get_logger(), "Dec step size: %f", dec_step_size_);
     RCLCPP_INFO(this->get_logger(), "Reverse mode: %d", reverse_mode_);
-
+    RCLCPP_INFO(this->get_logger(), "Lat error threshold: %f", lat_error_threshold_);
     return;
 }
 

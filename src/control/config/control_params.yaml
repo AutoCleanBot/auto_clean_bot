@@ -44,3 +44,4 @@ control_node:
     
     # 倒车模式 - Reverse Mode
     reverse_mode: true           # 倒车模式开关 
+    lat_error_threshold: 0.7     # 横向偏差阈值
