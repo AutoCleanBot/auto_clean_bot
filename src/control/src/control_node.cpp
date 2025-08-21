@@ -313,9 +313,9 @@ void ControlNode::LateralController() {
         auto time_str = TimeToHumanReadable(this->now());
         auto feedback_steer_angle = chassis_info_msg_.steer_angle;
         double delta = lat_error >= 0 ? -0.05 : 0.05;
-        double lat_error_s = lat_error *0.7 ;
-        if(abs(lat_error) >= 0.1)
+        if(abs(lat_error) >= 0.1){
             lat_error_s += delta;
+        }
         debug_log_file_ << time_str << "," << pursuit_control_rate_ << "," << stanley_control_rate_ << ","
                         << sta_lat_rate_ << "," << heading_error * 180.0 / M_PI << "," << angular_error * 180.0 / M_PI
                         << "," << lat_error_s << "," << pursuit_control * 180.0 / M_PI * adaptive_pursuit_rate << ","
