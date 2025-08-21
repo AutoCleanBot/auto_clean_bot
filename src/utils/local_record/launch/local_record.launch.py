@@ -13,11 +13,14 @@ def generate_launch_description():
         description='Logging level'
     )
     
+
+    
     # 将所有参数放在一个字典中
     local_record_params = {
         'save_path': '~/auto_clean_bot/path/local_record',
         'save_rate': 10.0,
         'topic_name': '/localization/rtk_info',
+        'file_number': 20,
     }
     
     # 配置节点，并将参数字典直接传递给参数字段

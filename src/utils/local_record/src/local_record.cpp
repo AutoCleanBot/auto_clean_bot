@@ -49,48 +49,12 @@ LocalRecordNode::LocalRecordNode() : Node("local_record") {
     // 展开路径中的波浪号
     std::string expanded_path = expandTilde(save_path_);
 
-    // 保存最近5次的记录
-    const int max_files = 5;
+    // 使用配置的文件编号
     std::string base_path = expanded_path;
     std::string extension = ".csv";
-
-    // 存储所有已存在的文件信息
-    struct FileInfo {
-        std::string path;
-        time_t mtime; // 使用time_t替代filesystem的时间类型
-        int index;
-    };
-    std::vector<FileInfo> existing_files;
-
-    // 查找现有文件
-    int max_index = 0;
-    for (int i = 1; i <= max_files; i++) {
-        std::string file_path = base_path + "_" + std::to_string(i) + extension;
-        struct stat file_stat;
-        if (stat(file_path.c_str(), &file_stat) == 0) { // 使用stat替代filesystem
-            FileInfo info;
-            info.path = file_path;
-            info.mtime = file_stat.st_mtime;
-            info.index = i;
-            existing_files.push_back(info);
-            max_index = std::max(max_index, i);
-        }
-    }
-
-    // 如果已经有5个文件，删除最旧的文件
-    if (existing_files.size() >= max_files) {
-        // 按修改时间排序
-        std::sort(existing_files.begin(), existing_files.end(),
-                  [](const FileInfo &a, const FileInfo &b) { return a.mtime < b.mtime; });
-
-        // 删除最旧的文件
-        std::remove(existing_files[0].path.c_str());
-        max_index = existing_files[0].index;
-        existing_files.erase(existing_files.begin());
-    }
-
-    // 使用下一个可用的序号创建新文件
-    new_file_path_ = base_path + "_" + std::to_string(max_index) + extension;
+    
+    // 直接使用配置的文件编号创建文件
+    new_file_path_ = base_path + "_" + std::to_string(file_number_) + extension;
     RCLCPP_INFO(this->get_logger(), "Creating new file: %s", new_file_path_.c_str());
 
     // 打开文件流
@@ -175,14 +139,17 @@ void LocalRecordNode::InitParams() {
     this->declare_parameter("save_path", "~/auto_clean_bot/path/local_record"); // 修改默认路径，移除末尾的/
     this->declare_parameter("save_rate", 100.0);
     this->declare_parameter("topic_name", "/localization_info");
+    this->declare_parameter("file_number", 1);
 
     save_path_ = this->get_parameter("save_path").as_string();
     save_rate_ = this->get_parameter("save_rate").as_double();
     topic_name_ = this->get_parameter("topic_name").as_string();
+    file_number_ = this->get_parameter("file_number").as_int();
 
     RCLCPP_INFO(this->get_logger(), "base save_path: %s", save_path_.c_str());
     RCLCPP_INFO(this->get_logger(), "save_rate: %f", save_rate_);
     RCLCPP_INFO(this->get_logger(), "topic_name: %s", topic_name_.c_str());
+    RCLCPP_INFO(this->get_logger(), "file_number: %d", file_number_);
 }
 } // namespace local_record
 

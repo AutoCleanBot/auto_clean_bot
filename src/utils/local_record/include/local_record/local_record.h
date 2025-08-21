@@ -29,6 +29,8 @@ class LocalRecordNode : public rclcpp::Node {
     double save_rate_;
     // 定位信息的话题名
     std::string topic_name_;
+    // 文件编号
+    int file_number_;
     std::string new_file_path_;
 
     ssize_t localization_info_count_;
