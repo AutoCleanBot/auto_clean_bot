@@ -223,7 +223,7 @@ void ControlNode::LateralController() {
 
     // 根据曲率动态调整控制器权重
     double curvature_based_weight = std::abs(path_curvature);
-    const double CURVATURE_THRESHOLD = 0.05; // 曲率阈值
+    const double CURVATURE_THRESHOLD = 0.02; // 曲率阈值
 
     // 使用连续函数而非二元判断来调整权重
     double curvature_factor = std::min(1.0, curvature_based_weight / CURVATURE_THRESHOLD);
@@ -311,9 +311,13 @@ void ControlNode::LateralController() {
     if (g_debug_cnt % 5 == 0 && debug_log_file_.is_open()) {
         auto time_str = TimeToHumanReadable(this->now());
         auto feedback_steer_angle = chassis_info_msg_.steer_angle;
+        double delta = lat_error >= 0 ? -0.05 : 0.05;
+        double lat_error_s = lat_error *0.7 ;
+        if(abs(lat_error) >= 0.1)
+            lat_error_s += delta;
         debug_log_file_ << time_str << "," << pursuit_control_rate_ << "," << stanley_control_rate_ << ","
                         << sta_lat_rate_ << "," << heading_error * 180.0 / M_PI << "," << angular_error * 180.0 / M_PI
-                        << "," << lat_error << "," << pursuit_control * 180.0 / M_PI * adaptive_pursuit_rate << ","
+                        << "," << lat_error_s << "," << pursuit_control * 180.0 / M_PI * adaptive_pursuit_rate << ","
                         << stanley_control * 180.0 / M_PI * adaptive_stanley_rate << "," << steer_angle << ","
                         << feedback_steer_angle << "," << preview_dist << "," << preview_idx << "," << closest_idx_
                         << "," << target_east << "," << target_north << "," << target_yaw * 180.0 / M_PI << ","

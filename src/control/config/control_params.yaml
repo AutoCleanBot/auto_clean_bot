@@ -43,4 +43,4 @@ control_node:
     chassis_info_topic_name: '/chassis_info_topic'
     
     # 倒车模式 - Reverse Mode
-    reverse_mode: true           # 倒车模式开关 
+    reverse_mode: false           # 倒车模式开关 
