@@ -6,9 +6,9 @@ if(NOT CMAKE_C_STANDARD)
   set(CMAKE_C_STANDARD 99)
 endif()
 
-# Default to C++14
+# Default to C++17 (required for std::filesystem)
 if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 14)
+  set(CMAKE_CXX_STANDARD 17)
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -37,9 +37,9 @@ include_directories(include)
 
 add_executable(rtk_node src/rtk.cpp src/gps_serial.cpp)
 # Specify libraries to link against
-# target_link_libraries(rtk_node
-#   ${rclcpp_LIBRARIES}
-# )
+target_link_libraries(rtk_node
+  stdc++fs
+)
 
 # Install executable
 install(TARGETS

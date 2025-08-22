@@ -4,6 +4,10 @@
 #include <chrono>
 #include <cstdio>
 #include <string>
+#include <fstream>
+#include <iomanip>
+#include <sstream>
+#include <filesystem>
 
 namespace rtk {
 RTKNode::RTKNode() : Node("rtk_node") {
@@ -32,6 +36,22 @@ RTKNode::RTKNode() : Node("rtk_node") {
     pub_localization_info_ = this->create_publisher<bot_msg::msg::LocalizationInfo>(local_topic_name_, 10);
     pub_imu_ = this->create_publisher<sensor_msgs::msg::Imu>(imu_topic_name_, 50);
     pub_gnss_pose_enu_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(gnss_pose_enu_topic_name_, 10);
+}
+
+RTKNode::~RTKNode() {
+    // 停止运行标志
+    running_ = false;
+    
+    // 关闭info_str日志文件
+    if (info_str_file_.is_open()) {
+        RCLCPP_INFO(this->get_logger(), "Closing info_str log file. Total records saved: %d", info_str_save_count_);
+        info_str_file_.close();
+    }
+    
+    // 关闭串口
+    if (sockfd_ >= 0) {
+        close(sockfd_);
+    }
 }
 
 void RTKNode::LocalTimerCallback() {
@@ -264,6 +284,12 @@ void RTKNode::InfoReadLoop() {
         auto end_pos = data.find(gend);
         if (start_pos != std::string::npos && end_pos != std::string::npos) {
             std::string info_str = data.substr(start_pos, end_pos - start_pos + gend.length());
+            
+            // Save info_str to file if enabled
+            if (enable_info_str_save_) {
+                SaveInfoStrToFile(info_str);
+            }
+            
             ParseRTKInfo(info_str);
             data.erase(0, end_pos + gend.length());
         }
@@ -297,6 +323,10 @@ void RTKNode::InitParams() {
     this->declare_parameter<std::string>("gnss_topic_name", "gnss_pose_enu");
     this->declare_parameter<double>("gnss_publish_rate", 10.0);
     this->declare_parameter<double>("heading_offset", 0.0);
+    
+    // Parameters for saving info_str to file
+    this->declare_parameter<bool>("enable_info_str_save", false);
+    this->declare_parameter<std::string>("info_str_save_dir", "/tmp/rtk_logs");
 
     // set the parameters
     this->get_parameter("device_name", this->device_name_);
@@ -317,6 +347,8 @@ void RTKNode::InitParams() {
     this->get_parameter("base_longtitude", this->base_longitude_deg_);
     this->get_parameter("base_altitude", this->base_altitude_m_);
     this->get_parameter("heading_offset", this->heading_offset_);
+    this->get_parameter("enable_info_str_save", this->enable_info_str_save_);
+    this->get_parameter("info_str_save_dir", this->info_str_save_dir_);
 
     // 初始化日志频率控制变量
     parse_count_ = 0;
@@ -342,6 +374,14 @@ void RTKNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "Base longitude: %lf", this->base_longitude_deg_);
     RCLCPP_INFO(this->get_logger(), "Base altitude: %lf", this->base_altitude_m_);
     RCLCPP_INFO(this->get_logger(), "heading error:%lf", this->heading_offset_);
+    RCLCPP_INFO(this->get_logger(), "Enable info_str save: %d", this->enable_info_str_save_);
+    RCLCPP_INFO(this->get_logger(), "Info_str save directory: %s", this->info_str_save_dir_.c_str());
+    
+    // Initialize info_str saving functionality
+    if (enable_info_str_save_) {
+        InitInfoStrSaving();
+    }
+    
     return;
 }
 
@@ -376,6 +416,55 @@ void RTKNode::InitValues() {
     base_point_set_ = true;
     running_ = false;
     read_thread_ = nullptr;
+    info_str_save_count_ = 0;
+}
+
+void RTKNode::InitInfoStrSaving() {
+    // Create directory if it doesn't exist
+    try {
+        std::filesystem::create_directories(info_str_save_dir_);
+        RCLCPP_INFO(this->get_logger(), "Info_str save directory created/verified: %s", info_str_save_dir_.c_str());
+    } catch (const std::exception& e) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to create info_str save directory: %s", e.what());
+        enable_info_str_save_ = false;
+    }
+}
+
+void RTKNode::SaveInfoStrToFile(const std::string &info_str) {
+    // Generate new filename if needed (first time or file doesn't exist)
+    if (current_log_filename_.empty() || !info_str_file_.is_open()) {
+        current_log_filename_ = GenerateTimestampFilename();
+        std::string full_path = info_str_save_dir_ + "/" + current_log_filename_;
+        
+        // Close previous file if open
+        if (info_str_file_.is_open()) {
+            info_str_file_.close();
+        }
+        
+        // Open new file
+        info_str_file_.open(full_path, std::ios::app);
+        if (!info_str_file_.is_open()) {
+            RCLCPP_ERROR(this->get_logger(), "Failed to open info_str log file: %s", full_path.c_str());
+            return;
+        }
+        
+        RCLCPP_INFO(this->get_logger(), "Started logging info_str to: %s", full_path.c_str());
+    }
+    
+    // Write raw info_str to file (不添加时间戳，直接保存原始数据)
+    info_str_file_ << info_str << std::endl;
+    info_str_file_.flush();
+    
+    info_str_save_count_++; // 仅用于统计，不用于过滤
+}
+
+std::string RTKNode::GenerateTimestampFilename() {
+    auto now = std::chrono::system_clock::now();
+    auto time_t = std::chrono::system_clock::to_time_t(now);
+    
+    std::stringstream ss;
+    ss << "rtk_info_" << std::put_time(std::localtime(&time_t), "%Y%m%d_%H%M%S") << ".log";
+    return ss.str();
 }
 } // namespace rtk
 

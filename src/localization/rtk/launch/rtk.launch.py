@@ -33,7 +33,11 @@ def generate_launch_description():
         'gnss_publish_rate' : 50.0,  # 频率为50Hz
         'enable_debug_log': True,
         'log_interval': 30,            # 日志输出间隔（每25次解析输出一次，适合50Hz频率）
-        'heading_offset':90.0         # 航向偏移量,°
+        'heading_offset':90.0,         # 航向偏移量,°
+        
+        # info_str 文件保存配置 (新增调试功能)
+        'enable_info_str_save': False,        # 启用info_str保存功能 (默认关闭)
+        'info_str_save_dir': '/home/nvidia/rtk_logs', # 保存目录
     }
     
     # 配置节点，并将参数字典直接传递给参数字段

@@ -1,0 +1,33 @@
+rtk_node:
+  ros__parameters:
+    # 设备配置
+    device_name: '/dev/ttyUART_232_A'
+    baud_rate: 460800
+    timeout_ms: 10
+    
+    # 基点配置
+    base_latitude: 31.96
+    base_longtitude: 117.38
+    base_altitude: 0.0
+    
+    # 话题配置
+    local_topic_name: 'localization/rtk_info'
+    local_frame_id: 'rtk_link'
+    local_publish_rate: 10.0
+    
+    imu_topic_name: 'imu/pose'
+    imu_frame_id: 'imu_link'
+    imu_publish_rate: 50.0
+    
+    gnss_topic_name: 'gnss/pose'
+    gnss_frame_id: 'world_link'
+    gnss_publish_rate: 10.0
+    
+    # 调试配置
+    enable_debug_log: false
+    log_interval: 10
+    heading_offset: 0.0
+    
+    # info_str 文件保存配置
+    enable_info_str_save: true              # 启用info_str保存功能
+    info_str_save_dir: '/tmp/rtk_logs'      # 保存目录

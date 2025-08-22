@@ -2,6 +2,7 @@
 
 #include <bot_msg/msg/localization_info.hpp>
 #include <chrono>
+#include <fstream>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <memory>
 #include <rclcpp/rclcpp.hpp>
@@ -42,6 +43,7 @@ struct Giavp {
 class RTKNode : public rclcpp::Node {
   public:
     RTKNode();
+    ~RTKNode();
 
   private:
     rclcpp::TimerBase::SharedPtr imu_timer_, local_timer_, gnss_timer_;
@@ -54,6 +56,9 @@ class RTKNode : public rclcpp::Node {
     bool DeviceInit();
     void ParseRTKInfo(const std::string &info_str);
     void WGS84toENU(const Giavp &giavp);
+    void InitInfoStrSaving();
+    void SaveInfoStrToFile(const std::string &info_str);
+    std::string GenerateTimestampFilename();
 
     // ROS2 publishers and subscribers
     rclcpp::Publisher<bot_msg::msg::LocalizationInfo>::SharedPtr pub_localization_info_;
@@ -98,5 +103,12 @@ class RTKNode : public rclcpp::Node {
     mutable int parse_count_;                                     // 解析计数器
     mutable int error_count_;                                     // 错误计数器
     mutable std::chrono::steady_clock::time_point last_log_time_; // 上次日志输出时间
+    
+    // info_str 文件保存相关
+    bool enable_info_str_save_;                                   // 是否启用info_str保存功能
+    std::string info_str_save_dir_;                              // info_str保存目录
+    mutable int info_str_save_count_;                            // info_str保存计数器（用于统计）
+    mutable std::string current_log_filename_;                   // 当前日志文件名
+    mutable std::ofstream info_str_file_;                        // 文件输出流
 };
 } // namespace rtk
