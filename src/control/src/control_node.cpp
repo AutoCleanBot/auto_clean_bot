@@ -68,7 +68,7 @@ ControlNode::ControlNode() : Node("control_node") {
                "preview_dist,preview_idx,closest_idx,target_east,target_north,target_yaw_"
                "deg,closest_east,closest_north,closest_yaw_deg,closest_curvature,cur_east,cur_north,cur_yaw_deg,"
                "curvature_feedforward,zero_point_draft,"
-               "target_spd,cur_spd,error,acceleration,cmd_spd,integral"
+               "target_spd,cur_spd,error,acceleration,cmd_spd,integral,vehicle_feed_spd"
             << std::endl;
     }
 
@@ -391,9 +391,10 @@ void ControlNode::LongitudinalController() {
         control_cmd_msg_.speed = step_target_speed;
     }
     if (g_debug_cnt % 5 == 0 && debug_log_file_.is_open()) {
+        auto vehicle_feedback_spd = chassis_info_msg_.cur_speed;
         debug_log_file_ << "," << final_target_speed << "," << current_speed << ","
                         << final_target_speed - current_speed << "," << 0 << "," << step_target_speed << ","
-                        << speed_pid_controller_->getIntegral() << std::endl;
+                        << speed_pid_controller_->getIntegral() << ","<< vehicle_feedback_spd  << std::endl;
     }
 }
 
