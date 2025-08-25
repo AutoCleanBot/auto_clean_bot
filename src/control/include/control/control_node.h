@@ -58,6 +58,7 @@ class ControlNode : public rclcpp::Node {
     double feedforward_rate_;     // 前馈控制比例
     double heading_error_rate_;   // 航向误差比例
     double dec_step_size_;        // 减速步长
+    double inc_step_size_;        // 加速步长
     double turning_radius_ratio_; // 方向盘转角与前轮转角的比例
     double zero_point_draft_;     // 零点漂移
     double lat_error_threshold_;  // 横向偏差阈值

@@ -339,7 +339,6 @@ void ControlNode::LongitudinalController() {
     static double step_target_speed = 0.0;
     const double koffset = 0.2;
     const double SPEED_THRESHOLD = 0.01;
-    const double STEP_SIZE = 0.5;
 
     // 检查输入数据是否有效
     if (!adc_trajectory_msg_ || !localization_info_msg_) {
@@ -368,11 +367,7 @@ void ControlNode::LongitudinalController() {
 
     // 阶梯目标速度更新逻辑
     if (final_target_speed > step_target_speed) {
-        // 目标速度高于当前阶梯目标 - 需要加速
-        if (current_speed >= step_target_speed - SPEED_THRESHOLD) {
-            // 当前速度已达到阶梯目标，增加阶梯
-            step_target_speed = std::min(step_target_speed + STEP_SIZE, final_target_speed);
-        }
+        step_target_speed = std::min(step_target_speed + inc_step_size_, final_target_speed);
     } else if (final_target_speed < step_target_speed) {
         // 目标速度低于当前阶梯目标 - 需要减速
         // 这样可以补偿车辆减速缓慢的问题
@@ -394,7 +389,7 @@ void ControlNode::LongitudinalController() {
         auto vehicle_feedback_spd = chassis_info_msg_.cur_speed;
         debug_log_file_ << "," << final_target_speed << "," << current_speed << ","
                         << final_target_speed - current_speed << "," << 0 << "," << step_target_speed << ","
-                        << speed_pid_controller_->getIntegral() << ","<< vehicle_feedback_spd  << std::endl;
+                        << speed_pid_controller_->getIntegral() << ","<< -vehicle_feedback_spd  << std::endl;
     }
 }
 
@@ -602,6 +597,7 @@ void ControlNode::InitParams() {
     this->declare_parameter<double>("stanley_min_eff_spd", 1.5);
     this->declare_parameter<double>("turning_radius_ratio", 1.0);
     this->declare_parameter<double>("dec_step_size", 0.5);
+    this->declare_parameter<double>("inc_step_size", 0.5);
     this->declare_parameter<double>("zero_point_draft", 0.0);
     this->declare_parameter("speed_pid_kp", 0.5);
     this->declare_parameter("speed_pid_ki", 0.1);
@@ -614,6 +610,7 @@ void ControlNode::InitParams() {
     this->declare_parameter<std::string>("log_file_path", "./control_debug.csv");
     this->declare_parameter<bool>("reverse_mode", false);
     this->declare_parameter<double>("lat_error_threshold", 0.7);
+    
     // Get parameters
     publish_rate_ = this->get_parameter("publish_rate").get_value<double>();
     preview_time_ = this->get_parameter("preview_time").get_value<double>();
@@ -641,6 +638,7 @@ void ControlNode::InitParams() {
     speed_pid_kf_ = this->get_parameter("speed_pid_kf").as_double();
     stanley_min_eff_spd_ = this->get_parameter("stanley_min_eff_spd").as_double();
     dec_step_size_ = this->get_parameter("dec_step_size").as_double();
+    inc_step_size_ = this->get_parameter("inc_step_size").as_double();
     reverse_mode_ = this->get_parameter("reverse_mode").as_bool();
     lat_error_threshold_ = this->get_parameter("lat_error_threshold").as_double();
     // Print parameters
@@ -667,9 +665,10 @@ void ControlNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "Debug log file path: %s", log_file_path_.c_str());
     RCLCPP_INFO(this->get_logger(), "Speed pid kp: %f", speed_pid_kp_);
     RCLCPP_INFO(this->get_logger(), "Speed pid ki: %f", speed_pid_ki_);
-    RCLCPP_INFO(this->get_logger(), "Speed pid kd: %f", speed_pid_kd_);
+    RCLCPP_INFO(this->get_logger(), "Speed pid kd: %f", speed_pid_kd_); 
     RCLCPP_INFO(this->get_logger(), "Speed pid kf: %f", speed_pid_kf_);
     RCLCPP_INFO(this->get_logger(), "Dec step size: %f", dec_step_size_);
+    RCLCPP_INFO(this->get_logger(), "Inc step size: %f", inc_step_size_);
     RCLCPP_INFO(this->get_logger(), "Reverse mode: %d", reverse_mode_);
     RCLCPP_INFO(this->get_logger(), "Lat error threshold: %f", lat_error_threshold_);
     return;
