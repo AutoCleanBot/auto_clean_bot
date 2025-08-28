@@ -1,0 +1,2 @@
+CompileFlags:
+  CompilationDatabase: ../build   # 相对路径指向 build/compile_commands.json
