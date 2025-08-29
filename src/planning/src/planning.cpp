@@ -364,8 +364,7 @@ void PlanningNode::RightBoundaryCallback(const bot_msg::msg::Boundary::SharedPtr
 bool PlanningNode::IsNearDistance(const double &distance) {
     // 使用统一的距离计算函数
     double dis = CalculateDistanceToEnd();
-    // 简化判断：只基于距离或接近路径末尾的索引
-    if (dis < final_stop_distance_) {
+    if (dis < distance) {
         return true;
     }
     return false;
