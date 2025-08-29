@@ -60,6 +60,7 @@ class PlanningNode : public rclcpp::Node {
     visualization_msgs::msg::Marker CreateTrajectoryMarker(const bot_msg::msg::ADCTrajectory &pub_traj);
     visualization_msgs::msg::Marker CreateVehicleMarker();
     visualization_msgs::msg::Marker CreateObstacleStatusMarker();
+    visualization_msgs::msg::Marker CreateCoordinateMarker();
     visualization_msgs::msg::Marker CreateBoundaryMarker(const bot_msg::msg::Boundary &boundary, const std::string &ns,
                                                          const std_msgs::msg::ColorRGBA &color);
 

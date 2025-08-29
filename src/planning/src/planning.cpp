@@ -3,6 +3,8 @@
 #include <chrono>
 #include <rclcpp/executors/multi_threaded_executor.hpp>
 #include <thread>
+#include <iomanip>
+#include <sstream>
 
 double NormalizeAngle(double angle) {
     while (angle > M_PI) {
@@ -1097,6 +1099,12 @@ void PlanningNode::PublishVisualization(const bot_msg::msg::ADCTrajectory &pub_t
     obstacle_status_marker.header.frame_id = frame_id;
     marker_array.markers.push_back(obstacle_status_marker);
 
+    // 创建坐标位置显示
+    auto coordinate_marker = CreateCoordinateMarker();
+    coordinate_marker.header.stamp = current_time;
+    coordinate_marker.header.frame_id = frame_id;
+    marker_array.markers.push_back(coordinate_marker);
+
     // 创建边界线可视化
     if (!left_boundary_.points.empty()) {
         std_msgs::msg::ColorRGBA left_color;
@@ -1312,6 +1320,39 @@ visualization_msgs::msg::Marker PlanningNode::CreateObstaclePointsMarker() {
             marker.colors.push_back(color);
         }
     }
+
+    return marker;
+}
+
+/**
+ * @brief 创建坐标位置显示标记
+ */
+visualization_msgs::msg::Marker PlanningNode::CreateCoordinateMarker() {
+    visualization_msgs::msg::Marker marker;
+    // header会在PublishVisualization中统一设置
+    marker.ns = "coordinate_display";
+    marker.id = 0;
+    marker.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
+    marker.action = visualization_msgs::msg::Marker::ADD;
+
+    // 在车辆位置右侧显示坐标信息
+    marker.pose.position.x = cur_local_.east + 3.0;  // 车辆右侧2米
+    marker.pose.position.y = cur_local_.north;
+    marker.pose.position.z = 1.5;  // 高度1.5米
+
+    marker.scale.z = 0.6;  // 文字大小
+    marker.color.r = 1.0;
+    marker.color.g = 1.0;
+    marker.color.b = 0.0;  // 黄色文字
+    marker.color.a = 1.0;
+
+    // 格式化坐标信息
+    std::ostringstream coord_text;
+    coord_text << std::fixed << std::setprecision(2);
+    coord_text << "east: " << cur_local_.east << " m\n";
+    coord_text << "north: " << cur_local_.north << " m\n";
+    coord_text << "yaw: " << cur_local_.yaw << "°\n";
+    marker.text = coord_text.str();
 
     return marker;
 }
