@@ -36,7 +36,7 @@ def generate_launch_description():
         'heading_offset':90.0,         # 航向偏移量,°
         
         # info_str 文件保存配置 (新增调试功能)
-        'enable_info_str_save': False,        # 启用info_str保存功能 (默认关闭)
+        'enable_info_str_save': True,        # 启用info_str保存功能 (默认关闭)
         'info_str_save_dir': '/home/nvidia/rtk_logs', # 保存目录
     }
     
