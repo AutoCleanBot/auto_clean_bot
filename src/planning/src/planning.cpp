@@ -81,6 +81,7 @@ PlanningNode::PlanningNode() : Node("planning_node"), timer_cnt_(0) {
         planning_status_ = PlanningStatus::Stop;
         key_stop_ = true;
     }
+    manula_control_ = false;
 }
 
 void PlanningNode::InitParams() {
@@ -274,7 +275,15 @@ void PlanningNode::RemoteControlCallback(const std_msgs::msg::Int32::SharedPtr m
     }
     pre_key_value = key_value;
     // RCLCPP_INFO(this->get_logger(), "RemoteControlCallback, cmd: %d", remote_control_cmd_);
-    if (remote_control_cmd_ == 2) {
+    if(remote_control_cmd_ == 1){
+        key_stop_ = false;
+    }else if (remote_control_cmd_ == 2) {
+        key_stop_ = true;
+    }else if(remote_control_cmd_ == 3){ // 手动接管恢复
+        manula_control_ = false;
+        key_stop_ = false;
+    }else if(remote_control_cmd_ == 4){ // 手动节点
+        manula_control_ = true;
         key_stop_ = true;
     }
 }
@@ -1003,9 +1012,8 @@ void PlanningNode::UpdatePlanningStatus() {
 
     // 按键1是启动,按键2是停止
     if (planning_status_ == PlanningStatus::Stop) {
-        if (remote_control_cmd_ == 1 && !is_path_tail && clear_stable_count >= CLEAR_STABILITY_THRESHOLD) {
+        if (!key_stop_ && !is_path_tail && clear_stable_count >= CLEAR_STABILITY_THRESHOLD) {
             planning_status_ = PlanningStatus::Planning;
-            key_stop_ = false;
             clear_stable_count = 0;
             RCLCPP_INFO(this->get_logger(), "Manual start: Planning resumed");
         }
@@ -1016,7 +1024,7 @@ void PlanningNode::UpdatePlanningStatus() {
         }
     } else if (planning_status_ == PlanningStatus::Planning) {
         // 有障碍物立即停车，或手动停止，或到达路径终点
-        if (remote_control_cmd_ == 2) {
+        if (key_stop_) {
             planning_status_ = PlanningStatus::Stop;
             RCLCPP_INFO(this->get_logger(), "Manual stop: Planning stopped");
         } else if (has_front_obstacle || is_path_tail) {

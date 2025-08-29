@@ -9,6 +9,7 @@ namespace canbus {
 CanbusNode::CanbusNode() : Node("canbus_node") {
     running_ = true;
     control_cmd_cnt_ = 0;
+    mannula_control_flag_ = false;
     InitParams();
     bool ret = InitCanSocket(can_device_name_, can_baudrate_);
     if (!ret) {
@@ -79,8 +80,8 @@ void CanbusNode::TimerCallback() {
     FillChassisInfo(msg);
     pub_chassis_info_->publish(*msg);
 
-    if (control_cmd_cnt_ > 10) { // 保持无人驾驶的控制连接
-        SendCtrlMsg(0.0, 0.2, 0, 0);
+    if (control_cmd_cnt_ > 10 && !mannula_control_flag_) { // 保持无人驾驶的控制连接
+        SendCtrlMsg(0.0, 0.0, 0, 0);
     }
 
     ++control_cmd_cnt_;
@@ -287,7 +288,6 @@ void CanbusNode::CanThreadFunc() {
  * 控制指令回调函数, 目前的策略是直接转发来自于上层控制器的控制指令
  */
 void CanbusNode::ControlCmdCallback(const bot_msg::msg::ControlCmd::SharedPtr msg) {
-
     RCLCPP_INFO(this->get_logger(), "recv control cmd");
     // 解析控制指令
     double steer_angle = msg->steer_angle * 100.0;
@@ -297,8 +297,17 @@ void CanbusNode::ControlCmdCallback(const bot_msg::msg::ControlCmd::SharedPtr ms
     double spd = msg->speed;
 
     // 发送控制指令
-    SendCtrlMsg(steer_angle, brk, gear, spd);
+    if(!mannula_control_flag_)
+        SendCtrlMsg(steer_angle, brk, gear, spd);
     control_cmd_cnt_ = 0;
+}
+
+void CanbusNode::RemoteControllerCallback(const bot_msg::msg::RemoteController::SharedPtr msg) {
+    if(msg->key_value == 3){
+        mannula_control_flag_ = false;
+    }else if(msg->key_value == 4){
+        mannula_control_flag_ = true;
+    }
 }
 
 /**

@@ -1,4 +1,5 @@
 #include "control/control_node.h"
+
 #include <cmath>
 #include <filesystem>
 
@@ -26,7 +27,7 @@ std::string TimeToHumanReadable(const rclcpp::Time &time) {
 
     // 格式化时间为字符串
     char buffer[100];
-    std::strftime(buffer, sizeof(buffer), "%H:%M:%S", local_time); // 时:分:秒
+    std::strftime(buffer, sizeof(buffer), "%H:%M:%S", local_time);  // 时:分:秒
 
     // 添加毫秒部分并返回完整字符串
     std::ostringstream oss;
@@ -39,51 +40,59 @@ ControlNode::ControlNode() : Node("control_node") {
     // Initialize subscribers and publishers
     InitParams();
     this->sub_adc_trajectory_ = this->create_subscription<bot_msg::msg::ADCTrajectory>(
-        this->adc_traj_topic_name_, 10, std::bind(&ControlNode::ADCTrajectoryCallback, this, std::placeholders::_1));
+        this->adc_traj_topic_name_, 10,
+        std::bind(&ControlNode::ADCTrajectoryCallback, this, std::placeholders::_1));
     this->sub_localization_info_ = this->create_subscription<bot_msg::msg::LocalizationInfo>(
         this->localization_info_topic_name_, 10,
         std::bind(&ControlNode::LocalizationInfoCallback, this, std::placeholders::_1));
-    this->pub_control_cmd_ = this->create_publisher<bot_msg::msg::ControlCmd>(this->control_cmd_topic_name_, 10);
+    this->pub_control_cmd_ =
+        this->create_publisher<bot_msg::msg::ControlCmd>(this->control_cmd_topic_name_, 10);
 
-    int control_cycle_time = static_cast<int>(1000.0 / this->publish_rate_); // 毫秒
+    int control_cycle_time = static_cast<int>(1000.0 / this->publish_rate_);  // 毫秒
     this->timer_ = this->create_wall_timer(std::chrono::milliseconds(control_cycle_time),
                                            std::bind(&ControlNode::TimerCallback, this));
     this->sub_chassis_info_ = this->create_subscription<bot_msg::msg::ChassisInfo>(
-        this->chassis_info_topic_name_, 10, std::bind(&ControlNode::ChassisInfoCallback, this, std::placeholders::_1));
+        this->chassis_info_topic_name_, 10,
+        std::bind(&ControlNode::ChassisInfoCallback, this, std::placeholders::_1));
 
     // 使用参数读取到的日志文件路径打开文件
     // 确保目录存在
     std::filesystem::path log_path(log_file_path_);
-    std::filesystem::create_directories(log_path.parent_path()); // 创建父目录（如果不存在）
+    std::filesystem::create_directories(log_path.parent_path());  // 创建父目录（如果不存在）
 
-    debug_log_file_.open(log_file_path_, std::ios::app); // 使用参数指定的路径
+    debug_log_file_.open(log_file_path_, std::ios::app);  // 使用参数指定的路径
     if (!debug_log_file_.is_open()) {
-        RCLCPP_ERROR(this->get_logger(), "Failed to open debug log file: %s", log_file_path_.c_str());
+        RCLCPP_ERROR(this->get_logger(), "Failed to open debug log file: %s",
+                     log_file_path_.c_str());
     } else {
         RCLCPP_INFO(this->get_logger(), "Debug log file opened: %s", log_file_path_.c_str());
         // 写入CSV文件头（如果文件是新建或空的）
         debug_log_file_
-            << "timestamp,pursuit_control_rate,stanley_control_rate,sta_lat_rate,heading_error_deg,angular_error_deg,"
-               "lat_error,pursuit_control_deg,stanley_control_deg,steer_angle_deg, feedback_steer_deg,"
+            << "timestamp,pursuit_control_rate,stanley_control_rate,sta_lat_rate,heading_error_deg,"
+               "angular_error_deg,"
+               "lat_error,pursuit_control_deg,stanley_control_deg,steer_angle_deg, "
+               "feedback_steer_deg,"
                "preview_dist,preview_idx,closest_idx,target_east,target_north,target_yaw_"
-               "deg,closest_east,closest_north,closest_yaw_deg,closest_curvature,cur_east,cur_north,cur_yaw_deg,"
+               "deg,closest_east,closest_north,closest_yaw_deg,closest_curvature,cur_east,cur_"
+               "north,cur_yaw_deg,"
                "curvature_feedforward,zero_point_draft,"
                "target_spd,cur_spd,error,acceleration,cmd_spd,integral,vehicle_feed_spd"
             << std::endl;
     }
 
     // 创建PID控制器并设置前馈增益
-    speed_pid_controller_ = std::make_unique<PIDController>(speed_pid_kp_, speed_pid_ki_, speed_pid_kd_);
+    speed_pid_controller_ =
+        std::make_unique<PIDController>(speed_pid_kp_, speed_pid_ki_, speed_pid_kd_);
     speed_pid_controller_->setFeedForward(speed_pid_kf_);
     speed_pid_controller_->setOutputLimits(-deceleration_limit_, acceleration_limit_);
-    speed_pid_controller_->setIntegralLimits(-1.5, 1.5); // 可以根据实际情况调整为-1.0到-2.0之间
+    speed_pid_controller_->setIntegralLimits(-1.5, 1.5);  // 可以根据实际情况调整为-1.0到-2.0之间
 
     // 初始化时间戳
     last_control_time_ = this->now();
 
     // 声明速度平滑相关参数
-    this->declare_parameter("max_speed_change_rate", 1.0); // 默认最大变化率1m/s^2
-    this->declare_parameter("smooth_window_size", 20);     // 默认平滑窗口大小为20
+    this->declare_parameter("max_speed_change_rate", 1.0);  // 默认最大变化率1m/s^2
+    this->declare_parameter("smooth_window_size", 20);      // 默认平滑窗口大小为20
 
     // 获取参数
     max_speed_change_rate_ = this->get_parameter("max_speed_change_rate").as_double();
@@ -94,7 +103,7 @@ ControlNode::ControlNode() : Node("control_node") {
     speed_commands_buffer_.clear();
 
     // 声明新的参数
-    this->declare_parameter("max_steering_rate", 15.0); // 度/秒
+    this->declare_parameter("max_steering_rate", 15.0);  // 度/秒
     max_steering_rate_ = this->get_parameter("max_steering_rate").as_double();
 
     // 初始化状态变量
@@ -102,10 +111,10 @@ ControlNode::ControlNode() : Node("control_node") {
 }
 
 void ControlNode::LateralController() {
-
     // 检查输入数据是否有效
     if (!adc_trajectory_msg_ || !localization_info_msg_) {
-        RCLCPP_WARN(this->get_logger(), "LateralController: Missing trajectory or localization data");
+        RCLCPP_WARN(this->get_logger(),
+                    "LateralController: Missing trajectory or localization data");
         return;
     }
 
@@ -120,7 +129,8 @@ void ControlNode::LateralController() {
     // double cur_up = localization_info_msg_->up;
     double cur_spd = localization_info_msg_->vel_speed;
     double effective_stanley_spd = std::max(cur_spd, stanley_min_eff_spd_);
-    double cur_yaw = NormalizeAngle(localization_info_msg_->yaw * M_PI / 180.0); // 当前航向角, 弧度
+    double cur_yaw =
+        NormalizeAngle(localization_info_msg_->yaw * M_PI / 180.0);  // 当前航向角, 弧度
 
     // 1. 找到当前车辆位置到轨迹上的最近点
     double min_dist = 1000000.0;
@@ -150,9 +160,9 @@ void ControlNode::LateralController() {
         // Iterate forward along the trajectory from closest_idx_
         for (size_t i = closest_idx_; i < adc_trajectory_msg_->points.size() - 1; ++i) {
             // Calculate distance between point i and point i+1
-            double segment_dist =
-                std::hypot(adc_trajectory_msg_->points[i + 1].east - adc_trajectory_msg_->points[i].east,
-                           adc_trajectory_msg_->points[i + 1].north - adc_trajectory_msg_->points[i].north);
+            double segment_dist = std::hypot(
+                adc_trajectory_msg_->points[i + 1].east - adc_trajectory_msg_->points[i].east,
+                adc_trajectory_msg_->points[i + 1].north - adc_trajectory_msg_->points[i].north);
 
             if (accumulated_distance + segment_dist >= preview_dist) {
                 // Found a segment that contains the preview point.
@@ -163,24 +173,26 @@ void ControlNode::LateralController() {
                 break;
             }
             accumulated_distance += segment_dist;
-            preview_idx = i + 1; // Keep updating preview_idx to the last point checked
+            preview_idx = i + 1;  // Keep updating preview_idx to the last point checked
         }
-        // If the loop finishes and preview_idx is still not far enough (e.g., end of trajectory reached),
-        // preview_idx will be the last point of the trajectory.
+        // If the loop finishes and preview_idx is still not far enough (e.g., end of trajectory
+        // reached), preview_idx will be the last point of the trajectory.
     }
 
     // 3. 计算横向控制命令
     double closest_east = adc_trajectory_msg_->points[closest_idx_].east;
     double closest_north = adc_trajectory_msg_->points[closest_idx_].north;
-    double closest_yaw =
-        NormalizeAngle(adc_trajectory_msg_->points[closest_idx_].yaw * M_PI / 180.0); // 最近点航向角, 弧度
+    double closest_yaw = NormalizeAngle(adc_trajectory_msg_->points[closest_idx_].yaw * M_PI /
+                                        180.0);  // 最近点航向角, 弧度
     // 获取预瞄点信息
     double target_north = adc_trajectory_msg_->points[preview_idx].north;
     double target_east = adc_trajectory_msg_->points[preview_idx].east;
-    double target_yaw = NormalizeAngle(adc_trajectory_msg_->points[preview_idx].yaw * M_PI / 180.0); // 目标航向角, 弧度
+    double target_yaw = NormalizeAngle(adc_trajectory_msg_->points[preview_idx].yaw * M_PI /
+                                       180.0);  // 目标航向角, 弧度
     // 3.1 计算航向误差和方位角误差
-    double heading_error = NormalizeAngle(target_yaw - cur_yaw);                       // 航向误差
-    double deg_angular = std::atan2(target_east - cur_east, target_north - cur_north); // 方位角误差
+    double heading_error = NormalizeAngle(target_yaw - cur_yaw);  // 航向误差
+    double deg_angular =
+        std::atan2(target_east - cur_east, target_north - cur_north);  // 方位角误差
     double angular_error = NormalizeAngle(deg_angular - cur_yaw);
 
     // 3.2 计算横向误差
@@ -188,14 +200,16 @@ void ControlNode::LateralController() {
     double path_direction;
     if (closest_idx_ + 1 < adc_trajectory_msg_->points.size()) {
         // 使用前向点计算切线
-        path_direction = std::atan2(
-            adc_trajectory_msg_->points[closest_idx_ + 1].east - adc_trajectory_msg_->points[closest_idx_].east,
-            adc_trajectory_msg_->points[closest_idx_ + 1].north - adc_trajectory_msg_->points[closest_idx_].north);
+        path_direction = std::atan2(adc_trajectory_msg_->points[closest_idx_ + 1].east -
+                                        adc_trajectory_msg_->points[closest_idx_].east,
+                                    adc_trajectory_msg_->points[closest_idx_ + 1].north -
+                                        adc_trajectory_msg_->points[closest_idx_].north);
     } else if (closest_idx_ > 0) {
         // 使用后向点计算切线
-        path_direction = std::atan2(
-            adc_trajectory_msg_->points[closest_idx_].east - adc_trajectory_msg_->points[closest_idx_ - 1].east,
-            adc_trajectory_msg_->points[closest_idx_].north - adc_trajectory_msg_->points[closest_idx_ - 1].north);
+        path_direction = std::atan2(adc_trajectory_msg_->points[closest_idx_].east -
+                                        adc_trajectory_msg_->points[closest_idx_ - 1].east,
+                                    adc_trajectory_msg_->points[closest_idx_].north -
+                                        adc_trajectory_msg_->points[closest_idx_ - 1].north);
     } else {
         // 只有一个点，使用目标航向
         path_direction = adc_trajectory_msg_->points[closest_idx_].yaw * M_PI / 180.0;
@@ -213,22 +227,24 @@ void ControlNode::LateralController() {
     double lat_error_s = lat_error * lat_error_threshold_;
     // 3.3 使用混合控制器计算转向角
     // ! 目前计算结果为左正右负
-    // ! 注意如果出现当前的需要控制情况为右转为正左转为负的情况的话pursuit_control和stanley_control去除负号即可
+    // !
+    // 注意如果出现当前的需要控制情况为右转为正左转为负的情况的话pursuit_control和stanley_control去除负号即可
 
     // 计算当前路径曲率
     double path_curvature = CalculatePathCurvature(closest_idx_);
 
     // 计算自适应预瞄距离
     double current_speed = localization_info_msg_->vel_speed;
-    // double adaptive_preview_dist = CalculateAdaptivePreviewDistance(current_speed, path_curvature);
+    // double adaptive_preview_dist = CalculateAdaptivePreviewDistance(current_speed,
+    // path_curvature);
 
     // 根据曲率动态调整控制器权重
     double curvature_based_weight = std::abs(path_curvature);
-    const double CURVATURE_THRESHOLD = 0.02; // 曲率阈值
+    const double CURVATURE_THRESHOLD = 0.02;  // 曲率阈值
 
     // 使用连续函数而非二元判断来调整权重
     double curvature_factor = std::min(1.0, curvature_based_weight / CURVATURE_THRESHOLD);
-    double speed_factor = std::min(1.0, current_speed / 2.0); // 低速时也调整权重
+    double speed_factor = std::min(1.0, current_speed / 2.0);  // 低速时也调整权重
 
     // 自适应权重
     double adaptive_pursuit_rate = pursuit_control_rate_;
@@ -241,7 +257,8 @@ void ControlNode::LateralController() {
     if (pursuit_control_rate_ != 1.0 && stanley_control_rate_ != 1.0) {
         // 曲率越大，Pure Pursuit权重越高
         adaptive_pursuit_rate = base_pursuit_rate * (1.0 + 0.3 * curvature_factor);
-        adaptive_stanley_rate = base_stanley_rate * (1.0 - 0.3 * curvature_factor + 0.3 * (1.0 - curvature_factor));
+        adaptive_stanley_rate =
+            base_stanley_rate * (1.0 - 0.3 * curvature_factor + 0.3 * (1.0 - curvature_factor));
 
         // 考虑速度因素 - 低速时增加Stanley权重
         adaptive_pursuit_rate *= (0.7 + 0.3 * speed_factor);
@@ -271,17 +288,18 @@ void ControlNode::LateralController() {
 
     // 使用自适应参数计算控制输出
     double pursuit_control = -std::atan2(2 * wheelbase_ * std::sin(angular_error), preview_dist);
-    double stanley_control =
-        -(heading_error_rate_ * heading_error - std::atan(sta_lat_rate_ * lat_error / effective_stanley_spd));
+    double stanley_control = -(heading_error_rate_ * heading_error -
+                               std::atan(sta_lat_rate_ * lat_error / effective_stanley_spd));
 
     // 应用自适应权重
-    double front_wheel_rad = adaptive_pursuit_rate * pursuit_control + adaptive_stanley_rate * stanley_control;
+    double front_wheel_rad =
+        adaptive_pursuit_rate * pursuit_control + adaptive_stanley_rate * stanley_control;
 
     // 添加前馈控制项
     double curvature_feedforward = std::atan2(wheelbase_ * path_curvature, 1.0);
-    if(!reverse_mode_){
+    if (!reverse_mode_) {
         front_wheel_rad += feedforward_rate_ * curvature_feedforward;
-    }else{
+    } else {
         front_wheel_rad = pursuit_control;
     }
     // 3.4 计算最终转向角，并限制在合理范围内
@@ -291,7 +309,8 @@ void ControlNode::LateralController() {
     steer_angle *= turning_radius_ratio_;
     // 零点漂移处理
     steer_angle += zero_point_draft_;
-    steer_angle = std::max(-max_steering_angle_, std::min(max_steering_angle_, steer_angle)); // 限制在[-50, 50]度之间
+    steer_angle = std::max(-max_steering_angle_,
+                           std::min(max_steering_angle_, steer_angle));  // 限制在[-50, 50]度之间
 
     // 4. 赋值给控制命令
     control_cmd_msg_.steer_angle = steer_angle;
@@ -299,36 +318,45 @@ void ControlNode::LateralController() {
     if (g_debug_cnt % 10 == 0) {
         // 输出调试信息
         RCLCPP_INFO(this->get_logger(),
-                    "heading_error,%.2f,angular_error,%.2f,lat_error,%.2f,steer_angle,%.2f,pursuit_control,%.2f,"
-                    "stanley_control,%.2f,preview_dist,%.2f,preview_idx,%zu,closest_idx,%zu,target_north,%.2f,target_"
-                    "east,%.2f,target_yaw,%.2f,cur_yaw,%.2f,cur_north,%.2f,cur_east,%.2f,cur_spd,%.2f,closest_east,%."
+                    "heading_error,%.2f,angular_error,%.2f,lat_error,%.2f,steer_angle,%.2f,pursuit_"
+                    "control,%.2f,"
+                    "stanley_control,%.2f,preview_dist,%.2f,preview_idx,%zu,closest_idx,%zu,target_"
+                    "north,%.2f,target_"
+                    "east,%.2f,target_yaw,%.2f,cur_yaw,%.2f,cur_north,%.2f,cur_east,%.2f,cur_spd,%."
+                    "2f,closest_east,%."
                     "2f,closest_north,%.2f,"
                     "closest_yaw,%.2f",
-                    heading_error * 180.0 / M_PI, angular_error * 180.0 / M_PI, lat_error_s, steer_angle,
-                    pursuit_control * 180.0 / M_PI, stanley_control * 180.0 / M_PI, preview_dist, preview_idx,
-                    closest_idx_, target_north, target_east, target_yaw * 180.0 / M_PI, cur_yaw * 180.0 / M_PI,
-                    cur_north, cur_east, cur_spd, closest_east, closest_north, closest_yaw * 180.0 / M_PI);
+                    heading_error * 180.0 / M_PI, angular_error * 180.0 / M_PI, lat_error_s,
+                    steer_angle, pursuit_control * 180.0 / M_PI, stanley_control * 180.0 / M_PI,
+                    preview_dist, preview_idx, closest_idx_, target_north, target_east,
+                    target_yaw * 180.0 / M_PI, cur_yaw * 180.0 / M_PI, cur_north, cur_east, cur_spd,
+                    closest_east, closest_north, closest_yaw * 180.0 / M_PI);
     }
     if (g_debug_cnt % 5 == 0 && debug_log_file_.is_open()) {
         auto time_str = TimeToHumanReadable(this->now());
         auto feedback_steer_angle = chassis_info_msg_.steer_angle;
         double delta = lat_error >= 0 ? -0.05 : 0.05;
-        if(abs(lat_error) >= 0.1){
+        if (abs(lat_error) >= 0.1) {
             lat_error_s += delta;
         }
-        debug_log_file_ << time_str << "," << pursuit_control_rate_ << "," << stanley_control_rate_ << ","
-                        << sta_lat_rate_ << "," << heading_error * 180.0 / M_PI << "," << angular_error * 180.0 / M_PI
-                        << "," << lat_error_s << "," << pursuit_control * 180.0 / M_PI * adaptive_pursuit_rate << ","
-                        << stanley_control * 180.0 / M_PI * adaptive_stanley_rate << "," << steer_angle << ","
-                        << feedback_steer_angle << "," << preview_dist << "," << preview_idx << "," << closest_idx_
-                        << "," << target_east << "," << target_north << "," << target_yaw * 180.0 / M_PI << ","
-                        << closest_east << "," << closest_north << "," << closest_yaw * 180.0 / M_PI << ","
-                        << path_curvature << "," << cur_east << "," << cur_north << "," << cur_yaw * 180.0 / M_PI << ","
-                        << feedforward_rate_ << "," << zero_point_draft_;
+        debug_log_file_ << time_str << "," << pursuit_control_rate_ << "," << stanley_control_rate_
+                        << "," << sta_lat_rate_ << "," << heading_error * 180.0 / M_PI << ","
+                        << angular_error * 180.0 / M_PI << "," << lat_error_s << ","
+                        << pursuit_control * 180.0 / M_PI * adaptive_pursuit_rate << ","
+                        << stanley_control * 180.0 / M_PI * adaptive_stanley_rate << ","
+                        << steer_angle << "," << feedback_steer_angle << "," << preview_dist << ","
+                        << preview_idx << "," << closest_idx_ << "," << target_east << ","
+                        << target_north << "," << target_yaw * 180.0 / M_PI << "," << closest_east
+                        << "," << closest_north << "," << closest_yaw * 180.0 / M_PI << ","
+                        << path_curvature << "," << cur_east << "," << cur_north << ","
+                        << cur_yaw * 180.0 / M_PI << "," << feedforward_rate_ << ","
+                        << zero_point_draft_;
     }
 }
 
-void ControlNode::ChassisInfoCallback(const bot_msg::msg::ChassisInfo::SharedPtr msg) { chassis_info_msg_ = *msg; }
+void ControlNode::ChassisInfoCallback(const bot_msg::msg::ChassisInfo::SharedPtr msg) {
+    chassis_info_msg_ = *msg;
+}
 
 /**
  * @brief 基于阶梯阶跃响应的纵向控制器
@@ -338,11 +366,12 @@ void ControlNode::LongitudinalController() {
     static bool first_run = true;
     static double step_target_speed = 0.0;
     const double koffset = 0.2;
-    const double SPEED_THRESHOLD = 0.01;
+    // const double SPEED_THRESHOLD = 0.01;
 
     // 检查输入数据是否有效
     if (!adc_trajectory_msg_ || !localization_info_msg_) {
-        RCLCPP_WARN(this->get_logger(), "LongitudinalController: Missing trajectory or localization data");
+        RCLCPP_WARN(this->get_logger(),
+                    "LongitudinalController: Missing trajectory or localization data");
         return;
     }
 
@@ -357,7 +386,8 @@ void ControlNode::LongitudinalController() {
     double final_target_speed = adc_trajectory_msg_->points[closest_idx_].vel_speed;
 
     // 限制最终目标速度在合理范围内
-    final_target_speed = std::max(min_linear_velocity_, std::min(max_linear_velocity_, final_target_speed));
+    final_target_speed =
+        std::max(min_linear_velocity_, std::min(max_linear_velocity_, final_target_speed));
 
     // 初始化阶梯目标速度
     if (first_run) {
@@ -372,7 +402,8 @@ void ControlNode::LongitudinalController() {
         // 目标速度低于当前阶梯目标 - 需要减速
         // 这样可以补偿车辆减速缓慢的问题
         double speed_diff = step_target_speed - final_target_speed;
-        double adaptive_decel_step = dec_step_size_ * (1.0 + speed_diff / 2.0); // 速度差越大，减速步长越大
+        double adaptive_decel_step =
+            dec_step_size_ * (1.0 + speed_diff / 2.0);  // 速度差越大，减速步长越大
         step_target_speed = std::max(step_target_speed - adaptive_decel_step, final_target_speed);
     } else {
         // 最终目标速度等于当前阶梯目标，无需调整
@@ -388,16 +419,17 @@ void ControlNode::LongitudinalController() {
     if (g_debug_cnt % 5 == 0 && debug_log_file_.is_open()) {
         auto vehicle_feedback_spd = chassis_info_msg_.cur_speed;
         debug_log_file_ << "," << final_target_speed << "," << current_speed << ","
-                        << final_target_speed - current_speed << "," << 0 << "," << step_target_speed << ","
-                        << speed_pid_controller_->getIntegral() << ","<< -vehicle_feedback_spd  << std::endl;
+                        << final_target_speed - current_speed << "," << 0 << ","
+                        << step_target_speed << "," << speed_pid_controller_->getIntegral() << ","
+                        << -vehicle_feedback_spd << std::endl;
     }
 }
 
 // void ControlNode::LongitudinalController() {
 //     // 检查输入数据是否有效
 //     if (!adc_trajectory_msg_ || !localization_info_msg_) {
-//         RCLCPP_WARN(this->get_logger(), "LongitudinalController: Missing trajectory or localization data");
-//         return;
+//         RCLCPP_WARN(this->get_logger(), "LongitudinalController: Missing trajectory or
+//         localization data"); return;
 //     }
 
 //     // 检查轨迹点是否为空
@@ -424,7 +456,8 @@ void ControlNode::LongitudinalController() {
 //     double speed_error = target_speed - current_speed;
 
 //     // 使用带前馈的PID控制器计算加速度命令
-//     double acceleration = speed_pid_controller_->computeWithFeedForward(speed_error, target_speed, dt);
+//     double acceleration = speed_pid_controller_->computeWithFeedForward(speed_error,
+//     target_speed, dt);
 //     // double acceleration = speed_pid_controller_->compute(speed_error, dt);
 
 //     // 将加速度转换为目标速度
@@ -445,7 +478,8 @@ void ControlNode::LongitudinalController() {
 //     }
 
 //     // 应用速度限制
-//     target_speed_command = std::max(min_linear_velocity_, std::min(max_linear_velocity_, target_speed_command));
+//     target_speed_command = std::max(min_linear_velocity_, std::min(max_linear_velocity_,
+//     target_speed_command));
 
 //     // 应用速度平滑处理
 //     // target_speed_command = SmoothSpeedCommand(target_speed_command);
@@ -454,10 +488,12 @@ void ControlNode::LongitudinalController() {
 //     // const double SPEED_RESOLUTION = 0.1; // 假设执行器速度分辨率为0.1m/s
 
 //     // // 将速度命令量化到最近的分辨率倍数
-//     // target_speed_command = std::round(target_speed_command / SPEED_RESOLUTION) * SPEED_RESOLUTION;
+//     // target_speed_command = std::round(target_speed_command / SPEED_RESOLUTION) *
+//     SPEED_RESOLUTION;
 
 //     // // 如果量化后的速度变化太小，强制使用下一个分辨率级别
-//     // if (std::abs(target_speed_command - current_speed) < SPEED_RESOLUTION && std::abs(speed_error) > 0.01) {
+//     // if (std::abs(target_speed_command - current_speed) < SPEED_RESOLUTION &&
+//     std::abs(speed_error) > 0.01) {
 //     //     if (speed_error > 0) {
 //     //         target_speed_command = current_speed + SPEED_RESOLUTION;
 //     //     } else {
@@ -469,8 +505,8 @@ void ControlNode::LongitudinalController() {
 //     // const double INTEGRAL_SATURATION_THRESHOLD = 5.0; // 积分项达到5.0时认为饱和
 
 //     // // 如果积分项饱和且速度误差仍然存在，使用阶跃响应
-//     // if (std::abs(speed_pid_controller_->getIntegral()) > INTEGRAL_SATURATION_THRESHOLD && std::abs(speed_error) >
-//     0.1) {
+//     // if (std::abs(speed_pid_controller_->getIntegral()) > INTEGRAL_SATURATION_THRESHOLD &&
+//     std::abs(speed_error) > 0.1) {
 //     //     // 使用更大的速度步长
 //     //     double step_size = MIN_DRIVING_SPEED * 1.5; // 使用比最小驱动速度更大的步长
 //     //     if (speed_error > 0) {
@@ -487,23 +523,25 @@ void ControlNode::LongitudinalController() {
 //     if (g_debug_cnt % 10 == 0) {
 //         RCLCPP_INFO(
 //             this->get_logger(),
-//             "Speed Control: target=%.2f, current=%.2f, error=%.2f, acceleration=%.2f, command=%.2f, integral=%.2f",
-//             target_speed, current_speed, speed_error, acceleration, target_speed_command,
-//             speed_pid_controller_->getIntegral());
+//             "Speed Control: target=%.2f, current=%.2f, error=%.2f, acceleration=%.2f,
+//             command=%.2f, integral=%.2f", target_speed, current_speed, speed_error, acceleration,
+//             target_speed_command, speed_pid_controller_->getIntegral());
 //     }
 //     if (g_debug_cnt % 10 == 0 && debug_log_file_.is_open()) {
-//         debug_log_file_ << "," << target_speed << "," << current_speed << "," << speed_error << "," << acceleration
-//                         << "," << target_speed_command << "," << speed_pid_controller_->getIntegral() << std::endl;
+//         debug_log_file_ << "," << target_speed << "," << current_speed << "," << speed_error <<
+//         "," << acceleration
+//                         << "," << target_speed_command << "," <<
+//                         speed_pid_controller_->getIntegral() << std::endl;
 //     }
 // }
 
 // 根据速度动态调整heading_error_rate_
 double ControlNode::CalculateAdaptiveHeadingErrorRate(double current_speed) {
     // 定义速度范围和对应的比率范围
-    const double MIN_SPEED = 0.5; // 最低速度阈值，低于此速度使用最大比率
-    const double MAX_SPEED = 4.2; // 最高速度阈值，高于此速度使用最小比率
-    const double MIN_RATE = 0.4;  // 最小比率
-    const double MAX_RATE = 0.8;  // 最大比率
+    const double MIN_SPEED = 0.5;  // 最低速度阈值，低于此速度使用最大比率
+    const double MAX_SPEED = 4.2;  // 最高速度阈值，高于此速度使用最小比率
+    const double MIN_RATE = 0.4;   // 最小比率
+    const double MAX_RATE = 0.8;   // 最大比率
 
     // 如果速度小于最低阈值，使用最大比率
     if (current_speed <= MIN_SPEED) {
@@ -516,7 +554,8 @@ double ControlNode::CalculateAdaptiveHeadingErrorRate(double current_speed) {
     }
 
     // 在速度范围内进行线性插值
-    // 插值公式: rate = MAX_RATE - (current_speed - MIN_SPEED) * (MAX_RATE - MIN_RATE) / (MAX_SPEED - MIN_SPEED)
+    // 插值公式: rate = MAX_RATE - (current_speed - MIN_SPEED) * (MAX_RATE - MIN_RATE) / (MAX_SPEED
+    // - MIN_SPEED)
     double rate_range = MAX_RATE - MIN_RATE;
     double speed_range = MAX_SPEED - MIN_SPEED;
     double speed_factor = (current_speed - MIN_SPEED) / speed_range;
@@ -533,7 +572,8 @@ void ControlNode::ADCTrajectoryCallback(const bot_msg::msg::ADCTrajectory::Share
 }
 
 void ControlNode::LocalizationInfoCallback(const bot_msg::msg::LocalizationInfo::SharedPtr msg) {
-    RCLCPP_INFO(this->get_logger(), "Received localization, position: (%.2f, %.2f)", msg->east, msg->north);
+    RCLCPP_INFO(this->get_logger(), "Received localization, position: (%.2f, %.2f)", msg->east,
+                msg->north);
     localization_info_msg_ = msg;
     return;
 }
@@ -602,7 +642,7 @@ void ControlNode::InitParams() {
     this->declare_parameter("speed_pid_kp", 0.5);
     this->declare_parameter("speed_pid_ki", 0.1);
     this->declare_parameter("speed_pid_kd", 0.0);
-    this->declare_parameter("speed_pid_kf", 0.5); // 前馈增益默认值
+    this->declare_parameter("speed_pid_kf", 0.5);  // 前馈增益默认值
     this->declare_parameter<std::string>("adc_traj_topic_name", "/planing/adc_traj");
     this->declare_parameter<std::string>("control_cmd_topic_name", "/control/control_cmd");
     this->declare_parameter<std::string>("localization_info_topic_name", "/control/local_info");
@@ -610,7 +650,7 @@ void ControlNode::InitParams() {
     this->declare_parameter<std::string>("log_file_path", "./control_debug.csv");
     this->declare_parameter<bool>("reverse_mode", false);
     this->declare_parameter<double>("lat_error_threshold", 0.7);
-    
+
     // Get parameters
     publish_rate_ = this->get_parameter("publish_rate").get_value<double>();
     preview_time_ = this->get_parameter("preview_time").get_value<double>();
@@ -628,9 +668,12 @@ void ControlNode::InitParams() {
     turning_radius_ratio_ = this->get_parameter("turning_radius_ratio").get_value<double>();
     zero_point_draft_ = this->get_parameter("zero_point_draft").get_value<double>();
     adc_traj_topic_name_ = this->get_parameter("adc_traj_topic_name").get_value<std::string>();
-    control_cmd_topic_name_ = this->get_parameter("control_cmd_topic_name").get_value<std::string>();
-    localization_info_topic_name_ = this->get_parameter("localization_info_topic_name").get_value<std::string>();
-    chassis_info_topic_name_ = this->get_parameter("chassis_info_topic_name").get_value<std::string>();
+    control_cmd_topic_name_ =
+        this->get_parameter("control_cmd_topic_name").get_value<std::string>();
+    localization_info_topic_name_ =
+        this->get_parameter("localization_info_topic_name").get_value<std::string>();
+    chassis_info_topic_name_ =
+        this->get_parameter("chassis_info_topic_name").get_value<std::string>();
     log_file_path_ = this->get_parameter("log_file_path").get_value<std::string>();
     speed_pid_kp_ = this->get_parameter("speed_pid_kp").as_double();
     speed_pid_ki_ = this->get_parameter("speed_pid_ki").as_double();
@@ -648,7 +691,8 @@ void ControlNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "Max steering angle: %f", max_steering_angle_);
     RCLCPP_INFO(this->get_logger(), "ADC traj topic name: %s", adc_traj_topic_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "Control cmd topic name: %s", control_cmd_topic_name_.c_str());
-    RCLCPP_INFO(this->get_logger(), "Localization info topic name: %s", localization_info_topic_name_.c_str());
+    RCLCPP_INFO(this->get_logger(), "Localization info topic name: %s",
+                localization_info_topic_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "Preview time: %f", preview_time_);
     RCLCPP_INFO(this->get_logger(), "Tolerance distance: %f", tolerance_distance_);
     RCLCPP_INFO(this->get_logger(), "Wheelbase: %f", wheelbase_);
@@ -661,11 +705,12 @@ void ControlNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "Stanley lat control rate: %f", sta_lat_rate_);
     RCLCPP_INFO(this->get_logger(), "Stanley min eff spd: %f", stanley_min_eff_spd_);
     RCLCPP_INFO(this->get_logger(), "Feedforward rate: %f", feedforward_rate_);
-    RCLCPP_INFO(this->get_logger(), "Chassis info topic name: %s", chassis_info_topic_name_.c_str());
+    RCLCPP_INFO(this->get_logger(), "Chassis info topic name: %s",
+                chassis_info_topic_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "Debug log file path: %s", log_file_path_.c_str());
     RCLCPP_INFO(this->get_logger(), "Speed pid kp: %f", speed_pid_kp_);
     RCLCPP_INFO(this->get_logger(), "Speed pid ki: %f", speed_pid_ki_);
-    RCLCPP_INFO(this->get_logger(), "Speed pid kd: %f", speed_pid_kd_); 
+    RCLCPP_INFO(this->get_logger(), "Speed pid kd: %f", speed_pid_kd_);
     RCLCPP_INFO(this->get_logger(), "Speed pid kf: %f", speed_pid_kf_);
     RCLCPP_INFO(this->get_logger(), "Dec step size: %f", dec_step_size_);
     RCLCPP_INFO(this->get_logger(), "Inc step size: %f", inc_step_size_);
@@ -675,7 +720,7 @@ void ControlNode::InitParams() {
 }
 
 double ControlNode::SmoothSpeedCommand(double raw_speed_command) {
-    const double dt = 0.02; // 控制周期
+    const double dt = 0.02;  // 控制周期
 
     // 限制速度变化率
     double max_speed_change = max_speed_change_rate_ * dt;
@@ -712,13 +757,13 @@ double ControlNode::SmoothSpeedCommand(double raw_speed_command) {
 double ControlNode::CalculatePathCurvature(size_t index) {
     // 需要至少三个点来计算曲率和方向
     if (index == 0 || index >= adc_trajectory_msg_->points.size() - 1) {
-        return 0.0; // 无法计算或接近轨迹末端，视为直线
+        return 0.0;  // 无法计算或接近轨迹末端，视为直线
     }
 
     // 获取连续三个点
-    const auto &p0 = adc_trajectory_msg_->points[index - 1]; // 前一个点
-    const auto &p1 = adc_trajectory_msg_->points[index];     // 当前点 (closest_idx)
-    const auto &p2 = adc_trajectory_msg_->points[index + 1]; // 后一个点
+    const auto &p0 = adc_trajectory_msg_->points[index - 1];  // 前一个点
+    const auto &p1 = adc_trajectory_msg_->points[index];      // 当前点 (closest_idx)
+    const auto &p2 = adc_trajectory_msg_->points[index + 1];  // 后一个点
 
     // 将点转换为简单的2D向量，以p1为原点
     double x0 = p0.east - p1.east;
@@ -731,10 +776,11 @@ double ControlNode::CalculatePathCurvature(size_t index) {
     // P1P2: (x2, y2)
 
     // 使用Menger曲率公式的近似 (适用于离散点)
-    // K = 2 * |x1(y2 − y3) + x2(y3 − y1) + x3(y1 − y2)| / (sqrt((x1−x2)^2+(y1−y2)^2) * sqrt((x2−x3)^2+(y2−y3)^2) *
-    // sqrt((x3−x1)^2+(y3−y1)^2)) 为了简化并获得符号，我们使用叉积的思想来判断方向 向量 p1->p0 和 p1->p2 叉积的 z 分量:
-    // (x0 * y2 - y0 * x2) 如果这个值 > 0，表示从 p1->p0 到 p1->p2 是逆时针（左转弯） 如果这个值 < 0，表示从 p1->p0 到
-    // p1->p2 是顺时针（右转弯）
+    // K = 2 * |x1(y2 − y3) + x2(y3 − y1) + x3(y1 − y2)| / (sqrt((x1−x2)^2+(y1−y2)^2) *
+    // sqrt((x2−x3)^2+(y2−y3)^2) * sqrt((x3−x1)^2+(y3−y1)^2))
+    // 为了简化并获得符号，我们使用叉积的思想来判断方向 向量 p1->p0 和 p1->p2 叉积的 z 分量: (x0 *
+    // y2 - y0 * x2) 如果这个值 > 0，表示从 p1->p0 到 p1->p2 是逆时针（左转弯） 如果这个值 <
+    // 0，表示从 p1->p0 到 p1->p2 是顺时针（右转弯）
 
     double cross_product_z = x0 * y2 - x2 * y0;
 
@@ -748,13 +794,14 @@ double ControlNode::CalculatePathCurvature(size_t index) {
     double dist_p0_p2 = std::hypot(p2.east - p0.east, p2.north - p0.north);
 
     if (dist_p0_p1 < 1e-6 || dist_p1_p2 < 1e-6 || dist_p0_p2 < 1e-6) {
-        return 0.0; // 点重合或非常近，视为直线
+        return 0.0;  // 点重合或非常近，视为直线
     }
 
     // 使用Menger曲率的公式: K = 4 * Area / (a*b*c)
     // Area 是 p0, p1, p2 构成的三角形面积. 2 * Area = |x0*y2 - x2*y0|
     double area_triangle_times_2 = std::abs(cross_product_z);
-    double curvature_magnitude = 2.0 * area_triangle_times_2 / (dist_p0_p1 * dist_p1_p2 * dist_p0_p2);
+    double curvature_magnitude =
+        2.0 * area_triangle_times_2 / (dist_p0_p1 * dist_p1_p2 * dist_p0_p2);
 
     // 根据叉积的符号确定曲率的符号
     // 假设左转为正曲率，右转为负曲率
@@ -777,12 +824,12 @@ double ControlNode::CalculatePathCurvature(size_t index) {
     // 修正后的正确代码
     if (cross_product_z > 0) {
         // 向量 P1P0 -> P1P2 是逆时针，对应左转
-        signed_curvature = -curvature_magnitude; // 右转 -> 负曲率
+        signed_curvature = -curvature_magnitude;  // 右转 -> 负曲率
     } else if (cross_product_z < 0) {
         // 向量 P1P0 -> P1P2 是顺时针，对应右转
-        signed_curvature = curvature_magnitude; // 左转 -> 正曲率
+        signed_curvature = curvature_magnitude;  // 左转 -> 正曲率
     } else {
-        signed_curvature = 0.0; // 直线
+        signed_curvature = 0.0;  // 直线
     }
     // // 注意：如果 curvature_magnitude 已经为0（直线），符号无所谓
 
@@ -795,8 +842,8 @@ double ControlNode::CalculateAdaptivePreviewDistance(double current_speed, doubl
     double base_preview = preview_time_ * current_speed;
 
     // 根据曲率调整预瞄距离
-    const double MIN_PREVIEW_DISTANCE = 1.0; // 最小预瞄距离
-    const double CURVATURE_FACTOR = 5.0;     // 曲率影响因子
+    const double MIN_PREVIEW_DISTANCE = 1.0;  // 最小预瞄距离
+    const double CURVATURE_FACTOR = 5.0;      // 曲率影响因子
 
     double preview_dist = base_preview / (1.0 + CURVATURE_FACTOR * std::abs(path_curvature));
     return std::max(MIN_PREVIEW_DISTANCE, preview_dist);
@@ -823,7 +870,8 @@ double ControlNode::SmoothSteeringAngle(double target_angle, double dt) {
     // const double MIN_EFFECTIVE_ANGLE_CHANGE = 0.8; // 单位：度
 
     // // 如果变化量大于0，但小于最小有效变化量
-    // if (std::abs(final_angle_change) > 1e-6 && std::abs(final_angle_change) < MIN_EFFECTIVE_ANGLE_CHANGE) {
+    // if (std::abs(final_angle_change) > 1e-6 && std::abs(final_angle_change) <
+    // MIN_EFFECTIVE_ANGLE_CHANGE) {
     //     // 决策：是保持不动，还是强制增加到最小有效值？
     //     // 强制增加到最小有效值，可以更快地克服死区
     //     if (final_angle_change > 0) {
@@ -845,7 +893,7 @@ ControlNode::~ControlNode() {
     }
     RCLCPP_INFO(this->get_logger(), "control node shutting down");
 }
-} // namespace control
+}  // namespace control
 // 节点注册
 int main(int argc, char *argv[]) {
     rclcpp::init(argc, argv);

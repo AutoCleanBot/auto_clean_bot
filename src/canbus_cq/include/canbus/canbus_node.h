@@ -2,13 +2,17 @@
 
 #include "bot_msg/msg/chassis_info.hpp"
 #include "bot_msg/msg/control_cmd.hpp"
+#include "bot_msg/msg/remote_controller.hpp"
 #include "canbus/can_protocol.h"
 #include <atomic>
+#include <bot_msg/msg/detail/remote_controller__struct.hpp>
 #include <cstring>
+#include <bits/stdint-uintn.h>
 #include <linux/can.h>
 #include <linux/can/raw.h>
 #include <net/if.h>
 #include <rclcpp/rclcpp.hpp>
+#include <rclcpp/subscription.hpp>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -44,6 +48,7 @@ class CanbusNode : public rclcpp::Node {
     rclcpp::TimerBase::SharedPtr timer_;
     // 订阅者
     rclcpp::Subscription<bot_msg::msg::ControlCmd>::SharedPtr sub_control_cmd_;
+    rclcpp::Subscription<bot_msg::msg::RemoteController>::SharedPtr sub_remote_controller_;
     // 发布者
     rclcpp::Publisher<bot_msg::msg::ChassisInfo>::SharedPtr pub_chassis_info_;
     // 变量
@@ -57,11 +62,13 @@ class CanbusNode : public rclcpp::Node {
     ChassisInfoLocal chassis_info_local_;
 
     uint32_t control_cmd_cnt_;
-    uint16_t motor_en_cnt_;
+    uint16_t motor_en_cnt_;     
+    bool mannula_control_flag_;    // 是否允许can控制
 
     // 回调函数
     void TimerCallback();
     void ControlCmdCallback(const bot_msg::msg::ControlCmd::SharedPtr msg);
+    void RemoteControllerCallback(const bot_msg::msg::RemoteController::SharedPtr msg);
 
     // 功能函数
     void InitParams();

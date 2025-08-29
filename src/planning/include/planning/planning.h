@@ -110,6 +110,7 @@ class PlanningNode : public rclcpp::Node {
     bool test_mode_;                              // 测试模式，不依赖routing服务
     bool remote_control_enabled_;                 // 是否启用远程控制, 启动远程遥控,则等待遥控才能启动
     bool key_stop_;                               // key_stop_
+    bool manula_control_;                         // 手动控制符号位
     int32_t remote_control_cmd_;                  // 远程控制命令
 
     // 占用栅格地图障碍物检测参数

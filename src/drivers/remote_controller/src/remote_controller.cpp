@@ -1,9 +1,4 @@
-#include "rclcpp/rclcpp.hpp"
-#include "remote_controller/remote_controller_node.h"
-#include "std_msgs/msg/int32.hpp"
 #include <fcntl.h>
-#include <iomanip>
-#include <iostream>
 #include <linux/can.h>
 #include <linux/can/raw.h>
 #include <net/if.h>
@@ -12,10 +7,16 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include <iomanip>
+#include <iostream>
+
+#include "rclcpp/rclcpp.hpp"
+#include "remote_controller/remote_controller_node.h"
+#include "std_msgs/msg/int32.hpp"
+
 namespace remote_controller {
 
 RemoteControllerNode::RemoteControllerNode() : Node("remote_controller_node") {
-
     InitParams();
 
     bool ret = InitCansocket(can1_device_name_, can_baudrate_);
@@ -31,12 +32,11 @@ RemoteControllerNode::RemoteControllerNode() : Node("remote_controller_node") {
 
     publisher_ = this->create_publisher<std_msgs::msg::Int32>("/remote_controller/cmd", 10);
 
-    timer_ =
-        this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&RemoteControllerNode::timer_callback, this));
+    timer_ = this->create_wall_timer(std::chrono::milliseconds(100),
+                                     std::bind(&RemoteControllerNode::timer_callback, this));
 }
 
 void RemoteControllerNode::timer_callback() {
-
     auto message = std_msgs::msg::Int32();
 
     message.data = g_key_num;
@@ -55,7 +55,6 @@ RemoteControllerNode::~RemoteControllerNode() {
 }
 
 void RemoteControllerNode::InitParams() {
-
     this->declare_parameter<std::string>("can1_device", "can1");
     this->declare_parameter<int>("can1_baud", 250);
 
@@ -67,7 +66,6 @@ void RemoteControllerNode::InitParams() {
 }
 
 bool RemoteControllerNode::InitCansocket(std::string can_device_name, int baudrate) {
-
     struct sockaddr_can addr;
     struct ifreq ifr;
 
@@ -99,16 +97,19 @@ bool RemoteControllerNode::InitCansocket(std::string can_device_name, int baudra
         if (ifr.ifr_flags & IFF_UP) {
             RCLCPP_INFO(this->get_logger(), "ioctl_2%s", strerror(errno));
         } else {
-
             RCLCPP_INFO(this->get_logger(), "ioctl_2%s", strerror(errno));
         }
     }
 
-    RCLCPP_INFO(this->get_logger(), "CAN socket init successfully on %s with baudrate %d", can_device_name.c_str(),
-                baudrate);
+    RCLCPP_INFO(this->get_logger(),
+                "CAN socket init successfully on %s with "
+                "baudrate %d",
+                can_device_name.c_str(), baudrate);
 
     return true;
 }
+
+
 
 void RemoteControllerNode::Can1ThreadFunc() {
     fd_set read_fds;
@@ -124,7 +125,6 @@ void RemoteControllerNode::Can1ThreadFunc() {
     int key_num = 0;
 
     while (rclcpp::ok()) {
-
         FD_ZERO(&read_fds);
         FD_SET(can_fd, &read_fds);
 
@@ -138,7 +138,8 @@ void RemoteControllerNode::Can1ThreadFunc() {
         if (activity == 0) {
             empty_reads_count++;
             if (empty_reads_count % 100 == 0) {
-                // RCLCPP_WARN(this->get_logger(), "No CAN data received for ~10 seconds");
+                // RCLCPP_WARN(this->get_logger(), "No CAN
+                // data received for ~10 seconds");
             }
             continue;
         }
@@ -168,15 +169,19 @@ void RemoteControllerNode::Can1ThreadFunc() {
                     key_num = 0x00;
                 }
                 if (frame.data[0] == 0x01) {
+                    // 启动按键
                     key_num = 0x01;
                 }
                 if (frame.data[0] == 0x02) {
+                    // 停止按键
                     key_num = 0x02;
                 }
                 if (frame.data[0] == 0x04) {
+                    // 恢复智驾
                     key_num = 0x03;
                 }
                 if (frame.data[0] == 0x08) {
+                    // 手动控制
                     key_num = 0x04;
                 }
                 if (frame.data[1] == 0x01) {
@@ -187,6 +192,7 @@ void RemoteControllerNode::Can1ThreadFunc() {
                 }
             }
         }
+        // 值有变化时,保证值不变
         if (key_num != pre_key_num && key_num != 0) {
             g_key_num = key_num;
         }
@@ -196,15 +202,16 @@ void RemoteControllerNode::Can1ThreadFunc() {
 
 void RemoteControllerNode::PrintCanDataFrame(const struct can_frame &frame) {
     std::stringstream ss;
-    ss << "CAN frame, ID: 0x" << std::hex << frame.can_id << ", Length: " << std::dec << static_cast<int>(frame.can_dlc)
-       << ", Data: ";
+    ss << "CAN frame, ID: 0x" << std::hex << frame.can_id << ", Length: " << std::dec
+       << static_cast<int>(frame.can_dlc) << ", Data: ";
     for (int i = 0; i < frame.can_dlc; i++) {
-        ss << std::hex << std::uppercase << std::setw(2) << std::setfill('0') << static_cast<int>(frame.data[i]) << " ";
+        ss << std::hex << std::uppercase << std::setw(2) << std::setfill('0')
+           << static_cast<int>(frame.data[i]) << " ";
     }
     RCLCPP_INFO(this->get_logger(), "%s", ss.str().c_str());
 }
 
-} // namespace remote_controller
+}  // namespace remote_controller
 
 int main(int argc, char **argv) {
     rclcpp::init(argc, argv);
