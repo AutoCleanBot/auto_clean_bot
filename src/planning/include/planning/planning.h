@@ -22,6 +22,7 @@ enum PlanningStatus {
     Ready = 1,
     Planning = 2,
     Stop = 3,
+    NearPathTail = 4
 };
 
 // 障碍物点结构体
@@ -47,7 +48,8 @@ class PlanningNode : public rclcpp::Node {
     void UpdateObstacleInfo();
     void UpdateObstacleInfoFromOccupancyGrid();
     void FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj);
-    bool IsPathTail();
+    bool IsNearDistance(const double& distance);
+    double CalculateDistanceToEnd();
 
     // 优化的最近点搜索辅助函数
     double calculateTrajectoryPointCost(size_t index, double cur_yaw_rad, size_t last_closest_idx, bool first_run);
@@ -141,6 +143,12 @@ class PlanningNode : public rclcpp::Node {
     int max_obstacles_to_check_;      // 最大检查的障碍物数量
     double grid_sampling_resolution_; // 栅格采样分辨率（米）
     bool skip_boundary_check_;        // 是否跳过复杂的边界检查
+
+    // 终点减速参数
+    bool enable_end_deceleration_;    // 是否启用终点前减速
+    double deceleration_distance_;    // 开始减速的距离（米）
+    double deceleration_speed_;       // 减速后的目标速度（m/s）
+    double final_stop_distance_;      // 最终停车距离（米）
 
     // 性能统计变量
     mutable int frame_count_;                       // 处理的帧数计数

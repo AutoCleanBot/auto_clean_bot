@@ -1,10 +1,12 @@
 #include "planning/planning.h"
-#include "bot_msg/srv/routing.hpp"
+
 #include <chrono>
-#include <rclcpp/executors/multi_threaded_executor.hpp>
-#include <thread>
 #include <iomanip>
+#include <rclcpp/executors/multi_threaded_executor.hpp>
 #include <sstream>
+#include <thread>
+
+#include "bot_msg/srv/routing.hpp"
 
 double NormalizeAngle(double angle) {
     while (angle > M_PI) {
@@ -28,7 +30,8 @@ PlanningNode::PlanningNode() : Node("planning_node"), timer_cnt_(0) {
     auto qos = rclcpp::QoS(rclcpp::KeepLast(10)).reliable().durability_volatile();
 
     pub_traj_ = this->create_publisher<bot_msg::msg::ADCTrajectory>(traj_topic_name_, qos);
-    pub_visualization_ = this->create_publisher<visualization_msgs::msg::MarkerArray>(visualization_topic_name_, qos);
+    pub_visualization_ = this->create_publisher<visualization_msgs::msg::MarkerArray>(
+        visualization_topic_name_, qos);
     // 立即发布一个空的轨迹消息，确保话题被注册
     bot_msg::msg::ADCTrajectory empty_traj;
     empty_traj.header.stamp = this->now();
@@ -54,28 +57,35 @@ PlanningNode::PlanningNode() : Node("planning_node"), timer_cnt_(0) {
             point.vel_speed = 3.0;
             g_traj_.points.push_back(point);
         }
-        RCLCPP_INFO(this->get_logger(), "Created test trajectory with %zu points", g_traj_.points.size());
+        RCLCPP_INFO(this->get_logger(), "Created test trajectory with %zu points",
+                    g_traj_.points.size());
     }
     // Initialize subscribers
     int32_t timer_interval = static_cast<int32_t>(1.0 / process_frq_ * 1000);
     timer_ = this->create_wall_timer(std::chrono::milliseconds(timer_interval),
                                      std::bind(&PlanningNode::TimerCallback, this));
     sub_localization_info_ = this->create_subscription<bot_msg::msg::LocalizationInfo>(
-        local_topic_name_, 10, std::bind(&PlanningNode::LocalizationInfoCallback, this, std::placeholders::_1));
+        local_topic_name_, 10,
+        std::bind(&PlanningNode::LocalizationInfoCallback, this, std::placeholders::_1));
     sub_perc_ = this->create_subscription<bot_msg::msg::Obstacles>(
-        perc_topic_name_, 10, std::bind(&PlanningNode::ObstaclesCallback, this, std::placeholders::_1));
+        perc_topic_name_, 10,
+        std::bind(&PlanningNode::ObstaclesCallback, this, std::placeholders::_1));
 
     // 添加边界订阅
     sub_left_boundary_ = this->create_subscription<bot_msg::msg::Boundary>(
-        left_boundary_topic_name_, 10, std::bind(&PlanningNode::LeftBoundaryCallback, this, std::placeholders::_1));
+        left_boundary_topic_name_, 10,
+        std::bind(&PlanningNode::LeftBoundaryCallback, this, std::placeholders::_1));
     sub_right_boundary_ = this->create_subscription<bot_msg::msg::Boundary>(
-        right_boundary_topic_name_, 10, std::bind(&PlanningNode::RightBoundaryCallback, this, std::placeholders::_1));
+        right_boundary_topic_name_, 10,
+        std::bind(&PlanningNode::RightBoundaryCallback, this, std::placeholders::_1));
 
     // 添加占用栅格地图订阅
     sub_occupancy_grid_ = this->create_subscription<nav_msgs::msg::OccupancyGrid>(
-        occupancy_grid_topic_name_, 10, std::bind(&PlanningNode::OccupancyGridCallback, this, std::placeholders::_1));
+        occupancy_grid_topic_name_, 10,
+        std::bind(&PlanningNode::OccupancyGridCallback, this, std::placeholders::_1));
     sub_remote_control_ = this->create_subscription<std_msgs::msg::Int32>(
-        remote_control_topic_name_, 10, std::bind(&PlanningNode::RemoteControlCallback, this, std::placeholders::_1));
+        remote_control_topic_name_, 10,
+        std::bind(&PlanningNode::RemoteControlCallback, this, std::placeholders::_1));
     if (!remote_control_enabled_) {
         planning_status_ = PlanningStatus::Planning;
         key_stop_ = false;
@@ -128,6 +138,12 @@ void PlanningNode::InitParams() {
     this->declare_parameter("max_obstacles_to_check", 50);
     this->declare_parameter("grid_sampling_resolution", 0.1);
     this->declare_parameter("skip_boundary_check", true);
+
+    // 终点减速参数
+    this->declare_parameter("enable_end_deceleration", true);
+    this->declare_parameter("deceleration_distance", 8.0);
+    this->declare_parameter("deceleration_speed", 0.2);
+    this->declare_parameter("final_stop_distance", 2.0);
     local_topic_name_ = this->get_parameter("local_topic_name").as_string();
     service_name_ = this->get_parameter("service_name").as_string();
     process_frq_ = this->get_parameter("process_frq").as_double();
@@ -171,6 +187,12 @@ void PlanningNode::InitParams() {
     grid_sampling_resolution_ = this->get_parameter("grid_sampling_resolution").as_double();
     skip_boundary_check_ = this->get_parameter("skip_boundary_check").as_bool();
 
+    // 获取终点减速参数
+    enable_end_deceleration_ = this->get_parameter("enable_end_deceleration").as_bool();
+    deceleration_distance_ = this->get_parameter("deceleration_distance").as_double();
+    deceleration_speed_ = this->get_parameter("deceleration_speed").as_double();
+    final_stop_distance_ = this->get_parameter("final_stop_distance").as_double();
+
     // 初始化性能统计变量
     frame_count_ = 0;
     total_processing_time_ = 0.0;
@@ -183,7 +205,8 @@ void PlanningNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "service_name: %s", service_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "traj_topic_name: %s", traj_topic_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "perc_topic_name: %s", perc_topic_name_.c_str());
-    RCLCPP_INFO(this->get_logger(), "remote_control_topic_name: %s", remote_control_topic_name_.c_str());
+    RCLCPP_INFO(this->get_logger(), "remote_control_topic_name: %s",
+                remote_control_topic_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "remote_control_enabled: %d", remote_control_enabled_);
     RCLCPP_INFO(this->get_logger(), "process_frq: %f", process_frq_);
     RCLCPP_INFO(this->get_logger(), "path_type: %d", path_type_);
@@ -193,25 +216,41 @@ void PlanningNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "planning_spd_: %f", planning_spd_);
     RCLCPP_INFO(this->get_logger(), "reverse_moving: %d", reverse_moving_);
     RCLCPP_INFO(this->get_logger(), "path_end_dist: %f", path_end_dist_);
-    RCLCPP_INFO(this->get_logger(), "left_boundary_topic_name: %s", left_boundary_topic_name_.c_str());
-    RCLCPP_INFO(this->get_logger(), "right_boundary_topic_name: %s", right_boundary_topic_name_.c_str());
+    RCLCPP_INFO(this->get_logger(), "left_boundary_topic_name: %s",
+                left_boundary_topic_name_.c_str());
+    RCLCPP_INFO(this->get_logger(), "right_boundary_topic_name: %s",
+                right_boundary_topic_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "direction_stability_weight: %f", direction_stability_weight_);
     RCLCPP_INFO(this->get_logger(), "max_index_jump: %f", max_index_jump_);
 
     // 性能统计配置信息
-    RCLCPP_INFO(this->get_logger(), "Timing logs enabled: %s", enable_timing_logs_ ? "true" : "false");
+    RCLCPP_INFO(this->get_logger(), "Timing logs enabled: %s",
+                enable_timing_logs_ ? "true" : "false");
     if (enable_timing_logs_) {
-        RCLCPP_INFO(this->get_logger(), "Timing log interval: every %d frames", timing_log_interval_);
-        RCLCPP_INFO(this->get_logger(), "Detailed timing enabled: %s", enable_detailed_timing_ ? "true" : "false");
+        RCLCPP_INFO(this->get_logger(), "Timing log interval: every %d frames",
+                    timing_log_interval_);
+        RCLCPP_INFO(this->get_logger(), "Detailed timing enabled: %s",
+                    enable_detailed_timing_ ? "true" : "false");
     }
-    RCLCPP_INFO(this->get_logger(), "Zero-copy optimization enabled: %s", enable_zero_copy_ ? "true" : "false");
+    RCLCPP_INFO(this->get_logger(), "Zero-copy optimization enabled: %s",
+                enable_zero_copy_ ? "true" : "false");
 
     // 栅格地图优化配置信息
     RCLCPP_INFO(this->get_logger(), "=== Grid Map Optimization Settings ===");
     RCLCPP_INFO(this->get_logger(), "Max obstacles to check: %d", max_obstacles_to_check_);
     RCLCPP_INFO(this->get_logger(), "Grid sampling resolution: %.2f m", grid_sampling_resolution_);
-    RCLCPP_INFO(this->get_logger(), "Skip boundary check: %s", skip_boundary_check_ ? "true" : "false");
+    RCLCPP_INFO(this->get_logger(), "Skip boundary check: %s",
+                skip_boundary_check_ ? "true" : "false");
     RCLCPP_INFO(this->get_logger(), "======================================");
+
+    // 终点减速配置信息
+    RCLCPP_INFO(this->get_logger(), "=== End Point Deceleration Settings ===");
+    RCLCPP_INFO(this->get_logger(), "Enable end deceleration: %s",
+                enable_end_deceleration_ ? "true" : "false");
+    RCLCPP_INFO(this->get_logger(), "Deceleration distance: %.2f m", deceleration_distance_);
+    RCLCPP_INFO(this->get_logger(), "Deceleration speed: %.2f m/s", deceleration_speed_);
+    RCLCPP_INFO(this->get_logger(), "Final stop distance: %.2f m", final_stop_distance_);
+    RCLCPP_INFO(this->get_logger(), "========================================");
 }
 
 void PlanningNode::InitGlobalPath() {
@@ -223,7 +262,8 @@ void PlanningNode::InitGlobalPath() {
             RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for service");
             return;
         }
-        RCLCPP_INFO(this->get_logger(), "Waiting for service %s to appear...", service_name_.c_str());
+        RCLCPP_INFO(this->get_logger(), "Waiting for service %s to appear...",
+                    service_name_.c_str());
     }
 
     // 创建请求
@@ -233,13 +273,14 @@ void PlanningNode::InitGlobalPath() {
     RCLCPP_INFO(this->get_logger(), "Sending request with path_type: %d", path_type_);
 
     // 发送异步请求并添加回调
-    auto future_result =
-        client->async_send_request(request, [this](rclcpp::Client<bot_msg::srv::Routing>::SharedFuture future) {
+    auto future_result = client->async_send_request(
+        request, [this](rclcpp::Client<bot_msg::srv::Routing>::SharedFuture future) {
             try {
                 auto response = future.get();
                 if (response) {
                     g_traj_ = response->path;
-                    RCLCPP_INFO(this->get_logger(), "Global path is received, size: %d", response->path.points.size());
+                    RCLCPP_INFO(this->get_logger(), "Global path is received, size: %d",
+                                response->path.points.size());
                 } else {
                     RCLCPP_ERROR(this->get_logger(), "Received null response");
                 }
@@ -277,14 +318,14 @@ void PlanningNode::RemoteControlCallback(const std_msgs::msg::Int32::SharedPtr m
     }
     pre_key_value = key_value;
     // RCLCPP_INFO(this->get_logger(), "RemoteControlCallback, cmd: %d", remote_control_cmd_);
-    if(remote_control_cmd_ == 1){
+    if (remote_control_cmd_ == 1) {
         key_stop_ = false;
-    }else if (remote_control_cmd_ == 2) {
+    } else if (remote_control_cmd_ == 2) {
         key_stop_ = true;
-    }else if(remote_control_cmd_ == 3){ // 手动接管恢复
+    } else if (remote_control_cmd_ == 3) {  // 手动接管恢复
         manula_control_ = false;
         key_stop_ = false;
-    }else if(remote_control_cmd_ == 4){ // 手动节点
+    } else if (remote_control_cmd_ == 4) {  // 手动节点
         manula_control_ = true;
         key_stop_ = true;
     }
@@ -292,47 +333,62 @@ void PlanningNode::RemoteControlCallback(const std_msgs::msg::Int32::SharedPtr m
 
 // 占用栅格地图回调函数
 void PlanningNode::OccupancyGridCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg) {
-    RCLCPP_DEBUG(this->get_logger(), "OccupancyGridCallback, width: %d, height: %d, resolution: %f", msg->info.width,
-                 msg->info.height, msg->info.resolution);
+    RCLCPP_DEBUG(this->get_logger(), "OccupancyGridCallback, width: %d, height: %d, resolution: %f",
+                 msg->info.width, msg->info.height, msg->info.resolution);
     occupancy_grid_ = *msg;
 }
 
 /**
  * @brief 定位信息回调函数
  */
-void PlanningNode::LocalizationInfoCallback(const bot_msg::msg::LocalizationInfo::SharedPtr msg) { cur_local_ = *msg; }
+void PlanningNode::LocalizationInfoCallback(const bot_msg::msg::LocalizationInfo::SharedPtr msg) {
+    cur_local_ = *msg;
+}
 
 /**
  *
  * @brief 左边界回调函数
  */
-void PlanningNode::LeftBoundaryCallback(const bot_msg::msg::Boundary::SharedPtr msg) { left_boundary_ = *msg; }
+void PlanningNode::LeftBoundaryCallback(const bot_msg::msg::Boundary::SharedPtr msg) {
+    left_boundary_ = *msg;
+}
 
 /**
  *
  * @brief 右边界回调函数
  */
-void PlanningNode::RightBoundaryCallback(const bot_msg::msg::Boundary::SharedPtr msg) { right_boundary_ = *msg; }
+void PlanningNode::RightBoundaryCallback(const bot_msg::msg::Boundary::SharedPtr msg) {
+    right_boundary_ = *msg;
+}
 
-bool PlanningNode::IsPathTail() {
-    double path_end_dist = planning_spd_ * 4.0;
-    auto path_len = g_traj_.points.size();
-    auto tail_east = g_traj_.points[path_len - 1].east;
-    auto tail_north = g_traj_.points[path_len - 1].north;
-    auto cur_east = cur_local_.east;
-    auto cur_north = cur_local_.north;
-    double dis = sqrt(pow(tail_east - cur_east, 2) + pow(tail_north - cur_north, 2));
-    
+bool PlanningNode::IsNearDistance(const double &distance) {
+    // 使用统一的距离计算函数
+    double dis = CalculateDistanceToEnd();
     // 简化判断：只基于距离或接近路径末尾的索引
-    if (dis < path_end_dist || closet_idx_ > path_len - 20) {
+    if (dis < final_stop_distance_) {
         return true;
     }
     return false;
 }
 
+double PlanningNode::CalculateDistanceToEnd() {
+    if (g_traj_.points.empty()) {
+        return std::numeric_limits<double>::max();
+    }
+
+    auto path_len = g_traj_.points.size();
+    auto tail_east = g_traj_.points[path_len - 1].east;
+    auto tail_north = g_traj_.points[path_len - 1].north;
+    auto cur_east = cur_local_.east;
+    auto cur_north = cur_local_.north;
+
+    return sqrt(pow(tail_east - cur_east, 2) + pow(tail_north - cur_north, 2));
+}
+
 void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
     if (g_traj_.points.empty()) {
-        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "No trajectory points available");
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
+                             "No trajectory points available");
 
         // 检查是否有路径数据
         // 即使没有路径点，也发布一个空轨迹以保持话题活跃
@@ -358,11 +414,12 @@ void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
         // 局部搜索范围：以上次最近点为中心的邻域
         size_t local_search_radius = static_cast<size_t>(max_index_jump_ * 1.5);
 
-        search_start = (last_closest_idx > local_search_radius) ? (last_closest_idx - local_search_radius) : 0;
+        search_start =
+            (last_closest_idx > local_search_radius) ? (last_closest_idx - local_search_radius) : 0;
         search_end = std::min(last_closest_idx + local_search_radius + 1, g_traj_.points.size());
 
-        RCLCPP_DEBUG(this->get_logger(), "局部搜索范围: [%zu, %zu) 围绕上次索引: %zu",
-                     search_start, search_end, last_closest_idx);
+        RCLCPP_DEBUG(this->get_logger(), "局部搜索范围: [%zu, %zu) 围绕上次索引: %zu", search_start,
+                     search_end, last_closest_idx);
     }
 
     // 局部搜索
@@ -373,7 +430,8 @@ void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
         // 计算连续性成本（避免大幅跳跃）
         double continuity_cost = 0.0;
         if (!first_run) {
-            double index_diff = std::abs(static_cast<double>(i) - static_cast<double>(last_closest_idx));
+            double index_diff =
+                std::abs(static_cast<double>(i) - static_cast<double>(last_closest_idx));
             if (index_diff > max_index_jump_) {
                 continuity_cost = direction_stability_weight_ * (index_diff - max_index_jump_);
             }
@@ -391,11 +449,12 @@ void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
     // 如果局部搜索没有找到足够好的结果，进行全局搜索
     bool need_global_search = false;
     if (!first_run) {
-        double distance_to_found = std::sqrt(std::pow(g_traj_.points[closest_idx].east - cur_local_.east, 2) +
-                                             std::pow(g_traj_.points[closest_idx].north - cur_local_.north, 2));
+        double distance_to_found =
+            std::sqrt(std::pow(g_traj_.points[closest_idx].east - cur_local_.east, 2) +
+                      std::pow(g_traj_.points[closest_idx].north - cur_local_.north, 2));
 
         // 如果找到的点距离太远，可能需要全局搜索
-        if (distance_to_found > 15.0) { // 15米阈值
+        if (distance_to_found > 15.0) {  // 15米阈值
             need_global_search = true;
             RCLCPP_WARN(this->get_logger(),
                         "当前位置: (%.2f, %.2f), 局部搜索结果距离过远 (%.2fm), 执行全局搜索",
@@ -409,7 +468,7 @@ void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
         size_t global_closest_idx = closest_idx;
 
         // 跳跃式搜索：每隔几个点采样，然后在最佳区域细化
-        size_t step_size = std::max(1UL, g_traj_.points.size() / 200); // 最多检查200个采样点
+        size_t step_size = std::max(1UL, g_traj_.points.size() / 200);  // 最多检查200个采样点
 
         for (size_t i = 0; i < g_traj_.points.size(); i += step_size) {
             double distance = std::sqrt(std::pow(g_traj_.points[i].east - cur_local_.east, 2) +
@@ -418,9 +477,11 @@ void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
             // 对于全局搜索，连续性成本权重较小
             double continuity_cost = 0.0;
             if (!first_run) {
-                double index_diff = std::abs(static_cast<double>(i) - static_cast<double>(last_closest_idx));
+                double index_diff =
+                    std::abs(static_cast<double>(i) - static_cast<double>(last_closest_idx));
                 if (index_diff > max_index_jump_) {
-                    continuity_cost = direction_stability_weight_ * 0.5 * (index_diff - max_index_jump_);
+                    continuity_cost =
+                        direction_stability_weight_ * 0.5 * (index_diff - max_index_jump_);
                 }
             }
 
@@ -434,18 +495,22 @@ void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
 
         // 在最佳采样点周围进行细化搜索
         if (global_closest_idx != closest_idx) {
-            size_t refine_start = (global_closest_idx > step_size) ? (global_closest_idx - step_size) : 0;
+            size_t refine_start =
+                (global_closest_idx > step_size) ? (global_closest_idx - step_size) : 0;
             size_t refine_end = std::min(global_closest_idx + step_size + 1, g_traj_.points.size());
 
             for (size_t i = refine_start; i < refine_end; i++) {
-                double distance = std::sqrt(std::pow(g_traj_.points[i].east - cur_local_.east, 2) +
-                                            std::pow(g_traj_.points[i].north - cur_local_.north, 2));
+                double distance =
+                    std::sqrt(std::pow(g_traj_.points[i].east - cur_local_.east, 2) +
+                              std::pow(g_traj_.points[i].north - cur_local_.north, 2));
 
                 double continuity_cost = 0.0;
                 if (!first_run) {
-                    double index_diff = std::abs(static_cast<double>(i) - static_cast<double>(last_closest_idx));
+                    double index_diff =
+                        std::abs(static_cast<double>(i) - static_cast<double>(last_closest_idx));
                     if (index_diff > max_index_jump_) {
-                        continuity_cost = direction_stability_weight_ * 0.5 * (index_diff - max_index_jump_);
+                        continuity_cost =
+                            direction_stability_weight_ * 0.5 * (index_diff - max_index_jump_);
                     }
                 }
 
@@ -464,14 +529,16 @@ void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
 
     // 添加调试日志监控连续性
     if (!first_run) {
-        double index_change = static_cast<double>(closest_idx) - static_cast<double>(last_closest_idx);
+        double index_change =
+            static_cast<double>(closest_idx) - static_cast<double>(last_closest_idx);
         if (std::abs(index_change) > max_index_jump_) {
-            RCLCPP_WARN(this->get_logger(),
-                        "检测到轨迹索引大幅跳跃: 从 %zu 到 %zu (变化: %.1f), "
-                        "车辆位置: (%.2f, %.2f), 距离: %.2fm",
-                        last_closest_idx, closest_idx, index_change, cur_local_.east, cur_local_.north,
-                        std::sqrt(std::pow(g_traj_.points[closest_idx].east - cur_local_.east, 2) +
-                                  std::pow(g_traj_.points[closest_idx].north - cur_local_.north, 2)));
+            RCLCPP_WARN(
+                this->get_logger(),
+                "检测到轨迹索引大幅跳跃: 从 %zu 到 %zu (变化: %.1f), "
+                "车辆位置: (%.2f, %.2f), 距离: %.2fm",
+                last_closest_idx, closest_idx, index_change, cur_local_.east, cur_local_.north,
+                std::sqrt(std::pow(g_traj_.points[closest_idx].east - cur_local_.east, 2) +
+                          std::pow(g_traj_.points[closest_idx].north - cur_local_.north, 2)));
         }
     }
 
@@ -480,26 +547,26 @@ void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
     first_run = false;
     closet_idx_ = closest_idx;
 
-    RCLCPP_DEBUG(this->get_logger(), "选择轨迹点 %zu, 距离: %.2fm, 总成本: %.2f", 
-                 closest_idx, 
+    RCLCPP_DEBUG(this->get_logger(), "选择轨迹点 %zu, 距离: %.2fm, 总成本: %.2f", closest_idx,
                  std::sqrt(std::pow(g_traj_.points[closest_idx].east - cur_local_.east, 2) +
-                           std::pow(g_traj_.points[closest_idx].north - cur_local_.north, 2)), 
+                           std::pow(g_traj_.points[closest_idx].north - cur_local_.north, 2)),
                  min_cost);
 
     // 其余代码保持不变
     double cur_dis_cnt = 0.0;
     std::size_t start_idx = closet_idx_;
     while (cur_dis_cnt < start_dist_ && start_idx >= 1) {
-        cur_dis_cnt += std::sqrt(std::pow(g_traj_.points[start_idx].east - g_traj_.points[start_idx - 1].east, 2) +
-                                 std::pow(g_traj_.points[start_idx].north - g_traj_.points[start_idx - 1].north, 2));
+        cur_dis_cnt += std::sqrt(
+            std::pow(g_traj_.points[start_idx].east - g_traj_.points[start_idx - 1].east, 2) +
+            std::pow(g_traj_.points[start_idx].north - g_traj_.points[start_idx - 1].north, 2));
         start_idx--;
     }
     cur_dis_cnt = 0.0;
     std::size_t preview_idx = closet_idx_;
     while (cur_dis_cnt < preview_dist_ && preview_idx + 1 < g_traj_.points.size()) {
-        cur_dis_cnt +=
-            std::sqrt(std::pow(g_traj_.points[preview_idx].east - g_traj_.points[preview_idx + 1].east, 2) +
-                      std::pow(g_traj_.points[preview_idx].north - g_traj_.points[preview_idx + 1].north, 2));
+        cur_dis_cnt += std::sqrt(
+            std::pow(g_traj_.points[preview_idx].east - g_traj_.points[preview_idx + 1].east, 2) +
+            std::pow(g_traj_.points[preview_idx].north - g_traj_.points[preview_idx + 1].north, 2));
         preview_idx++;
     }
     // 根据start_idx和preview_idx, 找到start_idx和preview_idx之间的路径
@@ -508,12 +575,12 @@ void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
     }
     if (timer_cnt_ % 10 == 0)
         RCLCPP_INFO(this->get_logger(),
-                    "cur_east: %f, cur_north: %f,closet_idx: %ld,cur_dis_cnt: %f, start_idx: %ld, preview_idx: %ld",
-                    cur_local_.east, cur_local_.north, closet_idx_, cur_dis_cnt, start_idx, preview_idx);
+                    "cur_east: %f, cur_north: %f,closet_idx: %ld,cur_dis_cnt: %f, start_idx: %ld, "
+                    "preview_idx: %ld",
+                    cur_local_.east, cur_local_.north, closet_idx_, cur_dis_cnt, start_idx,
+                    preview_idx);
 }
 
-// TODO 待验证,更新机制是有有问题
-// TODO 路径终点的处理机制
 void PlanningNode::TimerCallback() {
     // 开始计时
     double start_time = getCurrentTimeMs();
@@ -538,10 +605,12 @@ void PlanningNode::TimerCallback() {
     double trajectory_start_time = getCurrentTimeMs();
     bot_msg::msg::ADCTrajectory pub_traj_path;
     FillPubTraj(pub_traj_path);
-    // 填充速度
+    // 填充速度 - 支持终点前减速
     for (std::size_t i = 0; i < pub_traj_path.points.size(); i++) {
         if (planning_status_ == PlanningStatus::Stop) {
             pub_traj_path.points[i].vel_speed = 0.0;
+        } else if (planning_status_ == PlanningStatus::NearPathTail) {
+            pub_traj_path.points[i].vel_speed = deceleration_speed_;
         } else {
             pub_traj_path.points[i].vel_speed = planning_spd_;
         }
@@ -575,8 +644,8 @@ void PlanningNode::TimerCallback() {
             logTimingStatistics();
         } else {
             double avg_time = total_processing_time_ / frame_count_;
-            RCLCPP_INFO(this->get_logger(), "Frame %d: Current=%.2fms, Average=%.2fms", frame_count_, process_time,
-                        avg_time);
+            RCLCPP_INFO(this->get_logger(), "Frame %d: Current=%.2fms, Average=%.2fms",
+                        frame_count_, process_time, avg_time);
         }
     }
 
@@ -597,11 +666,11 @@ void PlanningNode::TimerCallback() {
 void PlanningNode::UpdateObstacleInfo() {
     obstacle_info_.fill(-1);
 
-    const double MIN_OBSTACLE_DISTANCE = 10.0; // 最小障碍物距离阈值
-    const double FRONT_OBSTACLE_WIDTH = 1.0;   // 前方障碍物区域宽度(±1.0米)
-    const double SIDE_OBSTACLE_WIDTH = 2.0;    // 侧方障碍物区域距离(±2.0米外)
-    const double SAFETY_MARGIN = 0.5;          // 安全裕度，比实际障碍物大0.5米
-    const double DEFAULT_OBSTACLE_SIZE = 0.5;  // 默认障碍物尺寸
+    const double MIN_OBSTACLE_DISTANCE = 10.0;  // 最小障碍物距离阈值
+    const double FRONT_OBSTACLE_WIDTH = 1.0;    // 前方障碍物区域宽度(±1.0米)
+    const double SIDE_OBSTACLE_WIDTH = 2.0;     // 侧方障碍物区域距离(±2.0米外)
+    const double SAFETY_MARGIN = 0.5;           // 安全裕度，比实际障碍物大0.5米
+    const double DEFAULT_OBSTACLE_SIZE = 0.5;   // 默认障碍物尺寸
 
     // 遍历所有障碍物
     for (std::size_t i = 0; i < obstacles_.obstacles.size(); i++) {
@@ -616,14 +685,16 @@ void PlanningNode::UpdateObstacleInfo() {
         }
 
         // 计算障碍物距离
-        double obstacle_distance = std::sqrt(std::pow(obstacle.position_x, 2) + std::pow(obstacle.position_y, 2));
+        double obstacle_distance =
+            std::sqrt(std::pow(obstacle.position_x, 2) + std::pow(obstacle.position_y, 2));
 
         // 使用障碍物尺寸或默认值
         double obstacle_width = (obstacle.width > 0.01) ? obstacle.width : DEFAULT_OBSTACLE_SIZE;
         double obstacle_length = (obstacle.length > 0.01) ? obstacle.length : DEFAULT_OBSTACLE_SIZE;
 
         // 计算最小安全距离：考虑障碍物尺寸和安全裕度
-        double obstacle_radius = std::sqrt(std::pow(obstacle_width / 2.0, 2) + std::pow(obstacle_length / 2.0, 2));
+        double obstacle_radius =
+            std::sqrt(std::pow(obstacle_width / 2.0, 2) + std::pow(obstacle_length / 2.0, 2));
         double safe_distance = obstacle_distance - obstacle_radius - SAFETY_MARGIN;
 
         // 距离超过阈值，跳过
@@ -634,38 +705,48 @@ void PlanningNode::UpdateObstacleInfo() {
         // 根据行驶方向检测障碍物
         if (reverse_moving_) {
             // 倒车模式：检测车辆后方障碍物
-            if (obstacle.position_y < FRONT_OBSTACLE_WIDTH && obstacle.position_y > -FRONT_OBSTACLE_WIDTH) {
+            if (obstacle.position_y < FRONT_OBSTACLE_WIDTH &&
+                obstacle.position_y > -FRONT_OBSTACLE_WIDTH) {
                 if (obstacle.position_x > -MIN_OBSTACLE_DISTANCE && obstacle.position_x < 0.0) {
                     obstacle_info_[1] = i;
                     RCLCPP_INFO(this->get_logger(),
-                                "倒车模式-后方发现障碍物，距离：%.2f 米，安全距离：%.2f 米，尺寸：%.2f x %.2f",
-                                std::abs(obstacle.position_x), safe_distance, obstacle_length, obstacle_width);
+                                "倒车模式-后方发现障碍物，距离：%.2f 米，安全距离：%.2f "
+                                "米，尺寸：%.2f x %.2f",
+                                std::abs(obstacle.position_x), safe_distance, obstacle_length,
+                                obstacle_width);
                 }
             }
         } else {
             // 前进模式：检测车辆前方障碍物
-            if (obstacle.position_y < FRONT_OBSTACLE_WIDTH && obstacle.position_y > -FRONT_OBSTACLE_WIDTH) {
+            if (obstacle.position_y < FRONT_OBSTACLE_WIDTH &&
+                obstacle.position_y > -FRONT_OBSTACLE_WIDTH) {
                 if (obstacle.position_x < MIN_OBSTACLE_DISTANCE && obstacle.position_x > 0.0) {
                     obstacle_info_[1] = i;
                     RCLCPP_INFO(this->get_logger(),
-                                "前进模式-前方发现障碍物，距离：%.2f 米，安全距离：%.2f 米，尺寸：%.2f x %.2f",
-                                obstacle.position_x, safe_distance, obstacle_length, obstacle_width);
+                                "前进模式-前方发现障碍物，距离：%.2f 米，安全距离：%.2f "
+                                "米，尺寸：%.2f x %.2f",
+                                obstacle.position_x, safe_distance, obstacle_length,
+                                obstacle_width);
                 }
             }
         }
         // 障碍物在当前车辆左侧
-        if (obstacle.position_y > SIDE_OBSTACLE_WIDTH && obstacle.position_y < MIN_OBSTACLE_DISTANCE) {
+        if (obstacle.position_y > SIDE_OBSTACLE_WIDTH &&
+            obstacle.position_y < MIN_OBSTACLE_DISTANCE) {
             if (obstacle.position_x < MIN_OBSTACLE_DISTANCE && obstacle.position_x > 0.0) {
                 obstacle_info_[0] = i;
-                RCLCPP_INFO(this->get_logger(), "左侧发现障碍物，距离：%.2f 米，安全距离：%.2f 米，尺寸：%.2f x %.2f",
+                RCLCPP_INFO(this->get_logger(),
+                            "左侧发现障碍物，距离：%.2f 米，安全距离：%.2f 米，尺寸：%.2f x %.2f",
                             obstacle_distance, safe_distance, obstacle_length, obstacle_width);
             }
         }
         // 障碍物在当前车辆右侧
-        if (obstacle.position_y < -SIDE_OBSTACLE_WIDTH && obstacle.position_y > -MIN_OBSTACLE_DISTANCE) {
+        if (obstacle.position_y < -SIDE_OBSTACLE_WIDTH &&
+            obstacle.position_y > -MIN_OBSTACLE_DISTANCE) {
             if (obstacle.position_x < MIN_OBSTACLE_DISTANCE && obstacle.position_x > 0.0) {
                 obstacle_info_[2] = i;
-                RCLCPP_INFO(this->get_logger(), "右侧发现障碍物，距离：%.2f 米，安全距离：%.2f 米，尺寸：%.2f x %.2f",
+                RCLCPP_INFO(this->get_logger(),
+                            "右侧发现障碍物，距离：%.2f 米，安全距离：%.2f 米，尺寸：%.2f x %.2f",
                             obstacle_distance, safe_distance, obstacle_length, obstacle_width);
             }
         }
@@ -689,8 +770,8 @@ bool PlanningNode::IsObstacleInBoundary(const bot_msg::msg::ObstacleInfo &obstac
 
     // 考虑障碍物的大小，创建多个检测点
     // 提供默认尺寸，防止障碍物消息中没有尺寸信息
-    const double DEFAULT_OBSTACLE_WIDTH = 0.5;  // 默认宽度0.5米
-    const double DEFAULT_OBSTACLE_LENGTH = 0.5; // 默认长度0.5米
+    const double DEFAULT_OBSTACLE_WIDTH = 0.5;   // 默认宽度0.5米
+    const double DEFAULT_OBSTACLE_LENGTH = 0.5;  // 默认长度0.5米
 
     // 使用障碍物自身尺寸或默认尺寸
     double obstacle_width = (obstacle.width > 0.01) ? obstacle.width : DEFAULT_OBSTACLE_WIDTH;
@@ -703,11 +784,11 @@ bool PlanningNode::IsObstacleInBoundary(const bot_msg::msg::ObstacleInfo &obstac
 
     // 创建障碍物四角的检测点
     std::vector<std::pair<double, double>> check_points = {
-        {global_east, global_north},                                              // 中心点
-        {global_east + obstacle_half_length, global_north + obstacle_half_width}, // 右上角
-        {global_east + obstacle_half_length, global_north - obstacle_half_width}, // 右下角
-        {global_east - obstacle_half_length, global_north + obstacle_half_width}, // 左上角
-        {global_east - obstacle_half_length, global_north - obstacle_half_width}  // 左下角
+        {global_east, global_north},                                               // 中心点
+        {global_east + obstacle_half_length, global_north + obstacle_half_width},  // 右上角
+        {global_east + obstacle_half_length, global_north - obstacle_half_width},  // 右下角
+        {global_east - obstacle_half_length, global_north + obstacle_half_width},  // 左上角
+        {global_east - obstacle_half_length, global_north - obstacle_half_width}   // 左下角
     };
 
     // 检查所有点是否在边界内，只要有一个点在边界内，就认为障碍物在边界内
@@ -724,15 +805,17 @@ bool PlanningNode::IsObstacleInBoundary(const bot_msg::msg::ObstacleInfo &obstac
         }
 
         // 计算点到边界的距离
-        double dist_to_left = CalculatePointToBoundaryDistance(east, north, left_boundary_.points[left_idx].east,
-                                                               left_boundary_.points[left_idx].north);
+        double dist_to_left =
+            CalculatePointToBoundaryDistance(east, north, left_boundary_.points[left_idx].east,
+                                             left_boundary_.points[left_idx].north);
 
-        double dist_to_right = CalculatePointToBoundaryDistance(east, north, right_boundary_.points[right_idx].east,
-                                                                right_boundary_.points[right_idx].north);
+        double dist_to_right =
+            CalculatePointToBoundaryDistance(east, north, right_boundary_.points[right_idx].east,
+                                             right_boundary_.points[right_idx].north);
 
         // 如果点在两条边界线之间，就认为这个点在边界内
         if (dist_to_left > 0 && dist_to_right > 0) {
-            return true; // 只要有一个点在边界内，就返回true
+            return true;  // 只要有一个点在边界内，就返回true
         }
     }
 
@@ -747,7 +830,8 @@ bool PlanningNode::IsObstacleInBoundary(const bot_msg::msg::ObstacleInfo &obstac
  * @param north 北向坐标
  * @return 最近边界点索引，失败返回-1
  */
-int PlanningNode::FindNearestBoundaryPoint(const bot_msg::msg::Boundary &boundary, double east, double north) {
+int PlanningNode::FindNearestBoundaryPoint(const bot_msg::msg::Boundary &boundary, double east,
+                                           double north) {
     if (boundary.points.empty()) {
         return -1;
     }
@@ -756,8 +840,8 @@ int PlanningNode::FindNearestBoundaryPoint(const bot_msg::msg::Boundary &boundar
     double min_dist = std::numeric_limits<double>::max();
 
     for (size_t i = 0; i < boundary.points.size(); i++) {
-        double dist =
-            std::sqrt(std::pow(boundary.points[i].east - east, 2) + std::pow(boundary.points[i].north - north, 2));
+        double dist = std::sqrt(std::pow(boundary.points[i].east - east, 2) +
+                                std::pow(boundary.points[i].north - north, 2));
         if (dist < min_dist) {
             min_dist = dist;
             nearest_idx = i;
@@ -786,7 +870,8 @@ double PlanningNode::CalculatePointToBoundaryDistance(double east, double north,
     double obstacle_vector_north = north - cur_local_.north;
 
     // 计算边界向量和障碍物向量的叉积，判断障碍物在边界的哪一侧
-    double cross_product = boundary_vector_east * obstacle_vector_north - boundary_vector_north * obstacle_vector_east;
+    double cross_product =
+        boundary_vector_east * obstacle_vector_north - boundary_vector_north * obstacle_vector_east;
 
     return cross_product;
 }
@@ -803,14 +888,17 @@ void PlanningNode::UpdateObstacleInfoFromOccupancyGrid() {
     detected_obstacle_points_.clear();
 
     // 检查占用栅格地图是否有效
-    if (occupancy_grid_.data.empty() || occupancy_grid_.info.width == 0 || occupancy_grid_.info.height == 0) {
-        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "Occupancy grid is empty or invalid");
+    if (occupancy_grid_.data.empty() || occupancy_grid_.info.width == 0 ||
+        occupancy_grid_.info.height == 0) {
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
+                             "Occupancy grid is empty or invalid");
         return;
     }
 
     // 检查边界线是否有效
     if (left_boundary_.points.empty() || right_boundary_.points.empty()) {
-        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "Boundary lines are empty");
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
+                             "Boundary lines are empty");
         return;
     }
 
@@ -827,7 +915,8 @@ void PlanningNode::UpdateObstacleInfoFromOccupancyGrid() {
     // 获取栅格地图的旋转信息
     double grid_yaw = tf2::getYaw(info.origin.orientation);
 
-    // RCLCPP_INFO(this->get_logger(), "Occupancy grid size: %dx%d, resolution: %.2f, origin: (%.2f, %.2f), yaw:
+    // RCLCPP_INFO(this->get_logger(), "Occupancy grid size: %dx%d, resolution: %.2f, origin: (%.2f,
+    // %.2f), yaw:
     // %.2f",
     //             width, height, resolution, origin_x, origin_y, grid_yaw);
 
@@ -872,8 +961,8 @@ void PlanningNode::UpdateObstacleInfoFromOccupancyGrid() {
             // relative_y = dx * sin(h) + dy * cos(h)
             // h 为顺时针为正的航向角
 
-            double relative_x = dx * cos_heading - dy * sin_heading; // 车右侧为x轴正方向
-            double relative_y = dx * sin_heading + dy * cos_heading; // 车前方为y轴正方向
+            double relative_x = dx * cos_heading - dy * sin_heading;  // 车右侧为x轴正方向
+            double relative_y = dx * sin_heading + dy * cos_heading;  // 车前方为y轴正方向
             // 计算距离
             double distance = std::sqrt(relative_x * relative_x + relative_y * relative_y);
 
@@ -888,9 +977,10 @@ void PlanningNode::UpdateObstacleInfoFromOccupancyGrid() {
             // 添加调试信息，记录边界判断结果
             if (is_in_boundary) {
                 RCLCPP_INFO(this->get_logger(),
-                            "车辆当前位置：(%.2f, %.2f, %.0f deg),点 (%.2f, %.2f) 在边界内，相对位置：(%.2f, %.2f)",
-                            cur_local_.east, cur_local_.north, cur_local_.yaw, global_x, global_y, relative_x,
-                            relative_y);
+                            "车辆当前位置：(%.2f, %.2f, %.0f deg),点 (%.2f, %.2f) "
+                            "在边界内，相对位置：(%.2f, %.2f)",
+                            cur_local_.east, cur_local_.north, cur_local_.yaw, global_x, global_y,
+                            relative_x, relative_y);
             }
 
             // 存储检测到的障碍物点
@@ -912,20 +1002,22 @@ void PlanningNode::UpdateObstacleInfoFromOccupancyGrid() {
                 // 倒车模式：检测车辆后方障碍物
                 if (relative_y < 0.0 && relative_y > -min_obstacle_distance_) {
                     obstacle_detected = true;
-                    RCLCPP_INFO(this->get_logger(), "倒车模式-后方发现障碍物，距离：%.2f 米，相对位置：(%.2f, %.2f)",
+                    RCLCPP_INFO(this->get_logger(),
+                                "倒车模式-后方发现障碍物，距离：%.2f 米，相对位置：(%.2f, %.2f)",
                                 distance, relative_x, relative_y);
                 }
             } else {
                 // 前进模式：检测车辆前方障碍物
                 if (relative_y > 0.0 && relative_y < min_obstacle_distance_) {
                     obstacle_detected = true;
-                    RCLCPP_INFO(this->get_logger(), "前进模式-前方发现障碍物，距离：%.2f 米，相对位置：(%.2f, %.2f)",
+                    RCLCPP_INFO(this->get_logger(),
+                                "前进模式-前方发现障碍物，距离：%.2f 米，相对位置：(%.2f, %.2f)",
                                 distance, relative_x, relative_y);
                 }
             }
 
             if (obstacle_detected) {
-                obstacle_info_[1] = 1; // 使用1表示检测到障碍物
+                obstacle_info_[1] = 1;  // 使用1表示检测到障碍物
             }
         }
     }
@@ -976,13 +1068,14 @@ bool PlanningNode::IsObstacleInBoundaryByPosition(double global_x, double global
     double right_cross = right_vec_x * obs_vec_y - right_vec_y * obs_vec_x;
 
     // 计算点到左右边界的距离
-    double dist_to_left = std::sqrt(std::pow(global_x - left_point.east, 2) + std::pow(global_y - left_point.north, 2));
-    double dist_to_right =
-        std::sqrt(std::pow(global_x - right_point.east, 2) + std::pow(global_y - right_point.north, 2));
+    double dist_to_left = std::sqrt(std::pow(global_x - left_point.east, 2) +
+                                    std::pow(global_y - left_point.north, 2));
+    double dist_to_right = std::sqrt(std::pow(global_x - right_point.east, 2) +
+                                     std::pow(global_y - right_point.north, 2));
 
     // 计算左右边界之间的距离
-    double boundary_width =
-        std::sqrt(std::pow(left_point.east - right_point.east, 2) + std::pow(left_point.north - right_point.north, 2));
+    double boundary_width = std::sqrt(std::pow(left_point.east - right_point.east, 2) +
+                                      std::pow(left_point.north - right_point.north, 2));
 
     // 修改：使用更宽松的条件判断点是否在边界内
     // 1. 如果点到任一边界的距离超过边界宽度的0.9倍，认为它在边界外
@@ -996,12 +1089,13 @@ bool PlanningNode::IsObstacleInBoundaryByPosition(double global_x, double global
 }
 
 void PlanningNode::UpdatePlanningStatus() {
-    bool is_path_tail = IsPathTail();
+    bool is_path_tail = IsNearDistance(final_stop_distance_);
+    bool is_decelerating = IsNearDistance(deceleration_distance_);
     bool has_front_obstacle = (obstacle_info_[1] != -1);
 
     // 非对称状态稳定性计数器
     static int clear_stable_count = 0;
-    const int CLEAR_STABILITY_THRESHOLD = 3; // 无障碍物需要连续3次确认才恢复运行
+    const int CLEAR_STABILITY_THRESHOLD = 3;  // 无障碍物需要连续3次确认才恢复运行
 
     // 更新稳定性计数器
     if (has_front_obstacle) {
@@ -1024,7 +1118,8 @@ void PlanningNode::UpdatePlanningStatus() {
             planning_status_ = PlanningStatus::Planning;
             RCLCPP_INFO(this->get_logger(), "Auto resume: Clear for %d frames", clear_stable_count);
         }
-    } else if (planning_status_ == PlanningStatus::Planning) {
+    } else if (planning_status_ == PlanningStatus::Planning ||
+               planning_status_ == PlanningStatus::NearPathTail) {
         // 有障碍物立即停车，或手动停止，或到达路径终点
         if (key_stop_) {
             planning_status_ = PlanningStatus::Stop;
@@ -1036,6 +1131,9 @@ void PlanningNode::UpdatePlanningStatus() {
             } else {
                 RCLCPP_INFO(this->get_logger(), "Auto stop: Obstacle detected - immediate stop");
             }
+        } else if (is_decelerating) {
+            planning_status_ = PlanningStatus::NearPathTail;
+            RCLCPP_INFO(this->get_logger(), "Auto stop: Deceleration reached");
         }
     }
 
@@ -1112,7 +1210,8 @@ void PlanningNode::PublishVisualization(const bot_msg::msg::ADCTrajectory &pub_t
         left_color.g = 1.0;
         left_color.b = 0.0;
         left_color.a = 0.8;
-        auto left_boundary_marker = CreateBoundaryMarker(left_boundary_, "left_boundary", left_color);
+        auto left_boundary_marker =
+            CreateBoundaryMarker(left_boundary_, "left_boundary", left_color);
         left_boundary_marker.header.stamp = current_time;
         left_boundary_marker.header.frame_id = frame_id;
         marker_array.markers.push_back(left_boundary_marker);
@@ -1124,7 +1223,8 @@ void PlanningNode::PublishVisualization(const bot_msg::msg::ADCTrajectory &pub_t
         right_color.g = 0.0;
         right_color.b = 0.0;
         right_color.a = 0.8;
-        auto right_boundary_marker = CreateBoundaryMarker(right_boundary_, "right_boundary", right_color);
+        auto right_boundary_marker =
+            CreateBoundaryMarker(right_boundary_, "right_boundary", right_color);
         right_boundary_marker.header.stamp = current_time;
         right_boundary_marker.header.frame_id = frame_id;
         marker_array.markers.push_back(right_boundary_marker);
@@ -1136,7 +1236,8 @@ void PlanningNode::PublishVisualization(const bot_msg::msg::ADCTrajectory &pub_t
 /**
  * @brief 创建轨迹可视化标记
  */
-visualization_msgs::msg::Marker PlanningNode::CreateTrajectoryMarker(const bot_msg::msg::ADCTrajectory &pub_traj) {
+visualization_msgs::msg::Marker PlanningNode::CreateTrajectoryMarker(
+    const bot_msg::msg::ADCTrajectory &pub_traj) {
     visualization_msgs::msg::Marker marker;
     // header会在PublishVisualization中统一设置
     marker.ns = "trajectory";
@@ -1144,7 +1245,7 @@ visualization_msgs::msg::Marker PlanningNode::CreateTrajectoryMarker(const bot_m
     marker.type = visualization_msgs::msg::Marker::LINE_STRIP;
     marker.action = visualization_msgs::msg::Marker::ADD;
 
-    marker.scale.x = 0.2; // 线宽
+    marker.scale.x = 0.2;  // 线宽
     marker.color.r = 0.0;
     marker.color.g = 0.0;
     marker.color.b = 1.0;
@@ -1184,26 +1285,26 @@ visualization_msgs::msg::Marker PlanningNode::CreateVehicleMarker() {
     marker.pose.orientation.z = sin(yaw / 2.0);
     marker.pose.orientation.w = cos(yaw / 2.0);
 
-    marker.scale.x = 0.4; // 箭头长度
-    marker.scale.y = 0.1; // 箭头宽度
-    marker.scale.z = 0.1; // 箭头高度
+    marker.scale.x = 0.4;  // 箭头长度
+    marker.scale.y = 0.1;  // 箭头宽度
+    marker.scale.z = 0.1;  // 箭头高度
 
     // 根据规划状态设置颜色
     switch (planning_status_) {
     case PlanningStatus::Stop:
         marker.color.r = 1.0;
         marker.color.g = 0.0;
-        marker.color.b = 0.0; // 红色
+        marker.color.b = 0.0;  // 红色
         break;
     case PlanningStatus::Planning:
         marker.color.r = 0.0;
         marker.color.g = 1.0;
-        marker.color.b = 0.0; // 绿色
+        marker.color.b = 0.0;  // 绿色
         break;
     default:
         marker.color.r = 1.0;
         marker.color.g = 1.0;
-        marker.color.b = 0.0; // 黄色
+        marker.color.b = 0.0;  // 黄色
         break;
     }
     marker.color.a = 1.0;
@@ -1223,10 +1324,10 @@ visualization_msgs::msg::Marker PlanningNode::CreateObstacleStatusMarker() {
     marker.action = visualization_msgs::msg::Marker::ADD;
 
     marker.pose.position.x = cur_local_.east;
-    marker.pose.position.y = cur_local_.north + 1.0; // 在车辆上方3米显示
+    marker.pose.position.y = cur_local_.north + 1.0;  // 在车辆上方3米显示
     marker.pose.position.z = 1.0;
 
-    marker.scale.z = 0.4; // 文字大小
+    marker.scale.z = 0.4;  // 文字大小
     marker.color.r = 1.0;
     marker.color.g = 1.0;
     marker.color.b = 1.0;
@@ -1261,9 +1362,9 @@ visualization_msgs::msg::Marker PlanningNode::CreateObstacleStatusMarker() {
 /**
  * @brief 创建边界线可视化标记
  */
-visualization_msgs::msg::Marker PlanningNode::CreateBoundaryMarker(const bot_msg::msg::Boundary &boundary,
-                                                                   const std::string &ns,
-                                                                   const std_msgs::msg::ColorRGBA &color) {
+visualization_msgs::msg::Marker PlanningNode::CreateBoundaryMarker(
+    const bot_msg::msg::Boundary &boundary, const std::string &ns,
+    const std_msgs::msg::ColorRGBA &color) {
     visualization_msgs::msg::Marker marker;
     // header会在PublishVisualization中统一设置
     marker.ns = ns;
@@ -1271,7 +1372,7 @@ visualization_msgs::msg::Marker PlanningNode::CreateBoundaryMarker(const bot_msg
     marker.type = visualization_msgs::msg::Marker::LINE_STRIP;
     marker.action = visualization_msgs::msg::Marker::ADD;
 
-    marker.scale.x = 0.1; // 线宽
+    marker.scale.x = 0.1;  // 线宽
     marker.color = color;
 
     // 添加边界点
@@ -1297,7 +1398,7 @@ visualization_msgs::msg::Marker PlanningNode::CreateObstaclePointsMarker() {
     marker.type = visualization_msgs::msg::Marker::POINTS;
     marker.action = visualization_msgs::msg::Marker::ADD;
 
-    marker.scale.x = 0.1; // 点的大小
+    marker.scale.x = 0.1;  // 点的大小
     marker.scale.y = 0.1;
 
     // 添加所有检测到的障碍物点
@@ -1307,7 +1408,7 @@ visualization_msgs::msg::Marker PlanningNode::CreateObstaclePointsMarker() {
             geometry_msgs::msg::Point p;
             p.x = point.x;
             p.y = point.y;
-            p.z = 0.1; // 稍微抬高一点，以便更容易看到
+            p.z = 0.1;  // 稍微抬高一点，以便更容易看到
 
             marker.points.push_back(p);
 
@@ -1357,8 +1458,8 @@ visualization_msgs::msg::Marker PlanningNode::CreateCoordinateMarker() {
     return marker;
 }
 
-double PlanningNode::calculateTrajectoryPointCost(size_t index, double cur_yaw_rad, size_t last_closest_idx,
-                                                  bool first_run) {
+double PlanningNode::calculateTrajectoryPointCost(size_t index, double cur_yaw_rad,
+                                                  size_t last_closest_idx, bool first_run) {
     if (index >= g_traj_.points.size()) {
         return std::numeric_limits<double>::max();
     }
@@ -1371,7 +1472,8 @@ double PlanningNode::calculateTrajectoryPointCost(size_t index, double cur_yaw_r
     double stability_cost = 0.0;
     if (!first_run) {
         // 计算与上次最近点的索引差异
-        double index_diff = std::abs(static_cast<double>(index) - static_cast<double>(last_closest_idx));
+        double index_diff =
+            std::abs(static_cast<double>(index) - static_cast<double>(last_closest_idx));
 
         // 如果索引跳跃过大，增加惩罚
         if (index_diff > max_index_jump_) {
@@ -1409,10 +1511,14 @@ void PlanningNode::logTimingStatistics() const {
     // 计算各步骤占总时间的百分比
     if (avg_total > 0) {
         RCLCPP_INFO(get_logger(), "Time Distribution:");
-        RCLCPP_INFO(get_logger(), "  - Obstacle Detection: %.1f%%", (avg_obstacle / avg_total) * 100.0);
-        RCLCPP_INFO(get_logger(), "  - Trajectory Planning:%.1f%%", (avg_trajectory / avg_total) * 100.0);
-        RCLCPP_INFO(get_logger(), "  - Visualization:      %.1f%%", (avg_visualization / avg_total) * 100.0);
-        RCLCPP_INFO(get_logger(), "  - Occupancy Grid:     %.1f%%", (avg_occupancy / avg_total) * 100.0);
+        RCLCPP_INFO(get_logger(), "  - Obstacle Detection: %.1f%%",
+                    (avg_obstacle / avg_total) * 100.0);
+        RCLCPP_INFO(get_logger(), "  - Trajectory Planning:%.1f%%",
+                    (avg_trajectory / avg_total) * 100.0);
+        RCLCPP_INFO(get_logger(), "  - Visualization:      %.1f%%",
+                    (avg_visualization / avg_total) * 100.0);
+        RCLCPP_INFO(get_logger(), "  - Occupancy Grid:     %.1f%%",
+                    (avg_occupancy / avg_total) * 100.0);
     }
     RCLCPP_INFO(get_logger(), "Zero-copy mode: %s", enable_zero_copy_ ? "ENABLED" : "DISABLED");
     RCLCPP_INFO(get_logger(), "================================================");
@@ -1425,20 +1531,23 @@ void PlanningNode::updateObstacleInfoFromOccupancyGridZeroCopy() {
     detected_obstacle_points_.clear();
 
     // 检查占用栅格地图是否有效
-    if (occupancy_grid_.data.empty() || occupancy_grid_.info.width == 0 || occupancy_grid_.info.height == 0) {
-        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "Occupancy grid is empty or invalid");
+    if (occupancy_grid_.data.empty() || occupancy_grid_.info.width == 0 ||
+        occupancy_grid_.info.height == 0) {
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
+                             "Occupancy grid is empty or invalid");
         return;
     }
 
     // 检查边界线是否有效
     if (left_boundary_.points.empty() || right_boundary_.points.empty()) {
-        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "Boundary lines are empty");
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
+                             "Boundary lines are empty");
         return;
     }
 
     // 零拷贝优化：直接访问栅格数据，避免不必要的拷贝
     const auto &info = occupancy_grid_.info;
-    const auto &data = occupancy_grid_.data; // 直接引用，避免拷贝
+    const auto &data = occupancy_grid_.data;  // 直接引用，避免拷贝
 
     const double resolution = info.resolution;
     const int width = info.width;
@@ -1455,10 +1564,10 @@ void PlanningNode::updateObstacleInfoFromOccupancyGridZeroCopy() {
     const double sin_heading = sin(vehicle_heading);
 
     // 预分配障碍物点容器，避免频繁内存分配
-    detected_obstacle_points_.reserve(1000); // 预估容量
+    detected_obstacle_points_.reserve(1000);  // 预估容量
 
     // 优化的栅格遍历：只检查车辆前方的相关区域
-    const double max_check_distance = min_obstacle_distance_ + 2.0; // 减少缓冲区，从5米减到2米
+    const double max_check_distance = min_obstacle_distance_ + 2.0;  // 减少缓冲区，从5米减到2米
 
     // 计算需要检查的栅格范围（在车辆坐标系下）
     const int check_range_cells = static_cast<int>(max_check_distance / resolution) + 1;
@@ -1470,7 +1579,8 @@ void PlanningNode::updateObstacleInfoFromOccupancyGridZeroCopy() {
     }
 
     // 将车辆位置转换到栅格坐标系
-    double vehicle_local_x = (cur_local_.east - origin_x) * cos_grid_yaw + (cur_local_.north - origin_y) * sin_grid_yaw;
+    double vehicle_local_x =
+        (cur_local_.east - origin_x) * cos_grid_yaw + (cur_local_.north - origin_y) * sin_grid_yaw;
     double vehicle_local_y =
         -(cur_local_.east - origin_x) * sin_grid_yaw + (cur_local_.north - origin_y) * cos_grid_yaw;
     int vehicle_grid_x = static_cast<int>(vehicle_local_x / resolution);
@@ -1535,22 +1645,24 @@ void PlanningNode::updateObstacleInfoFromOccupancyGridZeroCopy() {
                     // 倒车模式：检测车辆后方障碍物
                     if (relative_y < 0.0 && relative_y > -min_obstacle_distance_) {
                         obstacle_detected = true;
-                        RCLCPP_INFO(this->get_logger(),
-                                    "倒车模式-后方发现障碍物，距离：%.2f 米，相对位置：(%.2f, %.2f)", distance,
-                                    relative_x, relative_y);
+                        RCLCPP_INFO(
+                            this->get_logger(),
+                            "倒车模式-后方发现障碍物，距离：%.2f 米，相对位置：(%.2f, %.2f)",
+                            distance, relative_x, relative_y);
                     }
                 } else {
                     // 前进模式：检测车辆前方障碍物
                     if (relative_y > 0.0 && relative_y < min_obstacle_distance_) {
                         obstacle_detected = true;
-                        RCLCPP_INFO(this->get_logger(),
-                                    "前进模式-前方发现障碍物，距离：%.2f 米，相对位置：(%.2f, %.2f)", distance,
-                                    relative_x, relative_y);
+                        RCLCPP_INFO(
+                            this->get_logger(),
+                            "前进模式-前方发现障碍物，距离：%.2f 米，相对位置：(%.2f, %.2f)",
+                            distance, relative_x, relative_y);
                     }
                 }
 
                 if (obstacle_detected) {
-                    obstacle_info_[1] = 1; // 使用1表示检测到障碍物
+                    obstacle_info_[1] = 1;  // 使用1表示检测到障碍物
                 }
             }
         }
@@ -1572,7 +1684,7 @@ void PlanningNode::resetTimingStatistics() const {
 }
 
 PlanningNode::~PlanningNode() { RCLCPP_INFO(this->get_logger(), "planning node stopped"); }
-} // namespace planning
+}  // namespace planning
 
 // 节点注册
 int main(int argc, char *argv[]) {
