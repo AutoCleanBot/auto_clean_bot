@@ -3,6 +3,7 @@
 #include <bot_msg/msg/boundary.hpp>
 #include <bot_msg/msg/boundary_point.hpp>
 #include <bot_msg/msg/localization_info.hpp>
+#include <bot_msg/msg/remote_controller.hpp>
 #include <fstream>
 #include <memory>
 #include <rclcpp/rclcpp.hpp>
@@ -25,12 +26,21 @@ class MapNode : public rclcpp::Node {
   private:
     // 订阅定位信息的回调函数
     void localizationCallback(const bot_msg::msg::LocalizationInfo::SharedPtr msg);
+    
+    // 订阅遥控器按键的回调函数
+    void remoteControllerCallback(const bot_msg::msg::RemoteController::SharedPtr msg);
 
     // 定时器回调函数，用于发布边界点
     void timerCallback();
 
     // 加载边界文件
     bool loadBoundaryFile(const std::string &file_path, std::vector<BoundaryPoint> &boundary_points);
+    
+    // 根据boundary_type构建边界文件路径
+    std::pair<std::string, std::string> getBoundaryFilePaths(int boundary_type);
+    
+    // 重新加载边界文件
+    void reloadBoundaryFiles(int new_boundary_type);
 
     // 查找最近点索引
     size_t findClosestPointIndex(const std::vector<BoundaryPoint> &boundary_points, double east, double north);
@@ -55,6 +65,7 @@ class MapNode : public rclcpp::Node {
 
     // 订阅和发布
     rclcpp::Subscription<bot_msg::msg::LocalizationInfo>::SharedPtr localization_sub_;
+    rclcpp::Subscription<bot_msg::msg::RemoteController>::SharedPtr remote_controller_sub_;
     rclcpp::Publisher<bot_msg::msg::Boundary>::SharedPtr left_boundary_pub_;
     rclcpp::Publisher<bot_msg::msg::Boundary>::SharedPtr right_boundary_pub_;
     rclcpp::TimerBase::SharedPtr timer_;
@@ -68,6 +79,9 @@ class MapNode : public rclcpp::Node {
     double current_north_ = 0.0;
     double current_yaw_ = 0.0;
     bool localization_received_ = false;
+    
+    // 当前边界类型
+    int current_boundary_type_ = 3;
 
     // 方向稳定性参数
     double direction_stability_weight_ = 2.0; // 方向稳定性权重

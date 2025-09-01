@@ -3,9 +3,8 @@ map_node:
     # 地图文件目录 (相对于项目根目录)
     map_files_dir: "~/auto_clean_bot/map_files"
     
-    # 边界文件名
-    left_boundary_file: "local_record_3_left_boundary.csv"
-    right_boundary_file: "local_record_3_right_boundary.csv"
+    # 边界类型（用于组装文件名）
+    boundary_type: 3
     
     # 边界名称
     left_boundary_name: "left_boundary"

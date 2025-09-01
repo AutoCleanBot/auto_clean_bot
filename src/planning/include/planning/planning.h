@@ -36,7 +36,7 @@ class PlanningNode : public rclcpp::Node {
   public:
     PlanningNode();
     ~PlanningNode();
-    void InitGlobalPath();
+    void InitGlobalPath(int path_type);
     void InitParams();
 
     void TimerCallback();

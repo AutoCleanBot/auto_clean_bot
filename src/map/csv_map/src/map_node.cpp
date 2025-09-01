@@ -5,6 +5,7 @@
 #include <iostream>
 #include <map>
 #include <pwd.h>
+#include <rclcpp/logging.hpp>
 #include <sstream>
 #include <unistd.h>
 
@@ -50,8 +51,7 @@ std::string expandTilde(const std::string &path) {
 MapNode::MapNode() : Node("map_node") {
     // 声明并获取参数
     this->declare_parameter("map_files_dir", "~/auto_clean_bot/map_files");
-    this->declare_parameter("left_boundary_file", "local_record_4_left_boundary.csv");
-    this->declare_parameter("right_boundary_file", "local_record_4_right_boundary.csv");
+    this->declare_parameter("boundary_type", 4);
     this->declare_parameter("left_boundary_name", "left_boundary");
     this->declare_parameter("right_boundary_name", "right_boundary");
     this->declare_parameter("boundary_length", 50.0);
@@ -63,8 +63,9 @@ MapNode::MapNode() : Node("map_node") {
     this->declare_parameter("yaw_weight", 3.0);
 
     map_files_dir_ = this->get_parameter("map_files_dir").as_string();
-    std::string left_boundary_file = this->get_parameter("left_boundary_file").as_string();
-    std::string right_boundary_file = this->get_parameter("right_boundary_file").as_string();
+    int boundary_type = this->get_parameter("boundary_type").as_int();
+    
+
     left_boundary_name_ = this->get_parameter("left_boundary_name").as_string();
     right_boundary_name_ = this->get_parameter("right_boundary_name").as_string();
     boundary_length_ = this->get_parameter("boundary_length").as_double();
@@ -75,14 +76,19 @@ MapNode::MapNode() : Node("map_node") {
     max_index_jump_ = this->get_parameter("max_index_jump").as_double();
     yaw_weight_ = this->get_parameter("yaw_weight").as_double();
 
+    // 保存当前边界类型
+    current_boundary_type_ = boundary_type;
+    
     // 构建边界文件的完整路径
-    left_boundary_file_path_ = map_files_dir_ + "/" + left_boundary_file;
-    right_boundary_file_path_ = map_files_dir_ + "/" + right_boundary_file;
+    auto boundary_paths = getBoundaryFilePaths(boundary_type);
+    left_boundary_file_path_ = boundary_paths.first;
+    right_boundary_file_path_ = boundary_paths.second;
 
     // 加载边界文件
     bool left_loaded = loadBoundaryFile(left_boundary_file_path_, left_boundary_points_);
     bool right_loaded = loadBoundaryFile(right_boundary_file_path_, right_boundary_points_);
 
+    RCLCPP_INFO(this->get_logger(), "Loaded boundary type: %d", boundary_type);
     if (!left_loaded) {
         RCLCPP_ERROR(this->get_logger(), "Failed to load left boundary file: %s", left_boundary_file_path_.c_str());
     } else {
@@ -101,6 +107,9 @@ MapNode::MapNode() : Node("map_node") {
 
     localization_sub_ = this->create_subscription<bot_msg::msg::LocalizationInfo>(
         "/localization/rtk_info", 10, std::bind(&MapNode::localizationCallback, this, std::placeholders::_1));
+    
+    remote_controller_sub_ = this->create_subscription<bot_msg::msg::RemoteController>(
+        "/remote_controller/cmd", 10, std::bind(&MapNode::remoteControllerCallback, this, std::placeholders::_1));
 
     // 创建定时器
     double timer_period = 1.0 / publish_frequency_;
@@ -123,6 +132,18 @@ void MapNode::localizationCallback(const bot_msg::msg::LocalizationInfo::SharedP
     current_yaw_ = msg->yaw;
     localization_received_ = true;
 }
+
+void MapNode::remoteControllerCallback(const bot_msg::msg::RemoteController::SharedPtr msg) {
+    static int pre_key_value = 0;
+    if (msg->key_value == 5 && pre_key_value != 5) {
+        int new_boundary_type = current_boundary_type_ + 1;
+        RCLCPP_INFO(this->get_logger(), "Key 5 pressed, switching boundary type from %d to %d", 
+                    current_boundary_type_, new_boundary_type);
+        reloadBoundaryFiles(new_boundary_type);
+    }
+    pre_key_value = msg->key_value;
+}
+
 
 void MapNode::timerCallback() {
     if (!localization_received_) {
@@ -457,6 +478,51 @@ void MapNode::calculateBoundarySegment(const std::vector<BoundaryPoint> &boundar
         if (accumulated_distance >= length) {
             break;
         }
+    }
+}
+
+std::pair<std::string, std::string> MapNode::getBoundaryFilePaths(int boundary_type) {
+    std::string left_boundary_file = "local_record_" + std::to_string(boundary_type) + "_left_boundary.csv";
+    std::string right_boundary_file = "local_record_" + std::to_string(boundary_type) + "_right_boundary.csv";
+    
+    std::string left_path = expandTilde(map_files_dir_) + "/" + left_boundary_file;
+    std::string right_path = expandTilde(map_files_dir_) + "/" + right_boundary_file;
+    
+    return std::make_pair(left_path, right_path);
+}
+
+void MapNode::reloadBoundaryFiles(int new_boundary_type) {
+    // 获取新的边界文件路径
+    auto boundary_paths = getBoundaryFilePaths(new_boundary_type);
+    std::string new_left_path = boundary_paths.first;
+    std::string new_right_path = boundary_paths.second;
+    
+    // 清空当前边界点数据
+    left_boundary_points_.clear();
+    right_boundary_points_.clear();
+    
+    // 加载新的边界文件
+    bool left_loaded = loadBoundaryFile(new_left_path, left_boundary_points_);
+    bool right_loaded = loadBoundaryFile(new_right_path, right_boundary_points_);
+    
+    if (!left_loaded) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to load new left boundary file: %s", new_left_path.c_str());
+    } else {
+        RCLCPP_INFO(this->get_logger(), "Successfully loaded new left boundary file with %zu points", left_boundary_points_.size());
+        left_boundary_file_path_ = new_left_path;
+    }
+    
+    if (!right_loaded) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to load new right boundary file: %s", new_right_path.c_str());
+    } else {
+        RCLCPP_INFO(this->get_logger(), "Successfully loaded new right boundary file with %zu points", right_boundary_points_.size());
+        right_boundary_file_path_ = new_right_path;
+    }
+    
+    // 如果至少有一个文件加载成功，更新当前边界类型
+    if (left_loaded || right_loaded) {
+        current_boundary_type_ = new_boundary_type;
+        RCLCPP_INFO(this->get_logger(), "Boundary type updated to: %d", current_boundary_type_);
     }
 }
 

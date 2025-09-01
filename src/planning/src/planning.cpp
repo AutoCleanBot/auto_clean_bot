@@ -44,7 +44,7 @@ PlanningNode::PlanningNode() : Node("planning_node"), timer_cnt_(0) {
 
     // 如果不是测试模式，则初始化全局路径
     if (!test_mode_) {
-        InitGlobalPath();
+        InitGlobalPath(path_type_);
     } else {
         RCLCPP_INFO(this->get_logger(), "Test mode enabled, skipping global path initialization");
         // 在测试模式下创建一个简单的直线路径
@@ -253,7 +253,13 @@ void PlanningNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "========================================");
 }
 
-void PlanningNode::InitGlobalPath() {
+
+/**
+ * @brief 初始化全局路径,调用后即从routing模块获取全局路径,更新全局路径g_traj_
+ * 
+ * @param path_type 
+ */
+void PlanningNode::InitGlobalPath(int path_type) {
     auto client = this->create_client<bot_msg::srv::Routing>(service_name_);
 
     // 等待服务可用
@@ -268,9 +274,9 @@ void PlanningNode::InitGlobalPath() {
 
     // 创建请求
     auto request = std::make_shared<bot_msg::srv::Routing::Request>();
-    request->path_type = path_type_;
+    request->path_type = path_type;
 
-    RCLCPP_INFO(this->get_logger(), "Sending request with path_type: %d", path_type_);
+    RCLCPP_INFO(this->get_logger(), "Sending request with path_type: %d", path_type);
 
     // 发送异步请求并添加回调
     auto future_result = client->async_send_request(
@@ -328,6 +334,11 @@ void PlanningNode::RemoteControlCallback(const std_msgs::msg::Int32::SharedPtr m
     } else if (remote_control_cmd_ == 4) {  // 手动节点
         manula_control_ = true;
         key_stop_ = true;
+    }else if(remote_control_cmd_ == 5){  // 任务路径切换
+        key_stop_ = true;
+        remote_control_cmd_ = 0; 
+        path_type_ ++;
+        InitGlobalPath(path_type_);
     }
 }
 

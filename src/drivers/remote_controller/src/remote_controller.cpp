@@ -185,6 +185,7 @@ void RemoteControllerNode::Can1ThreadFunc() {
                     key_num = 0x04;
                 }
                 if (frame.data[1] == 0x01) {
+                    // 切换任务
                     key_num = 0x05;
                 }
                 if (frame.data[1] == 0x02) {
