@@ -11,7 +11,6 @@ class RoutingNode : public rclcpp::Node{
         void InitParams();
         void HandleRoutingRequest(const bot_msg::srv::Routing::Request::SharedPtr request, bot_msg::srv::Routing::Response::SharedPtr response);
         rclcpp::Service<bot_msg::srv::Routing>::SharedPtr m_service;
-        std::vector<std::string> m_map_names;
 };
 
 } // namespace routing

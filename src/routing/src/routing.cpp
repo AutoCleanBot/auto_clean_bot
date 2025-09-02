@@ -1,9 +1,13 @@
 #include "routing/routing.h"
-#include "bot_msg/msg/adc_trajectory.hpp"
-#include "bot_msg/msg/trajectory_point.hpp"
-#include <fstream>
+
 #include <pwd.h>
 #include <unistd.h>
+
+#include <fstream>
+#include <string>
+
+#include "bot_msg/msg/adc_trajectory.hpp"
+#include "bot_msg/msg/trajectory_point.hpp"
 
 namespace routing {
 
@@ -39,23 +43,22 @@ std::string expandTilde(const std::string& path) {
 RoutingNode::RoutingNode() : Node("routing") {
     // Initialize subscribers and publishers
     InitParams();
-    m_service =
-        this->create_service<bot_msg::srv::Routing>(
-            "/routing_service",
-            std::bind(&RoutingNode::HandleRoutingRequest, this,
-                      std::placeholders::_1,
-                      std::placeholders::_2));
-    
+    m_service = this->create_service<bot_msg::srv::Routing>(
+        "/routing_service", std::bind(&RoutingNode::HandleRoutingRequest, this,
+                                      std::placeholders::_1, std::placeholders::_2));
+
     // 添加服务创建成功的日志
     RCLCPP_INFO(this->get_logger(), "Routing service '%s' is ready", "/routing_service");
 }
-void RoutingNode::HandleRoutingRequest(
-    const bot_msg::srv::Routing::Request::SharedPtr request,
-    bot_msg::srv::Routing::Response::SharedPtr response) {  
-    
+void RoutingNode::HandleRoutingRequest(const bot_msg::srv::Routing::Request::SharedPtr request,
+                                       bot_msg::srv::Routing::Response::SharedPtr response) {
     RCLCPP_INFO(this->get_logger(), "Routing request received");
 
-    auto csv_path = expandTilde(m_map_names[request->path_type]);
+    const std::string csv_path_file_prefix = "~/auto_clean_bot/path/local_record_";
+    const std::string csv_path_file_suffix = ".csv";
+    std::string csv_path =
+        csv_path_file_prefix + std::to_string(request->path_type) + csv_path_file_suffix;
+    csv_path = expandTilde(csv_path);
     std::ifstream file(csv_path);
 
     if (!file.is_open()) {
@@ -75,64 +78,63 @@ void RoutingNode::HandleRoutingRequest(
         std::stringstream ss(line);
         std::string value;
         double tmp;
-        std::getline(ss, value, ','); point.longtitude = std::stod(value);
-        std::getline(ss, value, ','); point.latitude = std::stod(value);
-        std::getline(ss, value, ','); point.altitude = std::stod(value);
-        std::getline(ss, value, ','); point.north = std::stod(value);
-        std::getline(ss, value, ','); point.east = std::stod(value);
-        std::getline(ss, value, ','); point.up = std::stod(value);
-        std::getline(ss, value, ','); point.yaw = std::stof(value);
-        std::getline(ss, value, ','); point.pitch = std::stof(value);
-        std::getline(ss, value, ','); point.roll = std::stof(value);
-        std::getline(ss, value, ','); point.vel_speed = std::stof(value);
-        std::getline(ss, value, ','); point.north_speed = std::stof(value);
-        std::getline(ss, value, ','); point.east_speed = std::stof(value);
-        std::getline(ss, value, ','); tmp = std::stof(value);
-        std::getline(ss, value, ','); point.acceleration_x = std::stof(value);
-        std::getline(ss, value, ','); point.acceleration_y = std::stof(value);
-        std::getline(ss, value, ','); point.acceleration_z = std::stof(value);
-        std::getline(ss, value, ','); tmp = std::stof(value);
-        std::getline(ss, value, ','); tmp = std::stof(value);
-        std::getline(ss, value, ','); tmp = std::stof(value);
-        std::getline(ss, value, ','); tmp = static_cast<uint8_t>(std::stoi(value));
+        std::getline(ss, value, ',');
+        point.longtitude = std::stod(value);
+        std::getline(ss, value, ',');
+        point.latitude = std::stod(value);
+        std::getline(ss, value, ',');
+        point.altitude = std::stod(value);
+        std::getline(ss, value, ',');
+        point.north = std::stod(value);
+        std::getline(ss, value, ',');
+        point.east = std::stod(value);
+        std::getline(ss, value, ',');
+        point.up = std::stod(value);
+        std::getline(ss, value, ',');
+        point.yaw = std::stof(value);
+        std::getline(ss, value, ',');
+        point.pitch = std::stof(value);
+        std::getline(ss, value, ',');
+        point.roll = std::stof(value);
+        std::getline(ss, value, ',');
+        point.vel_speed = std::stof(value);
+        std::getline(ss, value, ',');
+        point.north_speed = std::stof(value);
+        std::getline(ss, value, ',');
+        point.east_speed = std::stof(value);
+        std::getline(ss, value, ',');
+        tmp = std::stof(value);
+        std::getline(ss, value, ',');
+        point.acceleration_x = std::stof(value);
+        std::getline(ss, value, ',');
+        point.acceleration_y = std::stof(value);
+        std::getline(ss, value, ',');
+        point.acceleration_z = std::stof(value);
+        std::getline(ss, value, ',');
+        tmp = std::stof(value);
+        std::getline(ss, value, ',');
+        tmp = std::stof(value);
+        std::getline(ss, value, ',');
+        tmp = std::stof(value);
+        std::getline(ss, value, ',');
+        tmp = static_cast<uint8_t>(std::stoi(value));
 
         trajectory.points.push_back(point);
     }
     trajectory.header.frame_id = "map";
     trajectory.header.stamp = this->now();
     response->path = trajectory;
-    RCLCPP_INFO(this->get_logger(), "Routing response sent");
+    RCLCPP_INFO(this->get_logger(), "Routing response sent path type %d, points: %d",
+                request->path_type, trajectory.points.size());
     file.close();
 }
-void RoutingNode::InitParams() {
-    m_map_names.resize(10);
-    // Initialize parameters
-    this->declare_parameter("1", "/");
-    this->declare_parameter("2", "/");
-    this->declare_parameter("3", "/");
-    this->declare_parameter("4", "/");
-    this->declare_parameter("5", "/");
-    this->declare_parameter("6", "/");
-    this->declare_parameter("7", "/");
-    this->declare_parameter("8", "/");
-    this->declare_parameter("9", "/");
-
-    RCLCPP_INFO(this->get_logger(), "Init parameters");
-    // Get parameters
-    for(size_t i = 1; i < 10; i++){
-        std::string csv_path = this->get_parameter(std::to_string(i)).get_value<std::string>();
-        m_map_names[i] = csv_path;
-    }
-}
+void RoutingNode::InitParams() {}
 }  // namespace routing
 
-
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
     rclcpp::init(argc, argv);
     auto node = std::make_shared<routing::RoutingNode>();
     rclcpp::spin(node);
     rclcpp::shutdown();
     return 0;
 }
-
-
