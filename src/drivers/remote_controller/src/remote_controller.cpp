@@ -123,6 +123,7 @@ void RemoteControllerNode::Can1ThreadFunc() {
     int id;
     static int pre_key_num = 0;
     int key_num = 0;
+    static int loop_cnt = 0;
 
     while (rclcpp::ok()) {
         FD_ZERO(&read_fds);
@@ -164,6 +165,7 @@ void RemoteControllerNode::Can1ThreadFunc() {
             id = frame.can_id & CAN_EFF_MASK;
 
             if (id == KEY_CAN_ID) {
+
                 PrintCanDataFrame(frame);
                 if (frame.data[0] == 0 && frame.data[1] == 0) {
                     key_num = 0x00;
@@ -184,12 +186,18 @@ void RemoteControllerNode::Can1ThreadFunc() {
                     // 手动控制
                     key_num = 0x04;
                 }
-                if (frame.data[1] == 0x01) {
+                if (frame.data[0] == 0x10) {
                     // 切换任务
                     key_num = 0x05;
                 }
-                if (frame.data[1] == 0x02) {
+                if (frame.data[0] == 0x20) {
                     key_num = 0x06;
+                }
+                if(frame.data[0] == 0x40){
+                    key_num = 0x07;
+                }
+                if(frame.data[0] == 0x80){
+                    key_num = 0x08;
                 }
             }
         }
@@ -198,6 +206,9 @@ void RemoteControllerNode::Can1ThreadFunc() {
             g_key_num = key_num;
         }
         pre_key_num = key_num;
+        ++loop_cnt;
+        if(loop_cnt > 1000)
+            loop_cnt = 0;
     }
 }
 
