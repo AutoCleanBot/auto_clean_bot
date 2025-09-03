@@ -347,9 +347,6 @@ void PlanningNode::CheckRoutingResult() {
                     RCLCPP_INFO(this->get_logger(), "point %zu: x: %f, y: %f, z: %f", i, 
                                 g_traj_.points[i].east, g_traj_.points[i].north, g_traj_.points[i].up);
                 }
-                
-                // 路径切换完成后，恢复运行状态
-                key_stop_ = false;
                 RCLCPP_INFO(this->get_logger(), "Path switching completed, resuming operation");
             } else {
                 RCLCPP_ERROR(this->get_logger(), "Received null response from routing service");

@@ -274,7 +274,7 @@ void RTKSimulator::timerCallback() {
 
     // 移动到下一个点
     if(planning_point.vel_speed > 0.0)
-        current_point_index_++;
+        current_point_index_ += 2;
 
     // 每100个点输出一次进度信息
     if (current_point_index_ % 100 == 0) {

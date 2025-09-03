@@ -5,7 +5,7 @@
 # 
 # 功能说明：
 # 1. 修改 planning_params.yaml 中的 path_type 为指定序号
-# 2. 修改 map_config.yaml 中的边界文件序号
+# 2. 修改 map_config.yaml 中的 boundary_type 为指定序号（系统会自动加载对应的边界文件）
 # 
 # 使用方法：
 # ./change_path_type.sh <序号>
@@ -86,19 +86,12 @@ else
     exit 1
 fi
 
-# 修改 map_config.yaml 中的边界文件
-print_info "修改 map_config.yaml 中的边界文件序号为 $PATH_NUMBER..."
-if sed -i "s/local_record_[0-9]*_left_boundary.csv/local_record_${PATH_NUMBER}_left_boundary.csv/" "$MAP_CONFIG"; then
-    print_info "✓ 左边界文件修改成功"
+# 修改 map_config.yaml 中的边界类型
+print_info "修改 map_config.yaml 中的 boundary_type 为 $PATH_NUMBER..."
+if sed -i "s/boundary_type: [0-9]*/boundary_type: $PATH_NUMBER/" "$MAP_CONFIG"; then
+    print_info "✓ boundary_type 修改成功"
 else
-    print_error "✗ 左边界文件修改失败"
-    exit 1
-fi
-
-if sed -i "s/local_record_[0-9]*_right_boundary.csv/local_record_${PATH_NUMBER}_right_boundary.csv/" "$MAP_CONFIG"; then
-    print_info "✓ 右边界文件修改成功"
-else
-    print_error "✗ 右边界文件修改失败"
+    print_error "✗ boundary_type 修改失败"
     exit 1
 fi
 
@@ -106,8 +99,8 @@ print_info "所有配置修改完成！"
 print_info ""
 print_info "修改内容总结："
 print_info "1. planning_params.yaml: path_type → $PATH_NUMBER"
-print_info "2. map_config.yaml: 边界文件序号 → $PATH_NUMBER"
-print_info "   - left_boundary_file: local_record_${PATH_NUMBER}_left_boundary.csv"
-print_info "   - right_boundary_file: local_record_${PATH_NUMBER}_right_boundary.csv"
+print_info "2. map_config.yaml: boundary_type → $PATH_NUMBER"
+print_info "   - 边界文件将自动加载: local_record_${PATH_NUMBER}_left_boundary.csv"
+print_info "   - 边界文件将自动加载: local_record_${PATH_NUMBER}_right_boundary.csv"
 print_info ""
 print_warning "注意：修改后的配置将在下次启动时生效" 

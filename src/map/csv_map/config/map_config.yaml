@@ -4,7 +4,7 @@ map_node:
     map_files_dir: "~/auto_clean_bot/map_files"
     
     # 边界类型（用于组装文件名）
-    boundary_type: 3
+    boundary_type: 7
     
     # 边界名称
     left_boundary_name: "left_boundary"
