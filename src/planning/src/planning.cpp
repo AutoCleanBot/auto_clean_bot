@@ -323,7 +323,7 @@ void PlanningNode::RemoteControlCallback(const std_msgs::msg::Int32::SharedPtr m
         remote_control_cmd_ = key_value;
     }
     pre_key_value = key_value;
-    // RCLCPP_INFO(this->get_logger(), "RemoteControlCallback, cmd: %d", remote_control_cmd_);
+    RCLCPP_INFO(this->get_logger(), "RemoteControlCallback, cmd: %d", remote_control_cmd_);
     if (remote_control_cmd_ == 1) {
         key_stop_ = false;
     } else if (remote_control_cmd_ == 2) {

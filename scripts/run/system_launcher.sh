@@ -264,10 +264,11 @@ launch_mapping_system() {
 # 启动测试系统
 launch_test_system() {
     log_info "启动测试系统..."
-    launch_node "控制测试" "control" "control.launch.py" ""
-    launch_node "本地记录测试" "test" "local_record_test.launch.py" ""
-    launch_node "路由测试" "test" "routing.launch.py" ""
-    launch_node "规划测试" "test" "planning.launch.py" ""
+    launch_node "tf转换" "transform" "transform.launch.py" ""
+    launch_node "路由节点" "routing" "routing.launch.py" ""
+    launch_node "规划节点" "planning" "planning.launch.py" ""
+    launch_node "地图节点" "csv_map" "map_with_config.launch.py" ""
+    launch_node "定位模拟" "rtk_simulator" "rtk_simulator.launch.py" ""
 }
 
 launch_base_node_system() {

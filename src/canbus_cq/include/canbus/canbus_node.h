@@ -3,6 +3,8 @@
 #include "bot_msg/msg/chassis_info.hpp"
 #include "bot_msg/msg/control_cmd.hpp"
 #include "bot_msg/msg/remote_controller.hpp"
+#include <std_msgs/msg/detail/int32__struct.hpp>
+#include <std_msgs/msg/int32.hpp>
 #include "canbus/can_protocol.h"
 #include <atomic>
 #include <cstring>
@@ -47,7 +49,7 @@ class CanbusNode : public rclcpp::Node {
     rclcpp::TimerBase::SharedPtr timer_;
     // 订阅者
     rclcpp::Subscription<bot_msg::msg::ControlCmd>::SharedPtr sub_control_cmd_;
-    rclcpp::Subscription<bot_msg::msg::RemoteController>::SharedPtr sub_remote_controller_;
+    rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr sub_remote_controller_;
     // 发布者
     rclcpp::Publisher<bot_msg::msg::ChassisInfo>::SharedPtr pub_chassis_info_;
     // 变量
@@ -68,7 +70,7 @@ class CanbusNode : public rclcpp::Node {
     // 回调函数
     void TimerCallback();
     void ControlCmdCallback(const bot_msg::msg::ControlCmd::SharedPtr msg);
-    void RemoteControllerCallback(const bot_msg::msg::RemoteController::SharedPtr msg);
+    void RemoteControllerCallback(const std_msgs::msg::Int32::SharedPtr msg);
 
     // 功能函数
     void InitParams();

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <bot_msg/msg/localization_info.hpp>
+#include <bot_msg/msg/adc_trajectory.hpp>
 #include <fstream>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <random>
@@ -44,6 +45,8 @@ class RTKSimulator : public rclcpp::Node {
   private:
     void initParams();
     void timerCallback();
+    void trajectoryCallback(const bot_msg::msg::ADCTrajectory::SharedPtr msg);
+    void handlePlanningTrajectory();
     bool loadTrajectoryFromCSV(const std::string &file_path);
     void addRandomNoise(bot_msg::msg::LocalizationInfo &msg);
     double generateRandomOffset(double base_value, double noise_percentage);
@@ -52,6 +55,7 @@ class RTKSimulator : public rclcpp::Node {
     rclcpp::TimerBase::SharedPtr timer_;
     rclcpp::Publisher<bot_msg::msg::LocalizationInfo>::SharedPtr pub_localization_;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pub_gnss_pose_;
+    rclcpp::Subscription<bot_msg::msg::ADCTrajectory>::SharedPtr sub_trajectory_;
 
     // Parameters
     std::string csv_file_path_;
@@ -65,6 +69,12 @@ class RTKSimulator : public rclcpp::Node {
     // Trajectory data
     std::vector<TrajectoryPoint> trajectory_points_;
     size_t current_point_index_;
+    
+    // Planning trajectory data
+    bot_msg::msg::ADCTrajectory::SharedPtr current_trajectory_;
+    size_t current_trajectory_index_;
+    bool use_planning_trajectory_;
+    bool waiting_for_nonzero_velocity_;
 
     // Random number generation
     std::random_device rd_;

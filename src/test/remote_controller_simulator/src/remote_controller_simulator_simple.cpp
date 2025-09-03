@@ -1,5 +1,6 @@
 #include <rclcpp/rclcpp.hpp>
 #include <bot_msg/msg/remote_controller.hpp>
+#include <std_msgs/msg/int32.hpp>
 #include <iostream>
 #include <string>
 #include <sys/select.h>
@@ -15,7 +16,7 @@ class SimpleRemoteControllerSimulator : public rclcpp::Node {
 public:
     SimpleRemoteControllerSimulator() : Node("remote_controller_simulator") {
         // 创建发布者
-        publisher_ = this->create_publisher<bot_msg::msg::RemoteController>("/remote_controller/cmd", 10);
+        publisher_ = this->create_publisher<std_msgs::msg::Int32>("/remote_controller/cmd", 10);
         
         // 设置终端为无缓冲模式
         setupTerminal();
@@ -137,15 +138,15 @@ private:
     }
 
     void publishKeyCommand(int key_num) {
-        auto message = bot_msg::msg::RemoteController();
-        message.key_value = key_num;
+        auto message = std_msgs::msg::Int32();
+        message.data = key_num;
         
         publisher_->publish(message);
         
         RCLCPP_INFO(this->get_logger(), "Published key command: %d", key_num);
     }
 
-    rclcpp::Publisher<bot_msg::msg::RemoteController>::SharedPtr publisher_;
+    rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr publisher_;
     rclcpp::TimerBase::SharedPtr timer_;
 };
 

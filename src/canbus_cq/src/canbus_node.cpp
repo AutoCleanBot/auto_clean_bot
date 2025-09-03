@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <iomanip>
 #include <rclcpp/logging.hpp>
+#include <std_msgs/msg/detail/int32__struct.hpp>
 #include <stdint.h>
 #include <sys/select.h>
 
@@ -22,7 +23,7 @@ CanbusNode::CanbusNode() : Node("canbus_node") {
     // 初始化订阅者和发布者
     sub_control_cmd_ = this->create_subscription<bot_msg::msg::ControlCmd>(
         control_cmd_topic_, 10, std::bind(&CanbusNode::ControlCmdCallback, this, std::placeholders::_1));
-    sub_remote_controller_ = this->create_subscription<bot_msg::msg::RemoteController>(
+    sub_remote_controller_ = this->create_subscription<std_msgs::msg::Int32>(
         remote_controller_topic_, 10, std::bind(&CanbusNode::RemoteControllerCallback, this, std::placeholders::_1));
     pub_chassis_info_ = this->create_publisher<bot_msg::msg::ChassisInfo>(chassis_info_topic_, 10);
 
@@ -312,13 +313,13 @@ void CanbusNode::ControlCmdCallback(const bot_msg::msg::ControlCmd::SharedPtr ms
     control_cmd_cnt_ = 0;
 }
 
-void CanbusNode::RemoteControllerCallback(const bot_msg::msg::RemoteController::SharedPtr msg) {
-    if(msg->key_value == 3){
+void CanbusNode::RemoteControllerCallback(const std_msgs::msg::Int32::SharedPtr msg) {
+    if(msg->data == 3){
         mannula_control_flag_ = false;
-    }else if(msg->key_value == 4){
+    }else if(msg->data == 4){
         mannula_control_flag_ = true;
     }
-    RCLCPP_INFO(this->get_logger(), "remote controller key value: %d", msg->key_value);
+    RCLCPP_INFO(this->get_logger(), "remote controller key value: %d", msg->data);
 }
 
 /**

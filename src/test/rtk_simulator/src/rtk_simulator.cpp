@@ -1,6 +1,7 @@
 #include "rtk_simulator/rtk_simulator.h"
 #include <pwd.h>
 #include <unistd.h>
+#include <bot_msg/msg/detail/trajectory_point__struct.hpp>
 
 namespace rtk_simulator {
 
@@ -37,6 +38,11 @@ RTKSimulator::RTKSimulator() : Node("rtk_simulator"), gen_(rd_()) {
     // 创建发布者
     pub_localization_ = this->create_publisher<bot_msg::msg::LocalizationInfo>("localization/rtk_info", 10);
     pub_gnss_pose_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(gnss_topic_name_, 10);
+    
+    // 创建订阅者
+    sub_trajectory_ = this->create_subscription<bot_msg::msg::ADCTrajectory>(
+        "/planning/trajectory", 10,
+        std::bind(&RTKSimulator::trajectoryCallback, this, std::placeholders::_1));
 
     // 加载轨迹数据
     if (!loadTrajectoryFromCSV(csv_file_path_)) {
@@ -55,6 +61,8 @@ RTKSimulator::RTKSimulator() : Node("rtk_simulator"), gen_(rd_()) {
     timer_ = this->create_wall_timer(std::chrono::milliseconds(timer_interval_ms),
                                      std::bind(&RTKSimulator::timerCallback, this));
 
+
+    current_trajectory_ = std::make_shared<bot_msg::msg::ADCTrajectory>();
     RCLCPP_INFO(this->get_logger(), "RTK Simulator started, publishing at %.1f Hz", publish_frequency_);
     RCLCPP_INFO(this->get_logger(), "Noise range: %.1f%% - %.1f%%", noise_min_percentage_, noise_max_percentage_);
 }
@@ -81,6 +89,9 @@ void RTKSimulator::initParams() {
     gnss_frame_id_ = this->get_parameter("gnss_frame_id").as_string();
 
     current_point_index_ = 0;
+    current_trajectory_index_ = 0;
+    use_planning_trajectory_ = false;
+    waiting_for_nonzero_velocity_ = false;
 }
 
 bool RTKSimulator::loadTrajectoryFromCSV(const std::string &file_path) {
@@ -159,12 +170,41 @@ bool RTKSimulator::loadTrajectoryFromCSV(const std::string &file_path) {
     return !trajectory_points_.empty();
 }
 
-void RTKSimulator::timerCallback() {
-    if (trajectory_points_.empty()) {
-        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "No trajectory points available");
-        return;
-    }
+void RTKSimulator::trajectoryCallback(const bot_msg::msg::ADCTrajectory::SharedPtr msg) {
+    current_trajectory_ = msg;
+    current_trajectory_index_ = 0;
+    use_planning_trajectory_ = true;
+    waiting_for_nonzero_velocity_ = false;
+    
+    RCLCPP_INFO(this->get_logger(), "Received new trajectory with %zu points", msg->points.size());
+}
 
+void RTKSimulator::timerCallback() {
+    // 优先使用规划轨迹
+    // if (use_planning_trajectory_ && current_trajectory_ && !current_trajectory_->points.empty()) {
+    //     handlePlanningTrajectory();
+    //     return;
+    // }
+
+    //     // 检查轨迹是否有效
+    // if (!current_trajectory_ || ) {
+    //     use_planning_trajectory_ = false;
+    //     return;
+    // }
+    
+    // // 检查是否到达轨迹末尾
+    // if (current_trajectory_index_ >= current_trajectory_->points.size()) {
+    //     RCLCPP_INFO(this->get_logger(), "Planning trajectory completed");
+    //     use_planning_trajectory_ = false;
+    //     return;
+    // }
+    
+    // 获取当前轨迹点
+    bot_msg::msg::TrajectoryPoint planning_point;
+    if(!current_trajectory_->points.empty())
+        planning_point = current_trajectory_->points[0];
+    
+    
     // 检查是否到达轨迹末尾
     if (current_point_index_ >= trajectory_points_.size()) {
         if (loop_trajectory_) {
@@ -194,7 +234,7 @@ void RTKSimulator::timerCallback() {
     msg.yaw = static_cast<float>(traj_point.yaw);
     msg.pitch = static_cast<float>(traj_point.pitch);
     msg.roll = static_cast<float>(traj_point.roll);
-    msg.vel_speed = static_cast<float>(traj_point.vel_speed);
+    msg.vel_speed = static_cast<float>(planning_point.vel_speed);
     msg.vel_north = static_cast<float>(traj_point.vel_north);
     msg.vel_east = static_cast<float>(traj_point.vel_east);
     msg.vel_up = static_cast<float>(traj_point.vel_up);
@@ -233,11 +273,14 @@ void RTKSimulator::timerCallback() {
     pub_gnss_pose_->publish(gnss_pose_msg);
 
     // 移动到下一个点
-    current_point_index_++;
+    if(planning_point.vel_speed > 0.0)
+        current_point_index_++;
 
     // 每100个点输出一次进度信息
     if (current_point_index_ % 100 == 0) {
+        RCLCPP_INFO(this->get_logger(), "current position, east:%f, north:%f, up:%f, yaw:%f", msg.east, msg.north, msg.up, msg.yaw);
         RCLCPP_INFO(this->get_logger(), "Published point %zu/%zu", current_point_index_, trajectory_points_.size());
+        
     }
 }
 
@@ -253,6 +296,111 @@ void RTKSimulator::addRandomNoise(bot_msg::msg::LocalizationInfo &msg) {
     msg.vel_speed = static_cast<float>(generateRandomOffset(msg.vel_speed, noise_dist_(gen_) * 0.5));
     msg.vel_north = static_cast<float>(generateRandomOffset(msg.vel_north, noise_dist_(gen_) * 0.5));
     msg.vel_east = static_cast<float>(generateRandomOffset(msg.vel_east, noise_dist_(gen_) * 0.5));
+}
+
+void RTKSimulator::handlePlanningTrajectory() {
+    // 检查轨迹是否有效
+    if (!current_trajectory_ || current_trajectory_->points.empty()) {
+        use_planning_trajectory_ = false;
+        return;
+    }
+    
+    // 检查是否到达轨迹末尾
+    if (current_trajectory_index_ >= current_trajectory_->points.size()) {
+        RCLCPP_INFO(this->get_logger(), "Planning trajectory completed");
+        use_planning_trajectory_ = false;
+        return;
+    }
+    
+    // 获取当前轨迹点
+    const auto &planning_point = current_trajectory_->points[current_trajectory_index_];
+    
+    // 检查速度是否为0
+    bool should_advance = true;
+    if (planning_point.vel_speed <= 0.0) {
+        if (!waiting_for_nonzero_velocity_) {
+            RCLCPP_INFO(this->get_logger(), "Velocity is zero, waiting at current point (index: %zu)", current_trajectory_index_);
+            waiting_for_nonzero_velocity_ = true;
+        }
+        // 保持当前点不变，不移动到下一个点
+        should_advance = false;
+    } else {
+        if (waiting_for_nonzero_velocity_) {
+            RCLCPP_INFO(this->get_logger(), "Velocity is non-zero, resuming trajectory (index: %zu)", current_trajectory_index_);
+            waiting_for_nonzero_velocity_ = false;
+        }
+    }
+    
+    // 创建LocalizationInfo消息
+    bot_msg::msg::LocalizationInfo msg;
+    msg.header.stamp = this->now();
+    msg.header.frame_id = "map";
+    
+    // 从规划轨迹点填充数据
+    msg.longtitude = planning_point.longtitude;
+    msg.latitude = planning_point.latitude;
+    msg.altitude = planning_point.altitude;
+    msg.north = planning_point.north;
+    msg.east = planning_point.east;
+    msg.up = planning_point.up;
+    msg.yaw = static_cast<float>(planning_point.yaw);
+    msg.pitch = static_cast<float>(planning_point.pitch);
+    msg.roll = static_cast<float>(planning_point.roll);
+    msg.vel_speed = planning_point.vel_speed;
+    msg.vel_north = planning_point.north_speed;
+    msg.vel_east = planning_point.east_speed;
+    msg.vel_up = 0.0f; // TrajectoryPoint 没有 vel_up 字段
+    msg.acc_x = planning_point.acceleration_x;
+    msg.acc_y = planning_point.acceleration_y;
+    msg.acc_z = planning_point.acceleration_z;
+    msg.gyro_x = 0.0f; // TrajectoryPoint 没有陀螺仪数据
+    msg.gyro_y = 0.0f;
+    msg.gyro_z = 0.0f;
+    msg.rtk_status = 4; // 假设规划轨迹的RTK状态为固定解
+    
+    // 添加随机噪声
+    addRandomNoise(msg);
+    
+    // 创建并发布 GNSS pose 消息
+    geometry_msgs::msg::PoseStamped gnss_pose_msg;
+    gnss_pose_msg.header.stamp = msg.header.stamp;
+    gnss_pose_msg.header.frame_id = gnss_frame_id_;
+    
+    // 设置位置信息
+    gnss_pose_msg.pose.position.x = msg.east;
+    gnss_pose_msg.pose.position.y = msg.north;
+    gnss_pose_msg.pose.position.z = msg.up;
+    
+    // 设置姿态信息
+    tf2::Quaternion orientation;
+    orientation.setRPY(0, 0, -msg.yaw * M_PI / 180.0);
+    gnss_pose_msg.pose.orientation.x = orientation.x();
+    gnss_pose_msg.pose.orientation.y = orientation.y();
+    gnss_pose_msg.pose.orientation.z = orientation.z();
+    gnss_pose_msg.pose.orientation.w = orientation.w();
+    
+    // 发布消息
+    pub_localization_->publish(msg);
+    pub_gnss_pose_->publish(gnss_pose_msg);
+    
+    // 移动到下一个点（只有当速度不为0时才移动）
+    if (should_advance) {
+        current_trajectory_index_+= 5;
+        
+        // 每10个点输出一次进度信息
+        if (current_trajectory_index_ % 10 == 0) {
+            RCLCPP_INFO(this->get_logger(), "Published planning point %zu/%zu (vel: %.2f)", 
+                       current_trajectory_index_, current_trajectory_->points.size(), planning_point.vel_speed);
+        }
+    } else {
+        // 即使不前进，也要输出当前状态
+        static size_t last_logged_index = SIZE_MAX;
+        if (last_logged_index != current_trajectory_index_) {
+            RCLCPP_INFO(this->get_logger(), "Staying at planning point %zu/%zu (vel: %.2f - waiting)", 
+                       current_trajectory_index_, current_trajectory_->points.size(), planning_point.vel_speed);
+            last_logged_index = current_trajectory_index_;
+        }
+    }
 }
 
 double RTKSimulator::generateRandomOffset(double base_value, double noise_percentage) {
