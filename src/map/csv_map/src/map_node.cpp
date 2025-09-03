@@ -108,7 +108,7 @@ MapNode::MapNode() : Node("map_node") {
     localization_sub_ = this->create_subscription<bot_msg::msg::LocalizationInfo>(
         "/localization/rtk_info", 10, std::bind(&MapNode::localizationCallback, this, std::placeholders::_1));
     
-    remote_controller_sub_ = this->create_subscription<bot_msg::msg::RemoteController>(
+    remote_controller_sub_ = this->create_subscription<std_msgs::msg::Int32>(
         "/remote_controller/cmd", 10, std::bind(&MapNode::remoteControllerCallback, this, std::placeholders::_1));
 
     // 创建定时器
@@ -133,15 +133,15 @@ void MapNode::localizationCallback(const bot_msg::msg::LocalizationInfo::SharedP
     localization_received_ = true;
 }
 
-void MapNode::remoteControllerCallback(const bot_msg::msg::RemoteController::SharedPtr msg) {
+void MapNode::remoteControllerCallback(const std_msgs::msg::Int32::SharedPtr msg) {
     static int pre_key_value = 0;
-    if (msg->key_value == 5 && pre_key_value != 5) {
+    if (msg->data == 5 && pre_key_value != 5) {
         int new_boundary_type = current_boundary_type_ + 1;
         RCLCPP_INFO(this->get_logger(), "Key 5 pressed, switching boundary type from %d to %d", 
                     current_boundary_type_, new_boundary_type);
         reloadBoundaryFiles(new_boundary_type);
     }
-    pre_key_value = msg->key_value;
+    pre_key_value = msg->data;
 }
 
 

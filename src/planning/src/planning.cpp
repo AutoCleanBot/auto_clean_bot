@@ -260,17 +260,31 @@ void PlanningNode::InitParams() {
  * @param path_type 
  */
 void PlanningNode::InitGlobalPath(int path_type) {
+    RCLCPP_INFO(this->get_logger(), "Initializing global path with type: %d", path_type);
+    
     auto client = this->create_client<bot_msg::srv::Routing>(service_name_);
+    RCLCPP_INFO(this->get_logger(), "Created routing service client for: %s", service_name_.c_str());
 
     // 等待服务可用
+    int wait_count = 0;
     while (!client->wait_for_service(std::chrono::seconds(1))) {
+        wait_count++;
         if (!rclcpp::ok()) {
             RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for service");
             return;
         }
-        RCLCPP_INFO(this->get_logger(), "Waiting for service %s to appear...",
-                    service_name_.c_str());
+        RCLCPP_WARN(this->get_logger(), "Waiting for service %s to appear... (attempt %d)",
+                    service_name_.c_str(), wait_count);
+        
+        // 如果等待超过10秒，放弃等待
+        if (wait_count >= 10) {
+            RCLCPP_ERROR(this->get_logger(), "Service %s not available after 10 seconds, giving up",
+                        service_name_.c_str());
+            return;
+        }
     }
+    
+    RCLCPP_INFO(this->get_logger(), "Service %s is available", service_name_.c_str());
 
     // 创建请求
     auto request = std::make_shared<bot_msg::srv::Routing::Request>();
@@ -278,35 +292,83 @@ void PlanningNode::InitGlobalPath(int path_type) {
 
     RCLCPP_INFO(this->get_logger(), "Sending request with path_type: %d", path_type);
 
-    // 发送异步请求并添加回调
-    auto future_result = client->async_send_request(
-        request, [this](rclcpp::Client<bot_msg::srv::Routing>::SharedFuture future) {
-            try {
-                auto response = future.get();
-                if (response) {
-                    g_traj_ = response->path;
-                    RCLCPP_INFO(this->get_logger(), "Global path is received, size: %d",
-                                response->path.points.size());
-                } else {
-                    RCLCPP_ERROR(this->get_logger(), "Received null response");
-                }
-            } catch (const std::exception &e) {
-                RCLCPP_ERROR(this->get_logger(), "Service call failed: %s", e.what());
-            }
-        });
+    // 发送异步请求（不使用回调函数）
+    RCLCPP_INFO(this->get_logger(), "About to send async request...");
+    routing_future_ = client->async_send_request(request);
+    routing_client_ = client;  // 保存client引用
 
-    RCLCPP_INFO(this->get_logger(), "Waiting for global path...");
+    RCLCPP_INFO(this->get_logger(), "Path switching request sent asynchronously");
+    RCLCPP_INFO(this->get_logger(), "Future status: %s", 
+                routing_future_.valid() ? "valid" : "invalid");
+    
+    // 创建一个定时器来检查异步调用结果
+    routing_check_timer_ = this->create_wall_timer(
+        std::chrono::milliseconds(100),
+        std::bind(&PlanningNode::CheckRoutingResult, this)
+    );
+    
+    RCLCPP_INFO(this->get_logger(), "Created timer to check routing result");
 
-    // 等待响应（可选，设置超时时间）
-    if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), future_result) !=
-        rclcpp::FutureReturnCode::SUCCESS) {
-        RCLCPP_ERROR(this->get_logger(), "Failed to get response from service");
+    // 移除阻塞等待代码，改为完全异步处理
+    // 删除以下代码以避免执行器冲突：
+    // if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), future_result) !=
+    //     rclcpp::FutureReturnCode::SUCCESS) {
+    //     RCLCPP_ERROR(this->get_logger(), "Failed to get response from service");
+    //     return;
+    // }
+    // 删除同步的打印代码，移到异步回调中处理
+    // for (size_t i = 0; i < 10; i++) {
+    //     RCLCPP_INFO(this->get_logger(), "point %d: x: %f, y: %f, z: %f", i, g_traj_.points[i].east,
+    //                 g_traj_.points[i].north, g_traj_.points[i].up);
+    // }
+}
+
+void PlanningNode::CheckRoutingResult() {
+    if (!routing_future_.valid()) {
+        RCLCPP_DEBUG(this->get_logger(), "No valid routing future to check");
         return;
     }
-    // 打印接收的前10个点
-    for (size_t i = 0; i < 10; i++) {
-        RCLCPP_INFO(this->get_logger(), "point %d: x: %f, y: %f, z: %f", i, g_traj_.points[i].east,
-                    g_traj_.points[i].north, g_traj_.points[i].up);
+    
+    // 检查异步调用是否完成
+    auto status = routing_future_.wait_for(std::chrono::milliseconds(0));
+    if (status == std::future_status::ready) {
+        RCLCPP_INFO(this->get_logger(), "=== ROUTING RESULT READY ===" );
+        try {
+            auto response = routing_future_.get();
+            if (response) {
+                RCLCPP_INFO(this->get_logger(), "Received response with %zu points", 
+                           response->path.points.size());
+                g_traj_ = response->path;
+                RCLCPP_INFO(this->get_logger(), "Global path is received, size: %d",
+                            static_cast<int>(response->path.points.size()));
+                
+                // 打印接收的前10个点
+                for (size_t i = 0; i < std::min(10UL, g_traj_.points.size()); i++) {
+                    RCLCPP_INFO(this->get_logger(), "point %zu: x: %f, y: %f, z: %f", i, 
+                                g_traj_.points[i].east, g_traj_.points[i].north, g_traj_.points[i].up);
+                }
+                
+                // 路径切换完成后，恢复运行状态
+                key_stop_ = false;
+                RCLCPP_INFO(this->get_logger(), "Path switching completed, resuming operation");
+            } else {
+                RCLCPP_ERROR(this->get_logger(), "Received null response from routing service");
+            }
+        } catch (const std::exception &e) {
+            RCLCPP_ERROR(this->get_logger(), "Service call failed: %s", e.what());
+        }
+        
+        // 停止定时器
+        routing_check_timer_->cancel();
+        routing_check_timer_.reset();
+        
+        // 清理future
+        routing_future_ = rclcpp::Client<bot_msg::srv::Routing>::SharedFuture();
+        routing_client_.reset();
+        
+        RCLCPP_INFO(this->get_logger(), "=== ROUTING RESULT PROCESSED ===" );
+    } else {
+        RCLCPP_DEBUG(this->get_logger(), "Routing result not ready yet, continuing to wait");
     }
 }
 
@@ -338,6 +400,7 @@ void PlanningNode::RemoteControlCallback(const std_msgs::msg::Int32::SharedPtr m
         key_stop_ = true;
         remote_control_cmd_ = 0; 
         path_type_ ++;
+        RCLCPP_INFO(this->get_logger(), "Switching to path type: %d", path_type_);
         InitGlobalPath(path_type_);
     }
 }

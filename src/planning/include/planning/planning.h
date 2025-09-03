@@ -5,6 +5,7 @@
 #include "bot_msg/msg/boundary.hpp"
 #include "bot_msg/msg/localization_info.hpp"
 #include "bot_msg/msg/obstacles.hpp"
+#include "bot_msg/srv/routing.hpp"
 #include <chrono>
 #include <geometry_msgs/msg/point.hpp>
 #include <limits>
@@ -15,6 +16,9 @@
 #include <tf2/utils.h>
 #include <visualization_msgs/msg/marker.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
+#include <mutex>
+
+
 namespace planning {
 
 enum PlanningStatus {
@@ -37,6 +41,7 @@ class PlanningNode : public rclcpp::Node {
     PlanningNode();
     ~PlanningNode();
     void InitGlobalPath(int path_type);
+    void CheckRoutingResult();  // 检查异步routing结果的方法
     void InitParams();
 
     void TimerCallback();
@@ -168,5 +173,11 @@ class PlanningNode : public rclcpp::Node {
 
     // 创建障碍物点可视化标记
     visualization_msgs::msg::Marker CreateObstaclePointsMarker();
+    mutable std::mutex g_traj_mutex_;
+    
+    // Routing相关的成员变量
+    rclcpp::Client<bot_msg::srv::Routing>::SharedPtr routing_client_;
+    rclcpp::Client<bot_msg::srv::Routing>::SharedFuture routing_future_;
+    rclcpp::TimerBase::SharedPtr routing_check_timer_;
 };
 } // namespace planning

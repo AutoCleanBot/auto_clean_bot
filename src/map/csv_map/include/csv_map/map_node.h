@@ -4,6 +4,7 @@
 #include <bot_msg/msg/boundary_point.hpp>
 #include <bot_msg/msg/localization_info.hpp>
 #include <bot_msg/msg/remote_controller.hpp>
+#include <std_msgs/msg/int32.hpp>
 #include <fstream>
 #include <memory>
 #include <rclcpp/rclcpp.hpp>
@@ -28,7 +29,7 @@ class MapNode : public rclcpp::Node {
     void localizationCallback(const bot_msg::msg::LocalizationInfo::SharedPtr msg);
     
     // 订阅遥控器按键的回调函数
-    void remoteControllerCallback(const bot_msg::msg::RemoteController::SharedPtr msg);
+    void remoteControllerCallback(const std_msgs::msg::Int32::SharedPtr msg);
 
     // 定时器回调函数，用于发布边界点
     void timerCallback();
@@ -65,7 +66,7 @@ class MapNode : public rclcpp::Node {
 
     // 订阅和发布
     rclcpp::Subscription<bot_msg::msg::LocalizationInfo>::SharedPtr localization_sub_;
-    rclcpp::Subscription<bot_msg::msg::RemoteController>::SharedPtr remote_controller_sub_;
+    rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr remote_controller_sub_;
     rclcpp::Publisher<bot_msg::msg::Boundary>::SharedPtr left_boundary_pub_;
     rclcpp::Publisher<bot_msg::msg::Boundary>::SharedPtr right_boundary_pub_;
     rclcpp::TimerBase::SharedPtr timer_;
