@@ -13,25 +13,17 @@ def generate_launch_description():
         description='Logging level'
     )
     
-    # 将所有参数放在一个字典中
-    canbus_params = {
-        'can_device': 'can0',
-        'can_baud': 500,
-        'control_cmd_topic': '/control/control_cmd',
-        'chassis_info_topic': '/chassis_info_topic',
-    }
-    
-    # 配置节点，并将参数字典直接传递给参数字段
-    canbus_node = Node(
-        package='canbus',
-        executable='canbus_node',
-        name='canbus_node',  # 保持与代码中一致
+    # 配置remote_controller_simulator节点
+    simulator_node = Node(
+        package='remote_controller_simulator',
+        executable='remote_controller_simulator_node',
+        name='remote_controller_simulator',
         output='screen',
-        parameters=[canbus_params],  # 直接使用参数字典
+        emulate_tty=True,
         arguments=['--ros-args', '--log-level', log_level]
     )
 
     return LaunchDescription([
         declare_log_level,
-        canbus_node
+        simulator_node
     ])

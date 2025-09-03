@@ -19,6 +19,7 @@ def generate_launch_description():
         'can_baud': 250,
         'control_cmd_topic': '/control/control_cmd',
         'chassis_info_topic': '/chassis_info_topic',
+        'remote_controller_topic': '/remote_controller/cmd',
     }
     
     # 配置节点，并将参数字典直接传递给参数字段

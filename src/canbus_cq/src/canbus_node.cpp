@@ -2,6 +2,7 @@
 #include <chrono>
 #include <fcntl.h>
 #include <iomanip>
+#include <rclcpp/logging.hpp>
 #include <stdint.h>
 #include <sys/select.h>
 
@@ -21,6 +22,8 @@ CanbusNode::CanbusNode() : Node("canbus_node") {
     // 初始化订阅者和发布者
     sub_control_cmd_ = this->create_subscription<bot_msg::msg::ControlCmd>(
         control_cmd_topic_, 10, std::bind(&CanbusNode::ControlCmdCallback, this, std::placeholders::_1));
+    sub_remote_controller_ = this->create_subscription<bot_msg::msg::RemoteController>(
+        remote_controller_topic_, 10, std::bind(&CanbusNode::RemoteControllerCallback, this, std::placeholders::_1));
     pub_chassis_info_ = this->create_publisher<bot_msg::msg::ChassisInfo>(chassis_info_topic_, 10);
 
     // 初始化定时器
@@ -28,7 +31,11 @@ CanbusNode::CanbusNode() : Node("canbus_node") {
 
     // 创建一个线程循环读取CAN数据
     can_thread_ = std::thread(&CanbusNode::CanThreadFunc, this);
+
+
 }
+
+
 
 CanbusNode::~CanbusNode() {
     running_ = false; // 设置标志位通知线程退出
@@ -56,7 +63,7 @@ void CanbusNode::SendCtrlMsg(double steer_angle, double brk, uint8_t gear, doubl
     FillCanCtrlCmd(frame.data, steer_angle, brk, gear, spd);
     int ret = write(can_fd_, &frame, sizeof(frame));
     if (ret < 0) {
-        RCLCPP_ERROR(this->get_logger(), "Error sending CAN frame");
+        // RCLCPP_ERROR(this->get_logger(), "Error sending CAN frame");
     }
     PrintCanDataFrame(frame);
 
@@ -65,7 +72,7 @@ void CanbusNode::SendCtrlMsg(double steer_angle, double brk, uint8_t gear, doubl
     memset(frame.data, 0, 8);
     ret = write(can_fd_, &frame, sizeof(frame));
     if (ret < 0) {
-        RCLCPP_ERROR(this->get_logger(), "Error sending CAN frame");
+        // RCLCPP_ERROR(this->get_logger(), "Error sending CAN frame");
     }
     PrintCanDataFrame(frame);
 }
@@ -118,16 +125,19 @@ void CanbusNode::InitParams() {
     this->declare_parameter<int>("can_baud", 500);
     this->declare_parameter<std::string>("control_cmd_topic", "/control_cmd");
     this->declare_parameter<std::string>("chassis_info_topic", "/chassis_info_topic");
+    this->declare_parameter<std::string>("remote_controller_topic", "/remote_controller");
 
     this->get_parameter("can_device", can_device_name_);
     this->get_parameter("can_baud", can_baudrate_);
     this->get_parameter("control_cmd_topic", control_cmd_topic_);
     this->get_parameter("chassis_info_topic", chassis_info_topic_);
+    this->get_parameter("remote_controller_topic", remote_controller_topic_);
 
     RCLCPP_INFO(this->get_logger(), "can_device_name: %s", can_device_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "can_baud: %d", can_baudrate_);
     RCLCPP_INFO(this->get_logger(), "control_cmd_topic: %s", control_cmd_topic_.c_str());
     RCLCPP_INFO(this->get_logger(), "chassis_info_topic: %s", chassis_info_topic_.c_str());
+    RCLCPP_INFO(this->get_logger(), "remote_controller_topic: %s", remote_controller_topic_.c_str());
 }
 
 /**
@@ -308,6 +318,7 @@ void CanbusNode::RemoteControllerCallback(const bot_msg::msg::RemoteController::
     }else if(msg->key_value == 4){
         mannula_control_flag_ = true;
     }
+    RCLCPP_INFO(this->get_logger(), "remote controller key value: %d", msg->key_value);
 }
 
 /**

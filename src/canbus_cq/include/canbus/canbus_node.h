@@ -5,7 +5,6 @@
 #include "bot_msg/msg/remote_controller.hpp"
 #include "canbus/can_protocol.h"
 #include <atomic>
-#include <bot_msg/msg/detail/remote_controller__struct.hpp>
 #include <cstring>
 #include <bits/stdint-uintn.h>
 #include <linux/can.h>
@@ -56,6 +55,7 @@ class CanbusNode : public rclcpp::Node {
     int can_baudrate_;               // can波特率
     std::string control_cmd_topic_;  // 控制指令主题名称
     std::string chassis_info_topic_; // 底盘信息主题名称
+    std::string remote_controller_topic_; // 遥控器主题名称
     int can_fd_ = 0;
     std::atomic<bool> running_; // 控制线程运行的标志位
     std::thread can_thread_;
@@ -78,5 +78,6 @@ class CanbusNode : public rclcpp::Node {
     void SendCtrlMsg(double steer_angle, double brk, uint8_t gear, double spd);
     void FillChassisInfo(bot_msg::msg::ChassisInfo::SharedPtr msg);
     void PrintCanDataFrame(const struct can_frame &frame);
+    void RemoteControlCallback(const bot_msg::msg::RemoteController::SharedPtr msg);
 };
 } // namespace canbus
