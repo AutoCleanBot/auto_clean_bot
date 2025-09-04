@@ -119,6 +119,7 @@ class PlanningNode : public rclcpp::Node {
     bool remote_control_enabled_;                 // 是否启用远程控制, 启动远程遥控,则等待遥控才能启动
     bool key_stop_;                               // key_stop_
     bool manula_control_;                         // 手动控制符号位
+    bool cyclic_test_mode_;                       // 循环测试模式
     int32_t remote_control_cmd_;                  // 远程控制命令
 
     // 占用栅格地图障碍物检测参数
@@ -154,6 +155,11 @@ class PlanningNode : public rclcpp::Node {
     double deceleration_distance_;    // 开始减速的距离（米）
     double deceleration_speed_;       // 减速后的目标速度（m/s）
     double final_stop_distance_;      // 最终停车距离（米）
+    int bkpoint_end_path_type_;       // 断点测试的路径终点
+    int bkpoint_start_path_type_;     // 断点测试的路径起点
+    double cyclic_test_end_dis_;      // 循环测试模式下的终点距离
+    int cyclic_test_path_type_;       // 循环测试模式下的路径类型
+    bool cyclic_change_idx_flag_;     // 循环测试模式下的索引跳转标志
 
     // 性能统计变量
     mutable int frame_count_;                       // 处理的帧数计数

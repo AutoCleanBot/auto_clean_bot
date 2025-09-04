@@ -62,6 +62,9 @@ MapNode::MapNode() : Node("map_node") {
     this->declare_parameter("max_index_jump", 30.0);
     this->declare_parameter("yaw_weight", 3.0);
 
+    this->declare_parameter("bkpoint_end_path_type", 13);
+
+
     map_files_dir_ = this->get_parameter("map_files_dir").as_string();
     int boundary_type = this->get_parameter("boundary_type").as_int();
     
@@ -76,8 +79,10 @@ MapNode::MapNode() : Node("map_node") {
     max_index_jump_ = this->get_parameter("max_index_jump").as_double();
     yaw_weight_ = this->get_parameter("yaw_weight").as_double();
 
+    bkpoint_end_path_type_ = this->get_parameter("bkpoint_end_path_type").as_int();
     // 保存当前边界类型
     current_boundary_type_ = boundary_type;
+    bkpoint_start_path_type_ = boundary_type;
     
     // 构建边界文件的完整路径
     auto boundary_paths = getBoundaryFilePaths(boundary_type);
@@ -136,7 +141,11 @@ void MapNode::localizationCallback(const bot_msg::msg::LocalizationInfo::SharedP
 void MapNode::remoteControllerCallback(const std_msgs::msg::Int32::SharedPtr msg) {
     static int pre_key_value = 0;
     if (msg->data == 5 && pre_key_value != 5) {
-        int new_boundary_type = current_boundary_type_ + 1;
+        int new_boundary_type;
+        if(current_boundary_type_ == bkpoint_end_path_type_)
+            new_boundary_type = bkpoint_start_path_type_;
+        else
+            new_boundary_type = current_boundary_type_ + 1;
         RCLCPP_INFO(this->get_logger(), "Key 5 pressed, switching boundary type from %d to %d", 
                     current_boundary_type_, new_boundary_type);
         reloadBoundaryFiles(new_boundary_type);

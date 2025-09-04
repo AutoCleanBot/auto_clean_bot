@@ -26,14 +26,10 @@ CanbusNode::CanbusNode() : Node("canbus_node") {
     sub_remote_controller_ = this->create_subscription<std_msgs::msg::Int32>(
         remote_controller_topic_, 10, std::bind(&CanbusNode::RemoteControllerCallback, this, std::placeholders::_1));
     pub_chassis_info_ = this->create_publisher<bot_msg::msg::ChassisInfo>(chassis_info_topic_, 10);
-
     // 初始化定时器
     timer_ = this->create_wall_timer(std::chrono::milliseconds(20), std::bind(&CanbusNode::TimerCallback, this));
-
     // 创建一个线程循环读取CAN数据
     can_thread_ = std::thread(&CanbusNode::CanThreadFunc, this);
-
-
 }
 
 

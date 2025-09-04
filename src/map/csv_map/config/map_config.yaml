@@ -19,3 +19,6 @@ map_node:
     # 简化的最近点搜索参数
     direction_stability_weight: 2.0  # 连续性权重（避免大幅跳跃）
     max_index_jump: 100.0            # 最大索引跳跃限制（点数）
+
+   
+    bkpoint_end_path_type : 13  # 断点测试的结束路径类型

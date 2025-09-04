@@ -83,6 +83,8 @@ class MapNode : public rclcpp::Node {
     
     // 当前边界类型
     int current_boundary_type_ = 3;
+    int bkpoint_start_path_type_;
+    int bkpoint_end_path_type_;
 
     // 方向稳定性参数
     double direction_stability_weight_ = 2.0; // 方向稳定性权重
