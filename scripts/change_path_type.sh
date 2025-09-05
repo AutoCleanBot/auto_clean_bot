@@ -77,9 +77,9 @@ fi
 
 print_info "开始修改配置文件，序号: $PATH_NUMBER"
 
-# 修改 planning_params.yaml 中的 path_type
+# 修改 planning_params.yaml 中的 path_type（只修改主要的path_type，不影响cyclic_test_path_type等）
 print_info "修改 planning_params.yaml 中的 path_type 为 $PATH_NUMBER..."
-if sed -i "s/path_type: [0-9]*/path_type: $PATH_NUMBER/" "$PLANNING_CONFIG"; then
+if sed -i "s/^[[:space:]]*path_type:[[:space:]]*[0-9]*/    path_type: $PATH_NUMBER/" "$PLANNING_CONFIG"; then
     print_info "✓ planning_params.yaml 修改成功"
 else
     print_error "✗ planning_params.yaml 修改失败"
