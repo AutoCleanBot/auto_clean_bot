@@ -146,9 +146,9 @@ void PlanningNode::InitParams() {
     this->declare_parameter("deceleration_distance", 8.0);
     this->declare_parameter("deceleration_speed", 0.2);
     this->declare_parameter("final_stop_distance", 2.0);
-    this->declare_parameter("cyclic_test_path_type",20);
-    this->declare_parameter("cyclic_test_end_dis",2.0);
-    this->declare_parameter("bkpoint_end_path_type",13);
+    this->declare_parameter("cyclic_test_path_type", 20);
+    this->declare_parameter("cyclic_test_end_dis", 2.0);
+    this->declare_parameter("bkpoint_end_path_type", 13);
 
     local_topic_name_ = this->get_parameter("local_topic_name").as_string();
     service_name_ = this->get_parameter("service_name").as_string();
@@ -157,7 +157,7 @@ void PlanningNode::InitParams() {
     preview_dist_ = this->get_parameter("preview_dist").as_double();
     start_dist_ = this->get_parameter("start_dist").as_double();
     traj_pub_interval_ = this->get_parameter("traj_pub_interval").as_double();
-    
+
     traj_topic_name_ = this->get_parameter("traj_topic_name").as_string();
     perc_topic_name_ = this->get_parameter("perc_topic_name").as_string();
     planning_spd_ = this->get_parameter("planning_spd").as_double();
@@ -172,7 +172,6 @@ void PlanningNode::InitParams() {
     test_mode_ = this->get_parameter("test_mode").as_bool();
     visualization_topic_name_ = this->get_parameter("visualization_topic_name").as_string();
     remote_control_enabled_ = this->get_parameter("remote_control_enabled").as_bool();
-    
 
     // 获取占用栅格地图障碍物检测参数
     min_obstacle_distance_ = this->get_parameter("min_obstacle_distance").as_double();
@@ -265,17 +264,17 @@ void PlanningNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), " bkpoint_end_path_type:%d", bkpoint_end_path_type_);
 }
 
-
 /**
  * @brief 初始化全局路径,调用后即从routing模块获取全局路径,更新全局路径g_traj_
- * 
- * @param path_type 
+ *
+ * @param path_type
  */
 void PlanningNode::InitGlobalPath(int path_type) {
     RCLCPP_INFO(this->get_logger(), "Initializing global path with type: %d", path_type);
-    
+
     auto client = this->create_client<bot_msg::srv::Routing>(service_name_);
-    RCLCPP_INFO(this->get_logger(), "Created routing service client for: %s", service_name_.c_str());
+    RCLCPP_INFO(this->get_logger(), "Created routing service client for: %s",
+                service_name_.c_str());
 
     // 等待服务可用
     int wait_count = 0;
@@ -287,15 +286,15 @@ void PlanningNode::InitGlobalPath(int path_type) {
         }
         RCLCPP_WARN(this->get_logger(), "Waiting for service %s to appear... (attempt %d)",
                     service_name_.c_str(), wait_count);
-        
+
         // 如果等待超过10秒，放弃等待
         if (wait_count >= 10) {
             RCLCPP_ERROR(this->get_logger(), "Service %s not available after 10 seconds, giving up",
-                        service_name_.c_str());
+                         service_name_.c_str());
             return;
         }
     }
-    
+
     RCLCPP_INFO(this->get_logger(), "Service %s is available", service_name_.c_str());
 
     // 创建请求
@@ -310,15 +309,13 @@ void PlanningNode::InitGlobalPath(int path_type) {
     routing_client_ = client;  // 保存client引用
 
     RCLCPP_INFO(this->get_logger(), "Path switching request sent asynchronously");
-    RCLCPP_INFO(this->get_logger(), "Future status: %s", 
+    RCLCPP_INFO(this->get_logger(), "Future status: %s",
                 routing_future_.valid() ? "valid" : "invalid");
-    
+
     // 创建一个定时器来检查异步调用结果
     routing_check_timer_ = this->create_wall_timer(
-        std::chrono::milliseconds(100),
-        std::bind(&PlanningNode::CheckRoutingResult, this)
-    );
-    
+        std::chrono::milliseconds(100), std::bind(&PlanningNode::CheckRoutingResult, this));
+
     RCLCPP_INFO(this->get_logger(), "Created timer to check routing result");
 
     // 移除阻塞等待代码，改为完全异步处理
@@ -330,7 +327,8 @@ void PlanningNode::InitGlobalPath(int path_type) {
     // }
     // 删除同步的打印代码，移到异步回调中处理
     // for (size_t i = 0; i < 10; i++) {
-    //     RCLCPP_INFO(this->get_logger(), "point %d: x: %f, y: %f, z: %f", i, g_traj_.points[i].east,
+    //     RCLCPP_INFO(this->get_logger(), "point %d: x: %f, y: %f, z: %f", i,
+    //     g_traj_.points[i].east,
     //                 g_traj_.points[i].north, g_traj_.points[i].up);
     // }
 }
@@ -340,24 +338,25 @@ void PlanningNode::CheckRoutingResult() {
         RCLCPP_DEBUG(this->get_logger(), "No valid routing future to check");
         return;
     }
-    
+
     // 检查异步调用是否完成
     auto status = routing_future_.wait_for(std::chrono::milliseconds(0));
     if (status == std::future_status::ready) {
-        RCLCPP_INFO(this->get_logger(), "=== ROUTING RESULT READY ===" );
+        RCLCPP_INFO(this->get_logger(), "=== ROUTING RESULT READY ===");
         try {
             auto response = routing_future_.get();
             if (response) {
-                RCLCPP_INFO(this->get_logger(), "Received response with %zu points", 
-                           response->path.points.size());
+                RCLCPP_INFO(this->get_logger(), "Received response with %zu points",
+                            response->path.points.size());
                 g_traj_ = response->path;
                 RCLCPP_INFO(this->get_logger(), "Global path is received, size: %d",
                             static_cast<int>(response->path.points.size()));
-                
+
                 // 打印接收的前10个点
                 for (size_t i = 0; i < std::min(10UL, g_traj_.points.size()); i++) {
-                    RCLCPP_INFO(this->get_logger(), "point %zu: x: %f, y: %f, z: %f", i, 
-                                g_traj_.points[i].east, g_traj_.points[i].north, g_traj_.points[i].up);
+                    RCLCPP_INFO(this->get_logger(), "point %zu: x: %f, y: %f, z: %f", i,
+                                g_traj_.points[i].east, g_traj_.points[i].north,
+                                g_traj_.points[i].up);
                 }
                 RCLCPP_INFO(this->get_logger(), "Path switching completed, resuming operation");
             } else {
@@ -366,16 +365,16 @@ void PlanningNode::CheckRoutingResult() {
         } catch (const std::exception &e) {
             RCLCPP_ERROR(this->get_logger(), "Service call failed: %s", e.what());
         }
-        
+
         // 停止定时器
         routing_check_timer_->cancel();
         routing_check_timer_.reset();
-        
+
         // 清理future
         routing_future_ = rclcpp::Client<bot_msg::srv::Routing>::SharedFuture();
         routing_client_.reset();
-        
-        RCLCPP_INFO(this->get_logger(), "=== ROUTING RESULT PROCESSED ===" );
+
+        RCLCPP_INFO(this->get_logger(), "=== ROUTING RESULT PROCESSED ===");
     } else {
         RCLCPP_DEBUG(this->get_logger(), "Routing result not ready yet, continuing to wait");
     }
@@ -405,25 +404,26 @@ void PlanningNode::RemoteControlCallback(const std_msgs::msg::Int32::SharedPtr m
     } else if (remote_control_cmd_ == 4) {  // 手动节点
         manula_control_ = true;
         key_stop_ = true;
-    }else if(remote_control_cmd_ == 5){  // 任务路径切换
+    } else if (remote_control_cmd_ == 5) {  // 任务路径切换
         key_stop_ = true;
         remote_control_cmd_ = 0;
         // 退出循环模式
         cyclic_test_mode_ = false;
         cyclic_change_idx_flag_ = false;
-        if(path_type_ == bkpoint_end_path_type_)
+        if (path_type_ == bkpoint_end_path_type_)
             path_type_ = bkpoint_start_path_type_;
         else
-            path_type_ ++;
+            path_type_++;
         RCLCPP_INFO(this->get_logger(), "Switching to path type: %d ", path_type_);
         InitGlobalPath(path_type_);
-    }else if(remote_control_cmd_ == 6){ // 循环路径切换
+    } else if (remote_control_cmd_ == 6) {  // 循环路径切换
         key_stop_ = true;
         remote_control_cmd_ = 0;
         cyclic_test_mode_ = true;
         cyclic_change_idx_flag_ = false;  // 重置索引跳转标志
         path_type_ = cyclic_test_path_type_;
-        RCLCPP_INFO(this->get_logger(), "Switching to cyclic path type: %d (启用无限循环模式)", path_type_);
+        RCLCPP_INFO(this->get_logger(), "Switching to cyclic path type: %d (启用无限循环模式)",
+                    path_type_);
         InitGlobalPath(path_type_);
     }
 }
@@ -496,24 +496,24 @@ void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
     }
 
     // 循环模式下的路径重置逻辑
+    bool force_global_search = false;  // 强制全局搜索标志
     if (cyclic_test_mode_ && cyclic_change_idx_flag_) {
         // 计算从当前最近点到起点的距离
-        double distance_to_start = std::sqrt(
-            std::pow(g_traj_.points[0].east - cur_local_.east, 2) +
-            std::pow(g_traj_.points[0].north - cur_local_.north, 2)
-        );
-        
+        double distance_to_start =
+            std::sqrt(std::pow(g_traj_.points[0].east - cur_local_.east, 2) +
+                      std::pow(g_traj_.points[0].north - cur_local_.north, 2));
+
         // 如果距离起点足够近，重置索引
         if (distance_to_start < cyclic_test_end_dis_ * 2.0) {  // 使用2倍的终点距离作为重置条件
-            RCLCPP_INFO(this->get_logger(), 
-                       "循环模式：路径重置 - 当前索引: %zu, 距起点: %.2fm, 重置到起点",
-                       closet_idx_, distance_to_start);
-            
+            RCLCPP_INFO(this->get_logger(),
+                        "循环模式：路径重置 - 当前索引: %zu, 距起点: %.2fm, 重置到起点",
+                        closet_idx_, distance_to_start);
+
             // 重置相关标志和索引
             cyclic_change_idx_flag_ = false;
-            
-            // 可以选择强制重置到起点附近，或者让自然搜索算法找到最近点
-            // 这里我们让搜索算法自然地找到起点附近的最近点
+            force_global_search = true;  // 强制执行全局搜索以找到起点附近的索引
+
+            RCLCPP_INFO(this->get_logger(), "循环模式：强制执行全局搜索以重置到起点附近");
         }
     }
 
@@ -535,7 +535,8 @@ void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
         // 循环模式下的特殊处理：如果设置了重置标志，扩大搜索范围
         if (cyclic_test_mode_ && cyclic_change_idx_flag_) {
             local_search_radius = g_traj_.points.size() / 4;  // 搜索整个路径的1/4
-            RCLCPP_INFO(this->get_logger(), "循环模式：扩大搜索范围到 %zu 个点", local_search_radius);
+            RCLCPP_INFO(this->get_logger(), "循环模式：扩大搜索范围到 %zu 个点",
+                        local_search_radius);
         }
 
         search_start =
@@ -556,16 +557,19 @@ void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
         if (!first_run) {
             double index_diff =
                 std::abs(static_cast<double>(i) - static_cast<double>(last_closest_idx));
-            
+
             // 循环模式下的特殊处理：如果是从路径末尾跳到起点的情况
             if (cyclic_test_mode_ && cyclic_change_idx_flag_) {
                 // 检查是否是从路径末尾跳到起点的情况
-                bool is_end_to_start_jump = (last_closest_idx > g_traj_.points.size() * 0.8) && (i < g_traj_.points.size() * 0.2);
+                bool is_end_to_start_jump = (last_closest_idx > g_traj_.points.size() * 0.8) &&
+                                            (i < g_traj_.points.size() * 0.2);
                 if (is_end_to_start_jump) {
                     continuity_cost = 0.0;  // 不惩罚从终点到起点的跳跃
-                    RCLCPP_DEBUG(this->get_logger(), "循环模式：检测到终点到起点的跳跃，取消连续性惩罚");
+                    RCLCPP_DEBUG(this->get_logger(),
+                                 "循环模式：检测到终点到起点的跳跃，取消连续性惩罚");
                 } else if (index_diff > max_index_jump_) {
-                    continuity_cost = direction_stability_weight_ * 0.5 * (index_diff - max_index_jump_);  // 减半惩罚
+                    continuity_cost = direction_stability_weight_ * 0.5 *
+                                      (index_diff - max_index_jump_);  // 减半惩罚
                 }
             } else if (index_diff > max_index_jump_) {
                 continuity_cost = direction_stability_weight_ * (index_diff - max_index_jump_);
@@ -597,8 +601,9 @@ void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
         }
     }
 
-    // 全局搜索（首次运行或局部搜索失败时）
-    if (first_run || need_global_search || (cyclic_test_mode_ && cyclic_change_idx_flag_)) {
+    // 全局搜索（首次运行或局部搜索失败时或强制重置时）
+    if (first_run || need_global_search || (cyclic_test_mode_ && cyclic_change_idx_flag_) ||
+        force_global_search) {
         double global_min_cost = min_cost;
         size_t global_closest_idx = closest_idx;
 
@@ -611,22 +616,31 @@ void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
 
             // 对于全局搜索，连续性成本权重较小
             double continuity_cost = 0.0;
-            if (!first_run) {
+            if (!first_run && !force_global_search) {  // 强制重置时不考虑连续性
                 double index_diff =
                     std::abs(static_cast<double>(i) - static_cast<double>(last_closest_idx));
-                
+
                 // 循环模式下减少连续性惩罚
                 if (cyclic_test_mode_ && cyclic_change_idx_flag_) {
-                    bool is_end_to_start_jump = (last_closest_idx > g_traj_.points.size() * 0.8) && (i < g_traj_.points.size() * 0.2);
+                    bool is_end_to_start_jump = (last_closest_idx > g_traj_.points.size() * 0.8) &&
+                                                (i < g_traj_.points.size() * 0.2);
                     if (!is_end_to_start_jump && index_diff > max_index_jump_) {
-                        continuity_cost = direction_stability_weight_ * 0.2 * (index_diff - max_index_jump_);
+                        continuity_cost =
+                            direction_stability_weight_ * 0.2 * (index_diff - max_index_jump_);
                     }
                 } else if (index_diff > max_index_jump_) {
-                    continuity_cost = direction_stability_weight_ * 0.5 * (index_diff - max_index_jump_);
+                    continuity_cost =
+                        direction_stability_weight_ * 0.5 * (index_diff - max_index_jump_);
                 }
             }
 
-            double total_cost = distance + continuity_cost;
+            // 循环重置时，给起点附近的点更高优先级
+            double priority_bonus = 0.0;
+            if (force_global_search && i < g_traj_.points.size() * 0.1) {  // 前10%的点获得优先级
+                priority_bonus = -1.0;  // 负值表示更低的成本（更高的优先级）
+            }
+
+            double total_cost = distance + continuity_cost + priority_bonus;
 
             if (total_cost < global_min_cost) {
                 global_min_cost = total_cost;
@@ -646,21 +660,32 @@ void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
                               std::pow(g_traj_.points[i].north - cur_local_.north, 2));
 
                 double continuity_cost = 0.0;
-                if (!first_run) {
+                if (!first_run && !force_global_search) {  // 强制重置时不考虑连续性
                     double index_diff =
                         std::abs(static_cast<double>(i) - static_cast<double>(last_closest_idx));
-                    
+
                     if (cyclic_test_mode_ && cyclic_change_idx_flag_) {
-                        bool is_end_to_start_jump = (last_closest_idx > g_traj_.points.size() * 0.8) && (i < g_traj_.points.size() * 0.2);
+                        bool is_end_to_start_jump =
+                            (last_closest_idx > g_traj_.points.size() * 0.8) &&
+                            (i < g_traj_.points.size() * 0.2);
                         if (!is_end_to_start_jump && index_diff > max_index_jump_) {
-                            continuity_cost = direction_stability_weight_ * 0.2 * (index_diff - max_index_jump_);
+                            continuity_cost =
+                                direction_stability_weight_ * 0.2 * (index_diff - max_index_jump_);
                         }
                     } else if (index_diff > max_index_jump_) {
-                        continuity_cost = direction_stability_weight_ * 0.5 * (index_diff - max_index_jump_);
+                        continuity_cost =
+                            direction_stability_weight_ * 0.5 * (index_diff - max_index_jump_);
                     }
                 }
 
-                double total_cost = distance + continuity_cost;
+                // 循环重置时，给起点附近的点更高优先级
+                double priority_bonus = 0.0;
+                if (force_global_search &&
+                    i < g_traj_.points.size() * 0.1) {  // 前10%的点获得优先级
+                    priority_bonus = -1.0;  // 负值表示更低的成本（更高的优先级）
+                }
+
+                double total_cost = distance + continuity_cost + priority_bonus;
 
                 if (total_cost < global_min_cost) {
                     global_min_cost = total_cost;
@@ -677,14 +702,17 @@ void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
     if (!first_run) {
         double index_change =
             static_cast<double>(closest_idx) - static_cast<double>(last_closest_idx);
-        if (std::abs(index_change) > max_index_jump_) {
+        if (std::abs(index_change) > max_index_jump_ || force_global_search) {
             if (cyclic_test_mode_) {
-                RCLCPP_INFO(this->get_logger(),
+                std::string reset_info = force_global_search ? " [强制重置]" : "";
+                RCLCPP_INFO(
+                    this->get_logger(),
                     "循环模式：轨迹索引跳跃: 从 %zu 到 %zu (变化: %.1f), "
-                    "车辆位置: (%.2f, %.2f), 距离: %.2fm",
+                    "车辆位置: (%.2f, %.2f), 距离: %.2fm%s",
                     last_closest_idx, closest_idx, index_change, cur_local_.east, cur_local_.north,
                     std::sqrt(std::pow(g_traj_.points[closest_idx].east - cur_local_.east, 2) +
-                              std::pow(g_traj_.points[closest_idx].north - cur_local_.north, 2)));
+                              std::pow(g_traj_.points[closest_idx].north - cur_local_.north, 2)),
+                    reset_info.c_str());
             } else {
                 RCLCPP_WARN(
                     this->get_logger(),
@@ -1247,10 +1275,10 @@ void PlanningNode::UpdatePlanningStatus() {
     bool is_path_tail = false;
     bool is_decelerating = false;
     bool is_repeating_end_dis = false;
-    if(!cyclic_test_mode_){
+    if (!cyclic_test_mode_) {
         is_path_tail = IsNearDistance(final_stop_distance_);
         is_decelerating = IsNearDistance(deceleration_distance_);
-    }else{
+    } else {
         is_repeating_end_dis = IsNearDistance(cyclic_test_end_dis_);
         // 循环模式下：检查是否需要重置路径索引
         if (is_repeating_end_dis && !cyclic_change_idx_flag_) {
@@ -1310,7 +1338,7 @@ void PlanningNode::UpdatePlanningStatus() {
         } else if (is_decelerating) {
             planning_status_ = PlanningStatus::NearPathTail;
             RCLCPP_INFO(this->get_logger(), "Auto stop: Deceleration reached");
-        } 
+        }
     }
 
     if (timer_cnt_ % 10 == 0) {
@@ -1335,7 +1363,8 @@ void PlanningNode::UpdatePlanningStatus() {
         status_text += " [has_obstacle:" + std::string(has_front_obstacle ? "YES" : "NO") +
                        ", clear_count:" + std::to_string(clear_stable_count);
         if (cyclic_test_mode_) {
-            status_text += ", 循环模式:ON, 重置标志:" + std::string(cyclic_change_idx_flag_ ? "YES" : "NO");
+            status_text +=
+                ", 循环模式:ON, 重置标志:" + std::string(cyclic_change_idx_flag_ ? "YES" : "NO");
         }
         status_text += "]";
         RCLCPP_INFO(this->get_logger(), "%s", status_text.c_str());
