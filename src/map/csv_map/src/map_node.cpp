@@ -1,13 +1,15 @@
 #include "csv_map/map_node.h"
+
+#include <pwd.h>
+#include <unistd.h>
+
 #include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <map>
-#include <pwd.h>
 #include <rclcpp/logging.hpp>
 #include <sstream>
-#include <unistd.h>
 
 double NormalizeAngle(double angle) {
     while (angle > M_PI)
@@ -35,17 +37,17 @@ std::string expandTilde(const std::string &path) {
     }
 
     if (home == nullptr) {
-        return path; // 如果无法获取主目录，返回原始路径
+        return path;  // 如果无法获取主目录，返回原始路径
     }
 
     // 替换波浪号
-    if (path.length() == 1) { // 仅有 "~"
+    if (path.length() == 1) {  // 仅有 "~"
         return home;
     }
-    if (path[1] == '/') { // "~/xxx"
+    if (path[1] == '/') {  // "~/xxx"
         return std::string(home) + path.substr(1);
     }
-    return path; // "~xxx" 其他情况返回原始路径
+    return path;  // "~xxx" 其他情况返回原始路径
 }
 
 MapNode::MapNode() : Node("map_node") {
@@ -63,11 +65,11 @@ MapNode::MapNode() : Node("map_node") {
     this->declare_parameter("yaw_weight", 3.0);
 
     this->declare_parameter("bkpoint_end_path_type", 13);
-
+    this->declare_parameter("cyclic_test_path_type", 20);
+    this->declare_parameter("cyclic_test_end_dis", 2.0);
 
     map_files_dir_ = this->get_parameter("map_files_dir").as_string();
     int boundary_type = this->get_parameter("boundary_type").as_int();
-    
 
     left_boundary_name_ = this->get_parameter("left_boundary_name").as_string();
     right_boundary_name_ = this->get_parameter("right_boundary_name").as_string();
@@ -80,10 +82,12 @@ MapNode::MapNode() : Node("map_node") {
     yaw_weight_ = this->get_parameter("yaw_weight").as_double();
 
     bkpoint_end_path_type_ = this->get_parameter("bkpoint_end_path_type").as_int();
+    cyclic_test_path_type_ = this->get_parameter("cyclic_test_path_type").as_int();
+    cyclic_test_end_dis_ = this->get_parameter("cyclic_test_end_dis").as_double();
     // 保存当前边界类型
     current_boundary_type_ = boundary_type;
     bkpoint_start_path_type_ = boundary_type;
-    
+
     // 构建边界文件的完整路径
     auto boundary_paths = getBoundaryFilePaths(boundary_type);
     left_boundary_file_path_ = boundary_paths.first;
@@ -95,15 +99,19 @@ MapNode::MapNode() : Node("map_node") {
 
     RCLCPP_INFO(this->get_logger(), "Loaded boundary type: %d", boundary_type);
     if (!left_loaded) {
-        RCLCPP_ERROR(this->get_logger(), "Failed to load left boundary file: %s", left_boundary_file_path_.c_str());
+        RCLCPP_ERROR(this->get_logger(), "Failed to load left boundary file: %s",
+                     left_boundary_file_path_.c_str());
     } else {
-        RCLCPP_INFO(this->get_logger(), "Loaded left boundary file with %zu points", left_boundary_points_.size());
+        RCLCPP_INFO(this->get_logger(), "Loaded left boundary file with %zu points",
+                    left_boundary_points_.size());
     }
 
     if (!right_loaded) {
-        RCLCPP_ERROR(this->get_logger(), "Failed to load right boundary file: %s", right_boundary_file_path_.c_str());
+        RCLCPP_ERROR(this->get_logger(), "Failed to load right boundary file: %s",
+                     right_boundary_file_path_.c_str());
     } else {
-        RCLCPP_INFO(this->get_logger(), "Loaded right boundary file with %zu points", right_boundary_points_.size());
+        RCLCPP_INFO(this->get_logger(), "Loaded right boundary file with %zu points",
+                    right_boundary_points_.size());
     }
 
     // 创建发布者和订阅者
@@ -111,19 +119,22 @@ MapNode::MapNode() : Node("map_node") {
     right_boundary_pub_ = this->create_publisher<bot_msg::msg::Boundary>("/map/right_boundary", 10);
 
     localization_sub_ = this->create_subscription<bot_msg::msg::LocalizationInfo>(
-        "/localization/rtk_info", 10, std::bind(&MapNode::localizationCallback, this, std::placeholders::_1));
-    
+        "/localization/rtk_info", 10,
+        std::bind(&MapNode::localizationCallback, this, std::placeholders::_1));
+
     remote_controller_sub_ = this->create_subscription<std_msgs::msg::Int32>(
-        "/remote_controller/cmd", 10, std::bind(&MapNode::remoteControllerCallback, this, std::placeholders::_1));
+        "/remote_controller/cmd", 10,
+        std::bind(&MapNode::remoteControllerCallback, this, std::placeholders::_1));
 
     // 创建定时器
     double timer_period = 1.0 / publish_frequency_;
-    timer_ =
-        this->create_wall_timer(std::chrono::duration<double>(timer_period), std::bind(&MapNode::timerCallback, this));
+    timer_ = this->create_wall_timer(std::chrono::duration<double>(timer_period),
+                                     std::bind(&MapNode::timerCallback, this));
 
     // 输出方向稳定性参数
     RCLCPP_INFO(this->get_logger(), "Simplified closest point search parameters:");
-    RCLCPP_INFO(this->get_logger(), "  direction_stability_weight: %f", direction_stability_weight_);
+    RCLCPP_INFO(this->get_logger(), "  direction_stability_weight: %f",
+                direction_stability_weight_);
     RCLCPP_INFO(this->get_logger(), "  max_index_jump: %f", max_index_jump_);
 
     RCLCPP_INFO(this->get_logger(), "Map node initialized");
@@ -141,33 +152,71 @@ void MapNode::localizationCallback(const bot_msg::msg::LocalizationInfo::SharedP
 void MapNode::remoteControllerCallback(const std_msgs::msg::Int32::SharedPtr msg) {
     static int pre_key_value = 0;
     if (msg->data == 5 && pre_key_value != 5) {
+        // 按键5: 任务路径切换 - 退出循环模式
+        cyclic_test_mode_ = false;
+        cyclic_change_idx_flag_ = false;
         int new_boundary_type;
-        if(current_boundary_type_ == bkpoint_end_path_type_)
+        if (current_boundary_type_ == bkpoint_end_path_type_)
             new_boundary_type = bkpoint_start_path_type_;
         else
             new_boundary_type = current_boundary_type_ + 1;
-        RCLCPP_INFO(this->get_logger(), "Key 5 pressed, switching boundary type from %d to %d", 
+        RCLCPP_INFO(this->get_logger(),
+                    "Key 5 pressed, switching boundary type from %d to %d (退出循环模式)",
                     current_boundary_type_, new_boundary_type);
         reloadBoundaryFiles(new_boundary_type);
+    } else if (msg->data == 6 && pre_key_value != 6) {
+        // 按键6: 循环边界切换 - 进入循环模式
+        cyclic_test_mode_ = true;
+        cyclic_change_idx_flag_ = false;  // 重置索引跳转标志
+        int new_boundary_type = cyclic_test_path_type_;
+        RCLCPP_INFO(this->get_logger(),
+                    "Key 6 pressed, switching to cyclic boundary type %d (开启循环模式)",
+                    new_boundary_type);
+        reloadBoundaryFiles(new_boundary_type);
     }
+
     pre_key_value = msg->data;
 }
 
-
 void MapNode::timerCallback() {
     if (!localization_received_) {
-        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "No localization data received yet");
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
+                             "No localization data received yet");
         return;
     }
 
     if (left_boundary_points_.empty() || right_boundary_points_.empty()) {
-        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "Boundary points not loaded or empty");
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
+                             "Boundary points not loaded or empty");
         return;
     }
 
+    // 循环模式下的终点检测逻辑
+    if (cyclic_test_mode_) {
+        bool is_repeating_end_dis = IsNearDistance(cyclic_test_end_dis_);
+        // 循环模式下：检查是否需要重置路径索引
+        if (is_repeating_end_dis && !cyclic_change_idx_flag_) {
+            RCLCPP_INFO(this->get_logger(), "循环模式：到达终点，准备重置边界索引");
+            cyclic_change_idx_flag_ = true;
+        }
+    }
+
+    // 循环模式状态显示（每5秒输出一次）
+    static int timer_count = 0;
+    timer_count++;
+    if (timer_count % 50 == 0) {  // 10Hz * 5s = 50次
+        std::string mode_status = cyclic_test_mode_ ? "循环模式" : "普通模式";
+        std::string cyclic_flag_status = cyclic_change_idx_flag_ ? "重置标志:ON" : "重置标志:OFF";
+        RCLCPP_INFO(this->get_logger(), "Map模块状态: %s, 当前边界类型: %d, %s",
+                    mode_status.c_str(), current_boundary_type_,
+                    cyclic_test_mode_ ? cyclic_flag_status.c_str() : "");
+    }
+
     // 查找当前位置最近的边界点
-    size_t left_closest_idx = findClosestPointIndex(left_boundary_points_, current_east_, current_north_);
-    size_t right_closest_idx = findClosestPointIndex(right_boundary_points_, current_east_, current_north_);
+    size_t left_closest_idx =
+        findClosestPointIndex(left_boundary_points_, current_east_, current_north_);
+    size_t right_closest_idx =
+        findClosestPointIndex(right_boundary_points_, current_east_, current_north_);
 
     // 创建边界消息
     auto left_boundary_msg = std::make_unique<bot_msg::msg::Boundary>();
@@ -179,22 +228,26 @@ void MapNode::timerCallback() {
     right_boundary_msg->header.stamp = this->now();
     right_boundary_msg->header.frame_id = "map";
 
-    // 设置边界名称和类型
-    left_boundary_msg->boundary_name = left_boundary_name_;
-    left_boundary_msg->boundary_type = 0; // 左边界
-    right_boundary_msg->boundary_name = right_boundary_name_;
-    right_boundary_msg->boundary_type = 1; // 右边界
+    // 设置边界名称和类型，在循环模式下加上标识
+    std::string mode_suffix = cyclic_test_mode_ ? "_cyclic" : "";
+    left_boundary_msg->boundary_name = left_boundary_name_ + mode_suffix;
+    left_boundary_msg->boundary_type = 0;  // 左边界
+    right_boundary_msg->boundary_name = right_boundary_name_ + mode_suffix;
+    right_boundary_msg->boundary_type = 1;  // 右边界
 
     // 计算边界段
-    calculateBoundarySegment(left_boundary_points_, left_closest_idx, boundary_length_, left_boundary_msg->points);
-    calculateBoundarySegment(right_boundary_points_, right_closest_idx, boundary_length_, right_boundary_msg->points);
+    calculateBoundarySegment(left_boundary_points_, left_closest_idx, boundary_length_,
+                             left_boundary_msg->points);
+    calculateBoundarySegment(right_boundary_points_, right_closest_idx, boundary_length_,
+                             right_boundary_msg->points);
 
     // 发布边界消息
     left_boundary_pub_->publish(std::move(left_boundary_msg));
     right_boundary_pub_->publish(std::move(right_boundary_msg));
 }
 
-bool MapNode::loadBoundaryFile(const std::string &file_path, std::vector<BoundaryPoint> &boundary_points) {
+bool MapNode::loadBoundaryFile(const std::string &file_path,
+                               std::vector<BoundaryPoint> &boundary_points) {
     std::ifstream file(file_path);
     if (!file.is_open()) {
         RCLCPP_ERROR(this->get_logger(), "Could not open file: %s", file_path.c_str());
@@ -232,7 +285,7 @@ bool MapNode::loadBoundaryFile(const std::string &file_path, std::vector<Boundar
         if (std::getline(ss, token, ',')) {
             point.yaw = std::stod(token);
         } else {
-            point.yaw = 0.0; // 默认值
+            point.yaw = 0.0;  // 默认值
         }
 
         boundary_points.push_back(point);
@@ -242,9 +295,29 @@ bool MapNode::loadBoundaryFile(const std::string &file_path, std::vector<Boundar
     return !boundary_points.empty();
 }
 
-size_t MapNode::findClosestPointIndex(const std::vector<BoundaryPoint> &boundary_points, double east, double north) {
+size_t MapNode::findClosestPointIndex(const std::vector<BoundaryPoint> &boundary_points,
+                                      double east, double north) {
     if (boundary_points.empty()) {
         return 0;
+    }
+
+    // 循环模式下的路径重置逻辑
+    if (cyclic_test_mode_ && cyclic_change_idx_flag_) {
+        // 计算从当前最近点到起点的距离
+        double distance_to_start = std::sqrt(std::pow(boundary_points[0].east - east, 2) +
+                                             std::pow(boundary_points[0].north - north, 2));
+
+        // 如果距离起点足够近，重置索引
+        if (distance_to_start < cyclic_test_end_dis_ * 2.0) {  // 使用2倍的终点距离作为重置条件
+            RCLCPP_INFO(this->get_logger(), "循环模式：边界重置 - 距起点: %.2fm, 重置到起点",
+                        distance_to_start);
+
+            // 重置相关标志和索引
+            cyclic_change_idx_flag_ = false;
+
+            // 可以选择强制重置到起点附近，或者让自然搜索算法找到最近点
+            // 这里我们让搜索算法自然地找到起点附近的最近点
+        }
     }
 
     // 方向稳定性参数 - 为左右边界分别维护历史
@@ -266,11 +339,19 @@ size_t MapNode::findClosestPointIndex(const std::vector<BoundaryPoint> &boundary
         // 局部搜索范围：以上次最近点为中心的邻域
         size_t local_search_radius = static_cast<size_t>(max_index_jump_ * 1.5);
 
-        search_start = (last_closest_idx > local_search_radius) ? (last_closest_idx - local_search_radius) : 0;
+        // 循环模式下的特殊处理：如果设置了重置标志，扩大搜索范围
+        if (cyclic_test_mode_ && cyclic_change_idx_flag_) {
+            local_search_radius = boundary_points.size() / 4;  // 搜索整个路径的1/4
+            RCLCPP_INFO(this->get_logger(), "循环模式：扩大边界搜索范围到 %zu 个点",
+                        local_search_radius);
+        }
+
+        search_start =
+            (last_closest_idx > local_search_radius) ? (last_closest_idx - local_search_radius) : 0;
         search_end = std::min(last_closest_idx + local_search_radius + 1, boundary_points.size());
 
-        RCLCPP_DEBUG(this->get_logger(), "局部搜索范围: [%zu, %zu) 围绕上次索引: %zu",
-                     search_start, search_end, last_closest_idx);
+        RCLCPP_DEBUG(this->get_logger(), "局部搜索范围: [%zu, %zu) 围绕上次索引: %zu", search_start,
+                     search_end, last_closest_idx);
     }
 
     // 局部搜索
@@ -281,8 +362,23 @@ size_t MapNode::findClosestPointIndex(const std::vector<BoundaryPoint> &boundary
         // 计算连续性成本（避免大幅跳跃）
         double continuity_cost = 0.0;
         if (!first_run) {
-            double index_diff = std::abs(static_cast<double>(i) - static_cast<double>(last_closest_idx));
-            if (index_diff > max_index_jump_) {
+            double index_diff =
+                std::abs(static_cast<double>(i) - static_cast<double>(last_closest_idx));
+
+            // 循环模式下的特殊处理：如果是从路径末尾跳到起点的情况
+            if (cyclic_test_mode_ && cyclic_change_idx_flag_) {
+                // 检查是否是从路径末尾跳到起点的情况
+                bool is_end_to_start_jump = (last_closest_idx > boundary_points.size() * 0.8) &&
+                                            (i < boundary_points.size() * 0.2);
+                if (is_end_to_start_jump) {
+                    continuity_cost = 0.0;  // 不惩罚从终点到起点的跳跃
+                    RCLCPP_DEBUG(this->get_logger(),
+                                 "循环模式：检测到边界终点到起点的跳跃，取消连续性惩罚");
+                } else if (index_diff > max_index_jump_) {
+                    continuity_cost = direction_stability_weight_ * 0.5 *
+                                      (index_diff - max_index_jump_);  // 减半惩罚
+                }
+            } else if (index_diff > max_index_jump_) {
                 continuity_cost = direction_stability_weight_ * (index_diff - max_index_jump_);
             }
         }
@@ -299,25 +395,26 @@ size_t MapNode::findClosestPointIndex(const std::vector<BoundaryPoint> &boundary
     // 如果局部搜索没有找到足够好的结果，进行全局搜索
     bool need_global_search = false;
     if (!first_run) {
-        double distance_to_found = std::sqrt(std::pow(boundary_points[closest_idx].east - east, 2) +
-                                             std::pow(boundary_points[closest_idx].north - north, 2));
+        double distance_to_found =
+            std::sqrt(std::pow(boundary_points[closest_idx].east - east, 2) +
+                      std::pow(boundary_points[closest_idx].north - north, 2));
 
         // 如果找到的点距离太远，可能需要全局搜索
-        if (distance_to_found > 15.0) { // 15米阈值
+        if (distance_to_found > 15.0) {  // 15米阈值
             need_global_search = true;
             RCLCPP_WARN(this->get_logger(),
-                        "当前位置: (%.2f, %.2f), 局部搜索结果距离过远 (%.2fm), 执行全局搜索",
-                        east, north, distance_to_found);
+                        "当前位置: (%.2f, %.2f), 局部搜索结果距离过远 (%.2fm), 执行全局搜索", east,
+                        north, distance_to_found);
         }
     }
 
     // 全局搜索（首次运行或局部搜索失败时）
-    if (first_run || need_global_search) {
+    if (first_run || need_global_search || (cyclic_test_mode_ && cyclic_change_idx_flag_)) {
         double global_min_cost = min_cost;
         size_t global_closest_idx = closest_idx;
 
         // 跳跃式搜索：每隔几个点采样，然后在最佳区域细化
-        size_t step_size = std::max(1UL, boundary_points.size() / 100); // 最多检查100个采样点
+        size_t step_size = std::max(1UL, boundary_points.size() / 100);  // 最多检查100个采样点
 
         for (size_t i = 0; i < boundary_points.size(); i += step_size) {
             double distance = std::sqrt(std::pow(boundary_points[i].east - east, 2) +
@@ -326,9 +423,20 @@ size_t MapNode::findClosestPointIndex(const std::vector<BoundaryPoint> &boundary
             // 对于全局搜索，连续性成本权重较小
             double continuity_cost = 0.0;
             if (!first_run) {
-                double index_diff = std::abs(static_cast<double>(i) - static_cast<double>(last_closest_idx));
-                if (index_diff > max_index_jump_) {
-                    continuity_cost = direction_stability_weight_ * 0.5 * (index_diff - max_index_jump_);
+                double index_diff =
+                    std::abs(static_cast<double>(i) - static_cast<double>(last_closest_idx));
+
+                // 循环模式下减少连续性惩罚
+                if (cyclic_test_mode_ && cyclic_change_idx_flag_) {
+                    bool is_end_to_start_jump = (last_closest_idx > boundary_points.size() * 0.8) &&
+                                                (i < boundary_points.size() * 0.2);
+                    if (!is_end_to_start_jump && index_diff > max_index_jump_) {
+                        continuity_cost =
+                            direction_stability_weight_ * 0.2 * (index_diff - max_index_jump_);
+                    }
+                } else if (index_diff > max_index_jump_) {
+                    continuity_cost =
+                        direction_stability_weight_ * 0.5 * (index_diff - max_index_jump_);
                 }
             }
 
@@ -342,8 +450,10 @@ size_t MapNode::findClosestPointIndex(const std::vector<BoundaryPoint> &boundary
 
         // 在最佳采样点周围进行细化搜索
         if (global_closest_idx != closest_idx) {
-            size_t refine_start = (global_closest_idx > step_size) ? (global_closest_idx - step_size) : 0;
-            size_t refine_end = std::min(global_closest_idx + step_size + 1, boundary_points.size());
+            size_t refine_start =
+                (global_closest_idx > step_size) ? (global_closest_idx - step_size) : 0;
+            size_t refine_end =
+                std::min(global_closest_idx + step_size + 1, boundary_points.size());
 
             for (size_t i = refine_start; i < refine_end; i++) {
                 double distance = std::sqrt(std::pow(boundary_points[i].east - east, 2) +
@@ -351,9 +461,20 @@ size_t MapNode::findClosestPointIndex(const std::vector<BoundaryPoint> &boundary
 
                 double continuity_cost = 0.0;
                 if (!first_run) {
-                    double index_diff = std::abs(static_cast<double>(i) - static_cast<double>(last_closest_idx));
-                    if (index_diff > max_index_jump_) {
-                        continuity_cost = direction_stability_weight_ * 0.5 * (index_diff - max_index_jump_);
+                    double index_diff =
+                        std::abs(static_cast<double>(i) - static_cast<double>(last_closest_idx));
+
+                    if (cyclic_test_mode_ && cyclic_change_idx_flag_) {
+                        bool is_end_to_start_jump =
+                            (last_closest_idx > boundary_points.size() * 0.8) &&
+                            (i < boundary_points.size() * 0.2);
+                        if (!is_end_to_start_jump && index_diff > max_index_jump_) {
+                            continuity_cost =
+                                direction_stability_weight_ * 0.2 * (index_diff - max_index_jump_);
+                        }
+                    } else if (index_diff > max_index_jump_) {
+                        continuity_cost =
+                            direction_stability_weight_ * 0.5 * (index_diff - max_index_jump_);
                     }
                 }
 
@@ -372,14 +493,24 @@ size_t MapNode::findClosestPointIndex(const std::vector<BoundaryPoint> &boundary
 
     // 添加调试日志监控连续性
     if (!first_run) {
-        double index_change = static_cast<double>(closest_idx) - static_cast<double>(last_closest_idx);
+        double index_change =
+            static_cast<double>(closest_idx) - static_cast<double>(last_closest_idx);
         if (std::abs(index_change) > max_index_jump_) {
-            RCLCPP_WARN(this->get_logger(),
-                        "检测到边界索引大幅跳跃: 从 %zu 到 %zu (变化: %.1f), "
-                        "车辆位置: (%.2f, %.2f), 距离: %.2fm",
-                        last_closest_idx, closest_idx, index_change, east, north, 
-                        std::sqrt(std::pow(boundary_points[closest_idx].east - east, 2) +
-                                  std::pow(boundary_points[closest_idx].north - north, 2)));
+            if (cyclic_test_mode_) {
+                RCLCPP_INFO(this->get_logger(),
+                            "循环模式：边界索引跳跃: 从 %zu 到 %zu (变化: %.1f), "
+                            "车辆位置: (%.2f, %.2f), 距离: %.2fm",
+                            last_closest_idx, closest_idx, index_change, east, north,
+                            std::sqrt(std::pow(boundary_points[closest_idx].east - east, 2) +
+                                      std::pow(boundary_points[closest_idx].north - north, 2)));
+            } else {
+                RCLCPP_WARN(this->get_logger(),
+                            "检测到边界索引大幅跳跃: 从 %zu 到 %zu (变化: %.1f), "
+                            "车辆位置: (%.2f, %.2f), 距离: %.2fm",
+                            last_closest_idx, closest_idx, index_change, east, north,
+                            std::sqrt(std::pow(boundary_points[closest_idx].east - east, 2) +
+                                      std::pow(boundary_points[closest_idx].north - north, 2)));
+            }
         }
     }
 
@@ -387,17 +518,16 @@ size_t MapNode::findClosestPointIndex(const std::vector<BoundaryPoint> &boundary
     last_closest_idx = closest_idx;
     first_run = false;
 
-    RCLCPP_DEBUG(this->get_logger(), "选择边界点 %zu, 距离: %.2fm, 总成本: %.2f", 
-                 closest_idx, 
+    RCLCPP_DEBUG(this->get_logger(), "选择边界点 %zu, 距离: %.2fm, 总成本: %.2f", closest_idx,
                  std::sqrt(std::pow(boundary_points[closest_idx].east - east, 2) +
-                           std::pow(boundary_points[closest_idx].north - north, 2)), 
+                           std::pow(boundary_points[closest_idx].north - north, 2)),
                  min_cost);
 
     return closest_idx;
 }
 
-double MapNode::calculatePointCost(const std::vector<BoundaryPoint> &boundary_points, size_t index, double cur_yaw_rad,
-                                   size_t last_closest_idx, bool first_run) {
+double MapNode::calculatePointCost(const std::vector<BoundaryPoint> &boundary_points, size_t index,
+                                   double cur_yaw_rad, size_t last_closest_idx, bool first_run) {
     if (index >= boundary_points.size()) {
         return std::numeric_limits<double>::max();
     }
@@ -410,7 +540,8 @@ double MapNode::calculatePointCost(const std::vector<BoundaryPoint> &boundary_po
     double stability_cost = 0.0;
     if (!first_run) {
         // 计算与上次最近点的索引差异
-        double index_diff = std::abs(static_cast<double>(index) - static_cast<double>(last_closest_idx));
+        double index_diff =
+            std::abs(static_cast<double>(index) - static_cast<double>(last_closest_idx));
 
         // 如果索引跳跃过大，增加惩罚
         if (index_diff > max_index_jump_) {
@@ -422,8 +553,9 @@ double MapNode::calculatePointCost(const std::vector<BoundaryPoint> &boundary_po
     return dist + stability_cost;
 }
 
-void MapNode::calculateBoundarySegment(const std::vector<BoundaryPoint> &boundary_points, size_t start_index,
-                                       double length, std::vector<bot_msg::msg::BoundaryPoint> &segment_points) {
+void MapNode::calculateBoundarySegment(const std::vector<BoundaryPoint> &boundary_points,
+                                       size_t start_index, double length,
+                                       std::vector<bot_msg::msg::BoundaryPoint> &segment_points) {
     const double previous_distance = 2.0;
     segment_points.clear();
 
@@ -452,7 +584,7 @@ void MapNode::calculateBoundarySegment(const std::vector<BoundaryPoint> &boundar
         bot_msg::msg::BoundaryPoint point;
         point.east = boundary_points[i].east;
         point.north = boundary_points[i].north;
-        point.up = 0.0; // 默认高度为0
+        point.up = 0.0;  // 默认高度为0
         point.distance = accumulated_distance;
         segment_points.push_back(point);
     }
@@ -462,7 +594,7 @@ void MapNode::calculateBoundarySegment(const std::vector<BoundaryPoint> &boundar
     bot_msg::msg::BoundaryPoint start_point;
     start_point.east = boundary_points[start_index].east;
     start_point.north = boundary_points[start_index].north;
-    start_point.up = 0.0; // 默认高度为0
+    start_point.up = 0.0;  // 默认高度为0
     start_point.distance = 0.0;
     segment_points.push_back(start_point);
 
@@ -477,7 +609,7 @@ void MapNode::calculateBoundarySegment(const std::vector<BoundaryPoint> &boundar
         bot_msg::msg::BoundaryPoint point;
         point.east = boundary_points[i].east;
         point.north = boundary_points[i].north;
-        point.up = 0.0; // 默认高度为0
+        point.up = 0.0;  // 默认高度为0
         point.distance = accumulated_distance;
         segment_points.push_back(point);
 
@@ -491,12 +623,14 @@ void MapNode::calculateBoundarySegment(const std::vector<BoundaryPoint> &boundar
 }
 
 std::pair<std::string, std::string> MapNode::getBoundaryFilePaths(int boundary_type) {
-    std::string left_boundary_file = "local_record_" + std::to_string(boundary_type) + "_left_boundary.csv";
-    std::string right_boundary_file = "local_record_" + std::to_string(boundary_type) + "_right_boundary.csv";
-    
+    std::string left_boundary_file =
+        "local_record_" + std::to_string(boundary_type) + "_left_boundary.csv";
+    std::string right_boundary_file =
+        "local_record_" + std::to_string(boundary_type) + "_right_boundary.csv";
+
     std::string left_path = expandTilde(map_files_dir_) + "/" + left_boundary_file;
     std::string right_path = expandTilde(map_files_dir_) + "/" + right_boundary_file;
-    
+
     return std::make_pair(left_path, right_path);
 }
 
@@ -505,37 +639,76 @@ void MapNode::reloadBoundaryFiles(int new_boundary_type) {
     auto boundary_paths = getBoundaryFilePaths(new_boundary_type);
     std::string new_left_path = boundary_paths.first;
     std::string new_right_path = boundary_paths.second;
-    
+
     // 清空当前边界点数据
     left_boundary_points_.clear();
     right_boundary_points_.clear();
-    
+
     // 加载新的边界文件
     bool left_loaded = loadBoundaryFile(new_left_path, left_boundary_points_);
     bool right_loaded = loadBoundaryFile(new_right_path, right_boundary_points_);
-    
+
     if (!left_loaded) {
-        RCLCPP_ERROR(this->get_logger(), "Failed to load new left boundary file: %s", new_left_path.c_str());
+        RCLCPP_ERROR(this->get_logger(), "Failed to load new left boundary file: %s",
+                     new_left_path.c_str());
     } else {
-        RCLCPP_INFO(this->get_logger(), "Successfully loaded new left boundary file with %zu points", left_boundary_points_.size());
+        std::string mode_info = cyclic_test_mode_ ? " [循环模式]" : " [普通模式]";
+        RCLCPP_INFO(this->get_logger(),
+                    "Successfully loaded new left boundary file with %zu points%s",
+                    left_boundary_points_.size(), mode_info.c_str());
         left_boundary_file_path_ = new_left_path;
     }
-    
+
     if (!right_loaded) {
-        RCLCPP_ERROR(this->get_logger(), "Failed to load new right boundary file: %s", new_right_path.c_str());
+        RCLCPP_ERROR(this->get_logger(), "Failed to load new right boundary file: %s",
+                     new_right_path.c_str());
     } else {
-        RCLCPP_INFO(this->get_logger(), "Successfully loaded new right boundary file with %zu points", right_boundary_points_.size());
+        std::string mode_info = cyclic_test_mode_ ? " [循环模式]" : " [普通模式]";
+        RCLCPP_INFO(this->get_logger(),
+                    "Successfully loaded new right boundary file with %zu points%s",
+                    right_boundary_points_.size(), mode_info.c_str());
         right_boundary_file_path_ = new_right_path;
     }
-    
+
     // 如果至少有一个文件加载成功，更新当前边界类型
     if (left_loaded || right_loaded) {
         current_boundary_type_ = new_boundary_type;
-        RCLCPP_INFO(this->get_logger(), "Boundary type updated to: %d", current_boundary_type_);
+        std::string mode_description = cyclic_test_mode_ ? "（循环模式）" : "（普通模式）";
+        RCLCPP_INFO(this->get_logger(), "Boundary type updated to: %d %s", current_boundary_type_,
+                    mode_description.c_str());
     }
 }
 
-} // namespace map
+bool MapNode::IsNearDistance(double distance) {
+    // 使用统一的距离计算函数
+    double dis = CalculateDistanceToEnd();
+    if (dis < distance) {
+        return true;
+    }
+    return false;
+}
+
+double MapNode::CalculateDistanceToEnd() {
+    if (left_boundary_points_.empty() && right_boundary_points_.empty()) {
+        return std::numeric_limits<double>::max();
+    }
+
+    // 优先使用左边界，如果为空则使用右边界
+    const auto &boundary_points =
+        !left_boundary_points_.empty() ? left_boundary_points_ : right_boundary_points_;
+
+    auto path_len = boundary_points.size();
+    if (path_len == 0) {
+        return std::numeric_limits<double>::max();
+    }
+
+    auto tail_east = boundary_points[path_len - 1].east;
+    auto tail_north = boundary_points[path_len - 1].north;
+
+    return sqrt(pow(tail_east - current_east_, 2) + pow(tail_north - current_north_, 2));
+}
+
+}  // namespace map
 
 int main(int argc, char *argv[]) {
     rclcpp::init(argc, argv);

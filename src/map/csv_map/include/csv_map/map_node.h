@@ -53,6 +53,10 @@ class MapNode : public rclcpp::Node {
     // 计算指定长度的边界点
     void calculateBoundarySegment(const std::vector<BoundaryPoint> &boundary_points, size_t start_index, double length,
                                   std::vector<bot_msg::msg::BoundaryPoint> &segment_points);
+                                  
+    // 循环模式辅助函数
+    bool IsNearDistance(double distance);  // 判断是否接近边界终点
+    double CalculateDistanceToEnd();       // 计算到边界终点的距离
 
   private:
     // ROS参数
@@ -85,6 +89,12 @@ class MapNode : public rclcpp::Node {
     int current_boundary_type_ = 3;
     int bkpoint_start_path_type_;
     int bkpoint_end_path_type_;
+    int cyclic_test_path_type_;  // 循环测试边界类型
+    
+    // 循环测试模式相关变量
+    bool cyclic_test_mode_ = false;        // 是否处于循环测试模式
+    bool cyclic_change_idx_flag_ = false;  // 循环测试模式下的索引跳转标志
+    double cyclic_test_end_dis_ = 2.0;     // 循环测试模式下的终点距离
 
     // 方向稳定性参数
     double direction_stability_weight_ = 2.0; // 方向稳定性权重
