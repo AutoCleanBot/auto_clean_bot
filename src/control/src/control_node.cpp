@@ -391,7 +391,7 @@ void ControlNode::LongitudinalController() {
 
     // 初始化阶梯目标速度
     if (first_run) {
-        step_target_speed = 0.5;
+        step_target_speed = 0.0;
         first_run = false;
     }
 
