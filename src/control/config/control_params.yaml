@@ -23,7 +23,7 @@ control_node:
     pursuit_control_rate: 0.3     # 纯追踪控制权重
     stanley_control_rate: 0.7     # Stanley控制权重
     sta_lat_rate: 0.4            # stanley控制中的横向偏差系数
-    stanley_min_eff_spd: 1.0     # stanley控制中的最小有效速度
+    stanley_min_eff_spd: 0.5     # stanley控制中的最小有效速度
     feedforward_rate: 0.05         # 曲率前馈控制权重
     
     # PID控制参数 - PID Control Parameters

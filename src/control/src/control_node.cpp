@@ -70,7 +70,7 @@ ControlNode::ControlNode() : Node("control_node") {
         debug_log_file_
             << "timestamp,pursuit_control_rate,stanley_control_rate,sta_lat_rate,heading_error_deg,"
                "angular_error_deg,"
-               "lat_error,pursuit_control_deg,stanley_control_deg,steer_angle_deg, "
+               "lat_error,pursuit_control_deg,stanley_control_deg,curvature_deg,steer_angle_deg, "
                "feedback_steer_deg,"
                "preview_dist,preview_idx,closest_idx,target_east,target_north,target_yaw_"
                "deg,closest_east,closest_north,closest_yaw_deg,closest_curvature,cur_east,cur_"
@@ -128,6 +128,7 @@ void ControlNode::LateralController() {
     double cur_east = localization_info_msg_->east;
     // double cur_up = localization_info_msg_->up;
     double cur_spd = localization_info_msg_->vel_speed;
+    double target_speed = adc_trajectory_msg_->points[closest_idx_].vel_speed;
     double effective_stanley_spd = std::max(cur_spd, stanley_min_eff_spd_);
     double cur_yaw =
         NormalizeAngle(localization_info_msg_->yaw * M_PI / 180.0);  // 当前航向角, 弧度
@@ -297,8 +298,9 @@ void ControlNode::LateralController() {
 
     // 添加前馈控制项
     double curvature_feedforward = std::atan2(wheelbase_ * path_curvature, 1.0);
+    double curvature_deg = feedforward_rate_ * curvature_feedforward;
     if (!reverse_mode_) {
-        front_wheel_rad += feedforward_rate_ * curvature_feedforward;
+        front_wheel_rad += curvature_deg;
     } else {
         front_wheel_rad = pursuit_control;
     }
@@ -332,7 +334,7 @@ void ControlNode::LateralController() {
                     target_yaw * 180.0 / M_PI, cur_yaw * 180.0 / M_PI, cur_north, cur_east, cur_spd,
                     closest_east, closest_north, closest_yaw * 180.0 / M_PI);
     }
-    if (g_debug_cnt % 5 == 0 && debug_log_file_.is_open()) {
+    if (g_debug_cnt % 5 == 0 && debug_log_file_.is_open() && target_speed < 1e-6) {
         auto time_str = TimeToHumanReadable(this->now());
         auto feedback_steer_angle = chassis_info_msg_.steer_angle;
         double delta = lat_error >= 0 ? -0.05 : 0.05;
@@ -341,16 +343,16 @@ void ControlNode::LateralController() {
         }
         debug_log_file_ << time_str << "," << pursuit_control_rate_ << "," << stanley_control_rate_
                         << "," << sta_lat_rate_ << "," << heading_error * 180.0 / M_PI << ","
-                        << angular_error * 180.0 / M_PI << "," << lat_error_s << ","
+                        << angular_error * 180.0 / M_PI << "," << lat_error << ","
                         << pursuit_control * 180.0 / M_PI * adaptive_pursuit_rate << ","
                         << stanley_control * 180.0 / M_PI * adaptive_stanley_rate << ","
-                        << steer_angle << "," << feedback_steer_angle << "," << preview_dist << ","
-                        << preview_idx << "," << closest_idx_ << "," << target_east << ","
-                        << target_north << "," << target_yaw * 180.0 / M_PI << "," << closest_east
-                        << "," << closest_north << "," << closest_yaw * 180.0 / M_PI << ","
-                        << path_curvature << "," << cur_east << "," << cur_north << ","
-                        << cur_yaw * 180.0 / M_PI << "," << feedforward_rate_ << ","
-                        << zero_point_draft_;
+                        << curvature_deg << "," << steer_angle << "," << feedback_steer_angle << ","
+                        << preview_dist << "," << preview_idx << "," << closest_idx_ << ","
+                        << target_east << "," << target_north << "," << target_yaw * 180.0 / M_PI
+                        << "," << closest_east << "," << closest_north << ","
+                        << closest_yaw * 180.0 / M_PI << "," << path_curvature << "," << cur_east
+                        << "," << cur_north << "," << cur_yaw * 180.0 / M_PI << ","
+                        << feedforward_rate_ << "," << zero_point_draft_;
     }
 }
 
@@ -363,9 +365,8 @@ void ControlNode::ChassisInfoCallback(const bot_msg::msg::ChassisInfo::SharedPtr
  *
  */
 void ControlNode::LongitudinalController() {
-    static bool first_run = true;
-    static double step_target_speed = 0.0;
-    const double koffset = 0.0;
+    double step_target_speed = 0.0;
+    const double koffset = 0.1;
     // const double SPEED_THRESHOLD = 0.01;
 
     // 检查输入数据是否有效
@@ -388,12 +389,6 @@ void ControlNode::LongitudinalController() {
     // 限制最终目标速度在合理范围内
     final_target_speed =
         std::max(min_linear_velocity_, std::min(max_linear_velocity_, final_target_speed));
-
-    // 初始化阶梯目标速度
-    if (first_run) {
-        step_target_speed = 0.0;
-        first_run = false;
-    }
 
     // 阶梯目标速度更新逻辑
     if (final_target_speed > step_target_speed) {
