@@ -1,0 +1,37 @@
+cins_gnss_node:
+  ros__parameters:
+    # 设备配置
+    device_name: "/dev/ttyUART_232_A"  # 串口设备名（可根据实际硬件调整）
+    baud_rate: 460800
+    timeout_ms: 20
+    
+    # 基准点配置（需要根据实际基准点位置设置）
+    base_latitude: 31.96316616       # 基点纬度
+    base_longtitude: 117.37730582    # 基点经度
+    base_altitude: 0.0               # 基点高度
+    heading_offset: 0.0             # 航向偏移量，°
+    
+    # 定位信息话题配置
+    local_frame_id: "rtk_link"        # 定位信息坐标系
+    local_topic_name: "localization/rtk_info"  # 定位信息话题名
+    local_publish_rate: 50.0         # 定位信息发布频率
+    
+    # IMU话题配置
+    imu_frame_id: "imu_link"          # IMU坐标系
+    imu_topic_name: "imu/pose"        # IMU话题名
+    imu_publish_rate: 50.0           # IMU发布频率
+    
+    # GNSS姿态话题配置
+    gnss_frame_id: "map"              # GNSS姿态坐标系
+    gnss_topic_name: "gnss/pose"      # GNSS姿态话题名
+    gnss_publish_rate: 50.0          # GNSS姿态发布频率
+    
+    # 日志配置
+    enable_debug_log: true           # 是否启用调试日志
+    log_interval: 30                 # 日志输出间隔（每30次解析输出一次，适合50Hz频率）
+                                     # 设置为0或负数则每次都输出（保持原有行为）
+                                     # 建议值：10-50，根据数据频率调整
+    
+    # 数据保存配置
+    enable_data_save: false          # 是否启用原始数据保存功能（默认关闭）
+    data_save_dir: "/home/nvidia/cins_logs"  # 数据保存目录
