@@ -365,7 +365,7 @@ void ControlNode::ChassisInfoCallback(const bot_msg::msg::ChassisInfo::SharedPtr
 void ControlNode::LongitudinalController() {
     static bool first_run = true;
     static double step_target_speed = 0.0;
-    const double koffset = 0.2;
+    const double koffset = 0.0;
     // const double SPEED_THRESHOLD = 0.01;
 
     // 检查输入数据是否有效
