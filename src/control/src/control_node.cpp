@@ -257,9 +257,6 @@ void ControlNode::LateralController() {
     // 根据曲率连续调整权重
     if (pursuit_control_rate_ != 1.0 && stanley_control_rate_ != 1.0) {
         // 曲率越大，Pure Pursuit权重越高
-        adaptive_pursuit_rate = base_pursuit_rate * (1.0 + 0.3 * curvature_factor);
-        adaptive_stanley_rate =
-            base_stanley_rate * (1.0 - 0.3 * curvature_factor + 0.3 * (1.0 - curvature_factor));
 
         // 考虑速度因素 - 低速时增加Stanley权重
         adaptive_pursuit_rate *= (0.7 + 0.3 * speed_factor);
