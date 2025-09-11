@@ -1,0 +1,10 @@
+data_recorder_node:
+  ros__parameters:
+    # 话题配置
+    chassis_info_topic: "/chassis/chassis_info"
+    localization_info_topic: "/localization/rtk_info"
+    
+    # 记录配置
+    record_rate: 10.0                           # 记录频率 (Hz)
+    enable_record: true                         # 是否启用记录
+    save_directory: "/home/nvidia/vehicle_data_logs"   # 保存目录（用户主目录，数据持久保存）
