@@ -20,7 +20,7 @@ def generate_launch_description():
         'save_path': '~/auto_clean_bot/path/local_record',
         'save_rate': 10.0,
         'topic_name': '/localization/rtk_info',
-        'file_number': 21,
+        'file_number': 23,
     }
     
     # 配置节点，并将参数字典直接传递给参数字段

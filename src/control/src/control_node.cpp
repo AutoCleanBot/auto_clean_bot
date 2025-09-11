@@ -334,7 +334,7 @@ void ControlNode::LateralController() {
                     target_yaw * 180.0 / M_PI, cur_yaw * 180.0 / M_PI, cur_north, cur_east, cur_spd,
                     closest_east, closest_north, closest_yaw * 180.0 / M_PI);
     }
-    if (g_debug_cnt % 5 == 0 && debug_log_file_.is_open() && target_speed < 1e-6) {
+    if (g_debug_cnt % 5 == 0 && debug_log_file_.is_open() ) {
         auto time_str = TimeToHumanReadable(this->now());
         auto feedback_steer_angle = chassis_info_msg_.steer_angle;
         double delta = lat_error >= 0 ? -0.05 : 0.05;
@@ -346,7 +346,7 @@ void ControlNode::LateralController() {
                         << angular_error * 180.0 / M_PI << "," << lat_error << ","
                         << pursuit_control * 180.0 / M_PI * adaptive_pursuit_rate << ","
                         << stanley_control * 180.0 / M_PI * adaptive_stanley_rate << ","
-                        << curvature_deg << "," << steer_angle << "," << feedback_steer_angle << ","
+                        << curvature_deg* 180.0 / M_PI  << "," << steer_angle << "," << feedback_steer_angle << ","
                         << preview_dist << "," << preview_idx << "," << closest_idx_ << ","
                         << target_east << "," << target_north << "," << target_yaw * 180.0 / M_PI
                         << "," << closest_east << "," << closest_north << ","
@@ -365,7 +365,7 @@ void ControlNode::ChassisInfoCallback(const bot_msg::msg::ChassisInfo::SharedPtr
  *
  */
 void ControlNode::LongitudinalController() {
-    double step_target_speed = 0.0;
+    static double step_target_speed = 0.0;
     const double koffset = 0.1;
     // const double SPEED_THRESHOLD = 0.01;
 

@@ -12,7 +12,7 @@ Panels:
         - /Map2
         - /PointCloud25
       Splitter Ratio: 0.5
-    Tree Height: 475
+    Tree Height: 363
   - Class: rviz_common/Selection
     Name: Selection
   - Class: rviz_common/Tool Properties
@@ -277,6 +277,7 @@ Visualization Manager:
       Enabled: true
       Name: MarkerArray
       Namespaces:
+        coordinate_display: true
         left_boundary: true
         obstacle_points: true
         obstacle_status: true
@@ -293,8 +294,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 8.80919075012207
-        Min Value: 0.25026631355285645
+        Max Value: 8.028034210205078
+        Min Value: 0.250643253326416
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -366,7 +367,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/ThirdPersonFollower
-      Distance: 25
+      Distance: 11.658607482910156
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1

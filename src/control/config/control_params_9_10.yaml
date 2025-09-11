@@ -7,7 +7,7 @@ control_node:
     publish_rate: 50.0
     preview_time: 1.5            # 预瞄时间
     tolerance_distance: 1.5      # 预瞄距离
-    max_steering_angle: 50.0     # 最大前轮转角
+    max_steering_angle: 40.0     # 最大前轮转角
     wheelbase: 1.99              # 轴距
     max_linear_velocity: 10.0    # 最大线速度
     max_angular_velocity: 10.0   # 最大角速度
@@ -20,8 +20,8 @@ control_node:
     inc_step_size: 0.008          # 加速步长
     
     # 控制算法参数 - Control Algorithm Parameters
-    pursuit_control_rate: 1.0     # 纯追踪控制权重
-    stanley_control_rate: 0.0     # Stanley控制权重
+    pursuit_control_rate: 0.3     # 纯追踪控制权重
+    stanley_control_rate: 0.2     # Stanley控制权重
     sta_lat_rate: 0.4            # stanley控制中的横向偏差系数
     stanley_min_eff_spd: 0.5     # stanley控制中的最小有效速度
     feedforward_rate: 1.0         # 曲率前馈控制权重
