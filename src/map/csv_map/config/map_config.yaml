@@ -23,4 +23,4 @@ map_node:
    
     bkpoint_end_path_type : 13  # 断点测试的结束路径类型
     cyclic_test_path_type : 29 # 循环测试路径类型
-    cyclic_test_end_dis : 2.0  # 循环测试模式下的终点距离
+    cyclic_test_end_dis : 5.0  # 循环测试模式下的终点距离

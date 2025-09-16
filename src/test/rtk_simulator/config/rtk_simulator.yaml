@@ -1,7 +1,7 @@
 rtk_simulator_node:
   ros__parameters:
     # CSV轨迹文件路径
-    csv_file_path: "~/auto_clean_bot/path/local_record_20.csv"
+    csv_file_path: "~/auto_clean_bot/path/local_record_29.csv"
 
     # 发布频率 (Hz)
     publish_frequency: 5.0

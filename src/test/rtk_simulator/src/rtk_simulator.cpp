@@ -399,7 +399,7 @@ void RTKSimulator::handlePlanningTrajectory() {
 
     // 移动到下一个点（只有当速度不为0时才移动）
     if (should_advance) {
-        current_trajectory_index_ += 5;
+        current_trajectory_index_ += 2;
 
         // 每10个点输出一次进度信息
         if (current_trajectory_index_ % 10 == 0) {

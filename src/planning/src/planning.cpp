@@ -705,6 +705,7 @@ void PlanningNode::FillPubTraj(bot_msg::msg::ADCTrajectory &pub_traj) {
         if (std::abs(index_change) > max_index_jump_ || force_global_search) {
             if (cyclic_test_mode_) {
                 std::string reset_info = force_global_search ? " [强制重置]" : "";
+                closest_idx = 0;
                 RCLCPP_INFO(
                     this->get_logger(),
                     "循环模式：轨迹索引跳跃: 从 %zu 到 %zu (变化: %.1f), "

@@ -214,9 +214,29 @@ void MapNode::timerCallback() {
 
     // 查找当前位置最近的边界点
     size_t left_closest_idx =
-        findClosestPointIndex(left_boundary_points_, current_east_, current_north_);
+        findClosestPointIndex(left_boundary_points_, current_east_, current_north_, "左边界");
     size_t right_closest_idx =
-        findClosestPointIndex(right_boundary_points_, current_east_, current_north_);
+        findClosestPointIndex(right_boundary_points_, current_east_, current_north_, "右边界");
+
+    // 在左右边界都处理完后，检查是否需要清除重置标志
+    if (cyclic_test_mode_ && cyclic_change_idx_flag_) {
+        // 检查是否两个边界都已经成功重置到起点附近
+        bool left_near_start =
+            !left_boundary_points_.empty() &&
+            std::sqrt(std::pow(left_boundary_points_[0].east - current_east_, 2) +
+                      std::pow(left_boundary_points_[0].north - current_north_, 2)) <
+                cyclic_test_end_dis_ * 2.0;
+        bool right_near_start =
+            !right_boundary_points_.empty() &&
+            std::sqrt(std::pow(right_boundary_points_[0].east - current_east_, 2) +
+                      std::pow(right_boundary_points_[0].north - current_north_, 2)) <
+                cyclic_test_end_dis_ * 2.0;
+
+        if (left_near_start || right_near_start) {
+            RCLCPP_INFO(this->get_logger(), "循环模式：边界处理完成，清除重置标志");
+            cyclic_change_idx_flag_ = false;
+        }
+    }
 
     // 创建边界消息
     auto left_boundary_msg = std::make_unique<bot_msg::msg::Boundary>();
@@ -296,29 +316,12 @@ bool MapNode::loadBoundaryFile(const std::string &file_path,
 }
 
 size_t MapNode::findClosestPointIndex(const std::vector<BoundaryPoint> &boundary_points,
-                                      double east, double north) {
+                                      double east, double north, const std::string &boundary_name) {
     if (boundary_points.empty()) {
         return 0;
     }
 
-    // 循环模式下的路径重置逻辑
-    if (cyclic_test_mode_ && cyclic_change_idx_flag_) {
-        // 计算从当前最近点到起点的距离
-        double distance_to_start = std::sqrt(std::pow(boundary_points[0].east - east, 2) +
-                                             std::pow(boundary_points[0].north - north, 2));
-
-        // 如果距离起点足够近，重置索引
-        if (distance_to_start < cyclic_test_end_dis_ * 2.0) {  // 使用2倍的终点距离作为重置条件
-            RCLCPP_INFO(this->get_logger(), "循环模式：边界重置 - 距起点: %.2fm, 重置到起点",
-                        distance_to_start);
-
-            // 重置相关标志和索引
-            cyclic_change_idx_flag_ = false;
-
-            // 可以选择强制重置到起点附近，或者让自然搜索算法找到最近点
-            // 这里我们让搜索算法自然地找到起点附近的最近点
-        }
-    }
+    size_t closest_idx = 0;
 
     // 方向稳定性参数 - 为左右边界分别维护历史
     static std::map<const std::vector<BoundaryPoint> *, size_t> last_closest_indices;
@@ -328,7 +331,33 @@ size_t MapNode::findClosestPointIndex(const std::vector<BoundaryPoint> &boundary
     auto &last_closest_idx = last_closest_indices[&boundary_points];
     auto &first_run = first_runs[&boundary_points];
 
-    size_t closest_idx = 0;
+    // 循环模式下的路径重置逻辑（优先处理）
+    bool current_reset_flag = cyclic_test_mode_ && cyclic_change_idx_flag_;
+    if (current_reset_flag) {
+        // 计算从当前位置到起点的距离
+        double distance_to_start = std::sqrt(std::pow(boundary_points[0].east - east, 2) +
+                                             std::pow(boundary_points[0].north - north, 2));
+
+        RCLCPP_INFO(this->get_logger(), "循环模式：[%s] 检查重置条件 - 距起点: %.2fm, 阈值: %.2fm",
+                    boundary_name.c_str(), distance_to_start, cyclic_test_end_dis_ * 2.0);
+
+        // 如果距离起点足够近，强制重置到起点
+        if (distance_to_start < cyclic_test_end_dis_ * 2.0) {
+            RCLCPP_INFO(this->get_logger(), "循环模式：[%s] 边界强制重置到起点 - 距起点: %.2fm",
+                        boundary_name.c_str(), distance_to_start);
+
+            // 重置历史索引，但暂时不清除全局重置标志（让右边界也能执行重置）
+            last_closest_idx = 0;  // 重置历史索引
+            first_run = false;     // 避免被当作首次运行
+
+            return 0;  // 强制返回起点索引
+        }
+
+        // 如果还没到达重置条件，但已经设置了重置标志，给起点更高的优先级
+        RCLCPP_DEBUG(this->get_logger(), "循环模式：[%s] 等待接近起点进行重置",
+                     boundary_name.c_str());
+    }
+
     double min_cost = std::numeric_limits<double>::max();
 
     // 优化搜索策略：局部搜索 + 全局备份
@@ -339,19 +368,23 @@ size_t MapNode::findClosestPointIndex(const std::vector<BoundaryPoint> &boundary
         // 局部搜索范围：以上次最近点为中心的邻域
         size_t local_search_radius = static_cast<size_t>(max_index_jump_ * 1.5);
 
-        // 循环模式下的特殊处理：如果设置了重置标志，扩大搜索范围
-        if (cyclic_test_mode_ && cyclic_change_idx_flag_) {
+        // 循环模式下的特殊处理：如果设置了重置标志，扩大搜索范围并包含起点
+        if (current_reset_flag) {
             local_search_radius = boundary_points.size() / 4;  // 搜索整个路径的1/4
-            RCLCPP_INFO(this->get_logger(), "循环模式：扩大边界搜索范围到 %zu 个点",
-                        local_search_radius);
+            search_start = 0;                                  // 确保包含起点
+            RCLCPP_INFO(this->get_logger(),
+                        "循环模式：[%s] 扩大边界搜索范围到 %zu 个点，从起点开始搜索",
+                        boundary_name.c_str(), local_search_radius);
+        } else {
+            search_start = (last_closest_idx > local_search_radius)
+                               ? (last_closest_idx - local_search_radius)
+                               : 0;
         }
 
-        search_start =
-            (last_closest_idx > local_search_radius) ? (last_closest_idx - local_search_radius) : 0;
         search_end = std::min(last_closest_idx + local_search_radius + 1, boundary_points.size());
 
-        RCLCPP_DEBUG(this->get_logger(), "局部搜索范围: [%zu, %zu) 围绕上次索引: %zu", search_start,
-                     search_end, last_closest_idx);
+        RCLCPP_DEBUG(this->get_logger(), "[%s] 局部搜索范围: [%zu, %zu) 围绕上次索引: %zu",
+                     boundary_name.c_str(), search_start, search_end, last_closest_idx);
     }
 
     // 局部搜索
@@ -366,14 +399,20 @@ size_t MapNode::findClosestPointIndex(const std::vector<BoundaryPoint> &boundary
                 std::abs(static_cast<double>(i) - static_cast<double>(last_closest_idx));
 
             // 循环模式下的特殊处理：如果是从路径末尾跳到起点的情况
-            if (cyclic_test_mode_ && cyclic_change_idx_flag_) {
+            if (current_reset_flag) {
                 // 检查是否是从路径末尾跳到起点的情况
                 bool is_end_to_start_jump = (last_closest_idx > boundary_points.size() * 0.8) &&
                                             (i < boundary_points.size() * 0.2);
-                if (is_end_to_start_jump) {
-                    continuity_cost = 0.0;  // 不惩罚从终点到起点的跳跃
-                    RCLCPP_DEBUG(this->get_logger(),
-                                 "循环模式：检测到边界终点到起点的跳跃，取消连续性惩罚");
+                if (is_end_to_start_jump || i == 0) {  // 特别优待起点
+                    continuity_cost = 0.0;             // 不惩罚跳到起点
+                    // 给起点额外的优势
+                    if (i == 0) {
+                        distance *= 0.5;  // 起点距离权重减半
+                    }
+                    RCLCPP_DEBUG(
+                        this->get_logger(),
+                        "循环模式：[%s] 检测到边界终点到起点的跳跃或起点候选，取消连续性惩罚",
+                        boundary_name.c_str());
                 } else if (index_diff > max_index_jump_) {
                     continuity_cost = direction_stability_weight_ * 0.5 *
                                       (index_diff - max_index_jump_);  // 减半惩罚
@@ -403,13 +442,13 @@ size_t MapNode::findClosestPointIndex(const std::vector<BoundaryPoint> &boundary
         if (distance_to_found > 15.0) {  // 15米阈值
             need_global_search = true;
             RCLCPP_WARN(this->get_logger(),
-                        "当前位置: (%.2f, %.2f), 局部搜索结果距离过远 (%.2fm), 执行全局搜索", east,
-                        north, distance_to_found);
+                        "当前位置: (%.2f, %.2f), [%s] 局部搜索结果距离过远 (%.2fm), 执行全局搜索",
+                        east, north, boundary_name.c_str(), distance_to_found);
         }
     }
 
     // 全局搜索（首次运行或局部搜索失败时）
-    if (first_run || need_global_search || (cyclic_test_mode_ && cyclic_change_idx_flag_)) {
+    if (first_run || need_global_search || current_reset_flag) {
         double global_min_cost = min_cost;
         size_t global_closest_idx = closest_idx;
 
@@ -427,10 +466,16 @@ size_t MapNode::findClosestPointIndex(const std::vector<BoundaryPoint> &boundary
                     std::abs(static_cast<double>(i) - static_cast<double>(last_closest_idx));
 
                 // 循环模式下减少连续性惩罚
-                if (cyclic_test_mode_ && cyclic_change_idx_flag_) {
+                if (current_reset_flag) {
                     bool is_end_to_start_jump = (last_closest_idx > boundary_points.size() * 0.8) &&
                                                 (i < boundary_points.size() * 0.2);
-                    if (!is_end_to_start_jump && index_diff > max_index_jump_) {
+                    if (is_end_to_start_jump || i == 0) {  // 特别优待起点
+                        continuity_cost = 0.0;
+                        // 给起点额外的优势
+                        if (i == 0) {
+                            distance *= 0.3;  // 全局搜索时起点距离权重减少更多
+                        }
+                    } else if (index_diff > max_index_jump_) {
                         continuity_cost =
                             direction_stability_weight_ * 0.2 * (index_diff - max_index_jump_);
                     }
@@ -464,11 +509,17 @@ size_t MapNode::findClosestPointIndex(const std::vector<BoundaryPoint> &boundary
                     double index_diff =
                         std::abs(static_cast<double>(i) - static_cast<double>(last_closest_idx));
 
-                    if (cyclic_test_mode_ && cyclic_change_idx_flag_) {
+                    if (current_reset_flag) {
                         bool is_end_to_start_jump =
                             (last_closest_idx > boundary_points.size() * 0.8) &&
                             (i < boundary_points.size() * 0.2);
-                        if (!is_end_to_start_jump && index_diff > max_index_jump_) {
+                        if (is_end_to_start_jump || i == 0) {  // 特别优待起点
+                            continuity_cost = 0.0;
+                            // 给起点额外的优势
+                            if (i == 0) {
+                                distance *= 0.3;
+                            }
+                        } else if (index_diff > max_index_jump_) {
                             continuity_cost =
                                 direction_stability_weight_ * 0.2 * (index_diff - max_index_jump_);
                         }
@@ -498,16 +549,19 @@ size_t MapNode::findClosestPointIndex(const std::vector<BoundaryPoint> &boundary
         if (std::abs(index_change) > max_index_jump_) {
             if (cyclic_test_mode_) {
                 RCLCPP_INFO(this->get_logger(),
-                            "循环模式：边界索引跳跃: 从 %zu 到 %zu (变化: %.1f), "
-                            "车辆位置: (%.2f, %.2f), 距离: %.2fm",
-                            last_closest_idx, closest_idx, index_change, east, north,
+                            "循环模式：[%s] 边界索引跳跃: 从 %zu 到 %zu (变化: %.1f), "
+                            "车辆位置: (%.2f, %.2f), 距离: %.2fm, 重置标志: %s",
+                            boundary_name.c_str(), last_closest_idx, closest_idx, index_change,
+                            east, north,
                             std::sqrt(std::pow(boundary_points[closest_idx].east - east, 2) +
-                                      std::pow(boundary_points[closest_idx].north - north, 2)));
+                                      std::pow(boundary_points[closest_idx].north - north, 2)),
+                            cyclic_change_idx_flag_ ? "ON" : "OFF");
             } else {
                 RCLCPP_WARN(this->get_logger(),
-                            "检测到边界索引大幅跳跃: 从 %zu 到 %zu (变化: %.1f), "
+                            "检测到[%s]边界索引大幅跳跃: 从 %zu 到 %zu (变化: %.1f), "
                             "车辆位置: (%.2f, %.2f), 距离: %.2fm",
-                            last_closest_idx, closest_idx, index_change, east, north,
+                            boundary_name.c_str(), last_closest_idx, closest_idx, index_change,
+                            east, north,
                             std::sqrt(std::pow(boundary_points[closest_idx].east - east, 2) +
                                       std::pow(boundary_points[closest_idx].north - north, 2)));
             }
@@ -518,14 +572,14 @@ size_t MapNode::findClosestPointIndex(const std::vector<BoundaryPoint> &boundary
     last_closest_idx = closest_idx;
     first_run = false;
 
-    RCLCPP_DEBUG(this->get_logger(), "选择边界点 %zu, 距离: %.2fm, 总成本: %.2f", closest_idx,
+    RCLCPP_DEBUG(this->get_logger(), "[%s] 选择边界点 %zu, 距离: %.2fm, 总成本: %.2f",
+                 boundary_name.c_str(), closest_idx,
                  std::sqrt(std::pow(boundary_points[closest_idx].east - east, 2) +
                            std::pow(boundary_points[closest_idx].north - north, 2)),
                  min_cost);
 
     return closest_idx;
 }
-
 double MapNode::calculatePointCost(const std::vector<BoundaryPoint> &boundary_points, size_t index,
                                    double cur_yaw_rad, size_t last_closest_idx, bool first_run) {
     if (index >= boundary_points.size()) {
