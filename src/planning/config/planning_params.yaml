@@ -15,7 +15,7 @@ planning_node:
     remote_control_topic_name: "/remote_controller/cmd"
     
     # Basic Planning Parameters - 基础规划参数
-    path_type: 22                    # 路径标号
+    path_type: 29                    # 路径标号
     process_frq: 10.0              # 处理频率, Hz
     preview_dist: 15.0             # 预览距离, m
     preview_time: 1.0              # 预瞄时间, s
@@ -49,12 +49,12 @@ planning_node:
     
     # End Point Deceleration Configuration - 终点减速配置
     enable_end_deceleration: true  # 是否启用终点前减速
-    deceleration_distance: 15.0     # 开始减速的距离，米
+    deceleration_distance: 8.0     # 开始减速的距离，米
     deceleration_speed: 0.3        # 减速后的目标速度，m/s
     final_stop_distance: 1.0       # 最终停车距离，米
     bkpoint_end_path_type: 13      # 断点测试的终点路径标号
     cyclic_test_end_dis: 2.0       # 循环测试的终点距离
-    cyclic_test_path_type: 20      # 循环测试的路径标号
+    cyclic_test_path_type: 29      # 循环测试的路径标号
     
     # Grid Map Optimization Configuration - 栅格地图优化配置
     max_obstacles_to_check: 30     # 最大检查的障碍物数量（减少计算量）

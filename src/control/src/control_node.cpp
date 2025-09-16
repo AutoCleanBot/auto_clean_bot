@@ -108,6 +108,7 @@ ControlNode::ControlNode() : Node("control_node") {
 
     // 初始化状态变量
     previous_steering_angle_ = 0.0;
+    path_curvature_ = 0.0;
 }
 
 void ControlNode::LateralController() {
@@ -232,7 +233,7 @@ void ControlNode::LateralController() {
     // 注意如果出现当前的需要控制情况为右转为正左转为负的情况的话pursuit_control和stanley_control去除负号即可
 
     // 计算当前路径曲率
-    double path_curvature = CalculatePathCurvature(closest_idx_);
+    path_curvature_ = CalculatePathCurvature(preview_idx);
 
     // 计算自适应预瞄距离
     double current_speed = localization_info_msg_->vel_speed;
@@ -240,7 +241,7 @@ void ControlNode::LateralController() {
     // path_curvature);
 
     // 根据曲率动态调整控制器权重
-    double curvature_based_weight = std::abs(path_curvature);
+    double curvature_based_weight = std::abs(path_curvature_);
     const double CURVATURE_THRESHOLD = 0.02;  // 曲率阈值
 
     // 使用连续函数而非二元判断来调整权重
@@ -250,36 +251,36 @@ void ControlNode::LateralController() {
     // 自适应权重
     double adaptive_pursuit_rate = pursuit_control_rate_;
     double adaptive_stanley_rate = stanley_control_rate_;
-    // 基础权重
-    double base_pursuit_rate = pursuit_control_rate_;
-    double base_stanley_rate = stanley_control_rate_;
+    // // 基础权重
+    // double base_pursuit_rate = pursuit_control_rate_;
+    // double base_stanley_rate = stanley_control_rate_;
 
-    // 根据曲率连续调整权重
-    if (pursuit_control_rate_ != 1.0 && stanley_control_rate_ != 1.0) {
-        // 曲率越大，Pure Pursuit权重越高
+    // // 根据曲率连续调整权重
+    // if (pursuit_control_rate_ != 1.0 && stanley_control_rate_ != 1.0) {
+    //     // 曲率越大，Pure Pursuit权重越高
 
-        // 考虑速度因素 - 低速时增加Stanley权重
-        adaptive_pursuit_rate *= (0.7 + 0.3 * speed_factor);
-        adaptive_stanley_rate *= (1.3 - 0.3 * speed_factor);
+    //     // 考虑速度因素 - 低速时增加Stanley权重
+    //     adaptive_pursuit_rate *= (0.7 + 0.3 * speed_factor);
+    //     adaptive_stanley_rate *= (1.3 - 0.3 * speed_factor);
 
-        // // 考虑延迟因素 - 延迟大时增加Pure Pursuit权重
-        // double estimated_delay = 0.2; // 秒，可以通过实际测量获得
-        // if (estimated_delay > 0.1) {
-        //     double delay_factor = std::min(1.0, estimated_delay / 0.3);
-        //     adaptive_pursuit_rate *= (1.0 + 0.2 * delay_factor);
-        //     adaptive_stanley_rate *= (1.0 - 0.2 * delay_factor);
-        // }
+    //     // // 考虑延迟因素 - 延迟大时增加Pure Pursuit权重
+    //     // double estimated_delay = 0.2; // 秒，可以通过实际测量获得
+    //     // if (estimated_delay > 0.1) {
+    //     //     double delay_factor = std::min(1.0, estimated_delay / 0.3);
+    //     //     adaptive_pursuit_rate *= (1.0 + 0.2 * delay_factor);
+    //     //     adaptive_stanley_rate *= (1.0 - 0.2 * delay_factor);
+    //     // }
 
-        // 确保权重总和保持不变
-        double sum = adaptive_pursuit_rate + adaptive_stanley_rate;
-        adaptive_pursuit_rate /= sum;
-        adaptive_stanley_rate /= sum;
+    //     // 确保权重总和保持不变
+    //     double sum = adaptive_pursuit_rate + adaptive_stanley_rate;
+    //     adaptive_pursuit_rate /= sum;
+    //     adaptive_stanley_rate /= sum;
 
-        // 重新缩放到原始权重总和
-        double original_sum = base_pursuit_rate + base_stanley_rate;
-        adaptive_pursuit_rate *= original_sum;
-        adaptive_stanley_rate *= original_sum;
-    }
+    //     // 重新缩放到原始权重总和
+    //     double original_sum = base_pursuit_rate + base_stanley_rate;
+    //     adaptive_pursuit_rate *= original_sum;
+    //     adaptive_stanley_rate *= original_sum;
+    // }
 
     // 根据速度动态调整heading_error_rate_
     heading_error_rate_ = CalculateAdaptiveHeadingErrorRate(current_speed);
@@ -294,7 +295,7 @@ void ControlNode::LateralController() {
         adaptive_pursuit_rate * pursuit_control + adaptive_stanley_rate * stanley_control;
 
     // 添加前馈控制项
-    double curvature_feedforward = std::atan2(wheelbase_ * path_curvature, 1.0);
+    double curvature_feedforward = std::atan2(wheelbase_ * path_curvature_, 1.0);
     double curvature_deg = feedforward_rate_ * curvature_feedforward;
     if (!reverse_mode_) {
         front_wheel_rad += curvature_deg;
@@ -324,12 +325,12 @@ void ControlNode::LateralController() {
                     "east,%.2f,target_yaw,%.2f,cur_yaw,%.2f,cur_north,%.2f,cur_east,%.2f,cur_spd,%."
                     "2f,closest_east,%."
                     "2f,closest_north,%.2f,"
-                    "closest_yaw,%.2f",
+                    "closest_yaw,%.2f,path_curvature,%5f",
                     heading_error * 180.0 / M_PI, angular_error * 180.0 / M_PI, lat_error_s,
                     steer_angle, pursuit_control * 180.0 / M_PI, stanley_control * 180.0 / M_PI,
                     preview_dist, preview_idx, closest_idx_, target_north, target_east,
                     target_yaw * 180.0 / M_PI, cur_yaw * 180.0 / M_PI, cur_north, cur_east, cur_spd,
-                    closest_east, closest_north, closest_yaw * 180.0 / M_PI);
+                    closest_east, closest_north, closest_yaw * 180.0 / M_PI,path_curvature_);
     }
     if (g_debug_cnt % 5 == 0 && debug_log_file_.is_open() ) {
         auto time_str = TimeToHumanReadable(this->now());
@@ -347,7 +348,7 @@ void ControlNode::LateralController() {
                         << preview_dist << "," << preview_idx << "," << closest_idx_ << ","
                         << target_east << "," << target_north << "," << target_yaw * 180.0 / M_PI
                         << "," << closest_east << "," << closest_north << ","
-                        << closest_yaw * 180.0 / M_PI << "," << path_curvature << "," << cur_east
+                        << closest_yaw * 180.0 / M_PI << "," << path_curvature_ << "," << cur_east
                         << "," << cur_north << "," << cur_yaw * 180.0 / M_PI << ","
                         << feedforward_rate_ << "," << zero_point_draft_;
     }
@@ -382,6 +383,9 @@ void ControlNode::LongitudinalController() {
     // 获取当前速度和目标速度
     double current_speed = localization_info_msg_->vel_speed;
     double final_target_speed = adc_trajectory_msg_->points[closest_idx_].vel_speed;
+    double circle_spd = abs(path_curvature_) > 0.1 ? 0.5 : final_target_speed;
+
+    final_target_speed = std::min(circle_spd, final_target_speed);
 
     // 限制最终目标速度在合理范围内
     final_target_speed =

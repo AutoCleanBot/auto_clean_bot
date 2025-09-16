@@ -4,7 +4,7 @@ map_node:
     map_files_dir: "~/auto_clean_bot/map_files"
     
     # 边界类型（用于组装文件名）
-    boundary_type: 22
+    boundary_type: 29
     
     # 边界名称
     left_boundary_name: "left_boundary"
@@ -22,5 +22,5 @@ map_node:
 
    
     bkpoint_end_path_type : 13  # 断点测试的结束路径类型
-    cyclic_test_path_type : 20 # 循环测试路径类型
+    cyclic_test_path_type : 29 # 循环测试路径类型
     cyclic_test_end_dis : 2.0  # 循环测试模式下的终点距离

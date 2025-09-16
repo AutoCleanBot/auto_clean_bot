@@ -1,7 +1,7 @@
 data_recorder_node:
   ros__parameters:
     # 话题配置
-    chassis_info_topic: "/chassis/chassis_info"
+    chassis_info_topic: "/chassis_info_topic"
     localization_info_topic: "/localization/rtk_info"
     
     # 记录配置

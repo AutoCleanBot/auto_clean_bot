@@ -85,7 +85,7 @@ void CanbusNode::TimerCallback() {
     pub_chassis_info_->publish(*msg);
 
     if (control_cmd_cnt_ > 10 && !mannula_control_flag_) { // 保持无人驾驶的控制连接
-        SendCtrlMsg(0.0, 0.0, 0, 0);
+        SendCtrlMsg(0.0, 0.0, 0, 0.0);
     }
 
     ++control_cmd_cnt_;

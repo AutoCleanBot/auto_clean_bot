@@ -38,7 +38,7 @@
 
     # 降采样配置
     enable_downsampling: true    # 是否启用降采样
-    voxel_leaf_size: 0.15       # 体素网格叶子大小 (米)，适当增大以减少点数量，提升变换性能
+    voxel_leaf_size: 0.05       # 体素网格叶子大小 (米)，适当增大以减少点数量，提升变换性能
 
     # roi配置
     enable_use_roi: true

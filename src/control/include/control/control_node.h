@@ -96,5 +96,6 @@ class ControlNode : public rclcpp::Node {
     double previous_steering_angle_;           // 上一次的转向角
     double stanley_min_eff_spd_;               // stanley控制中的最小有效速度
     bool reverse_mode_;
+    double path_curvature_;                    // 
   };
 } // namespace control

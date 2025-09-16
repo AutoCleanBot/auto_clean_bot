@@ -16,15 +16,15 @@ control_node:
     # 加速度限制 - Acceleration Limits
     acceleration_limit: 20.0      # 加速度限制
     deceleration_limit: -20.0     # 减速度限制
-    dec_step_size: 0.006          # 减速步长
+    dec_step_size: 0.004          # 减速步长
     inc_step_size: 0.008          # 加速步长
     
     # 控制算法参数 - Control Algorithm Parameters
-    pursuit_control_rate: 1.0     # 纯追踪控制权重
-    stanley_control_rate: 0.0     # Stanley控制权重
+    pursuit_control_rate: 0.6     # 纯追踪控制权重
+    stanley_control_rate: 0.4     # Stanley控制权重
     sta_lat_rate: 0.4            # stanley控制中的横向偏差系数
     stanley_min_eff_spd: 0.5     # stanley控制中的最小有效速度
-    feedforward_rate: 1.0         # 曲率前馈控制权重
+    feedforward_rate: 0.01         # 曲率前馈控制权重
     
     # PID控制参数 - PID Control Parameters
     speed_pid_kp: 0.5            # 速度PID比例系数
@@ -32,8 +32,8 @@ control_node:
     speed_pid_kd: 0.0            # 速度PID微分系数
     
     # 系统参数 - System Parameters
-    zero_point_draft: -3.75       # 零点漂移
-    turning_radius_ratio: 1.0    # 转弯半径比例
+    zero_point_draft: -4.0       # 零点漂移
+    turning_radius_ratio: 0.75    # 转弯半径比例
     max_speed_change_rate: 1.0   # 最大速度变化率
     smooth_window_size: 20       # 平滑窗口大小
     

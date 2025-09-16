@@ -1290,7 +1290,7 @@ void PlanningNode::UpdatePlanningStatus() {
 
     // 非对称状态稳定性计数器
     static int clear_stable_count = 0;
-    const int CLEAR_STABILITY_THRESHOLD = 3;  // 无障碍物需要连续3次确认才恢复运行
+    const int CLEAR_STABILITY_THRESHOLD = 10;  // 无障碍物需要连续3次确认才恢复运行
 
     // 更新稳定性计数器
     if (has_front_obstacle) {

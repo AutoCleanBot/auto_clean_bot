@@ -1,13 +1,13 @@
 /**:
   ros__parameters:
     update_rate: 10.0
-    grid_resolution: 0.15
+    grid_resolution: 0.10
     grid_length_x: 30.0
     grid_length_y: 30.0
     grid_position_x: 0.0
     grid_position_y: 0.0
-    maximum_height_thres: 3.0
-    minimum_height_thres: 0.3
+    maximum_height_thres: 2.5
+    minimum_height_thres: 0.0
     grid_min_value: 0.0
     grid_max_value: 1.0
     input_frame: "base_link"
