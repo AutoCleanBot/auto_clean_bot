@@ -1304,25 +1304,22 @@ void PlanningNode::UpdatePlanningStatus() {
 
     // 按键1是启动,按键2是停止
     if (planning_status_ == PlanningStatus::Stop) {
-        if (!key_stop_ && !is_path_tail && clear_stable_count >= CLEAR_STABILITY_THRESHOLD) {
+        if (!key_stop_ && !manula_control_ && !is_path_tail &&
+            clear_stable_count >= CLEAR_STABILITY_THRESHOLD) {
             planning_status_ = PlanningStatus::Planning;
             clear_stable_count = 0;
             RCLCPP_INFO(this->get_logger(), "Manual start: Planning resumed");
         }
         // 循环模式下的特殊处理：即使到达终点也可以继续运行
-        if (cyclic_test_mode_ && !key_stop_ && clear_stable_count >= CLEAR_STABILITY_THRESHOLD) {
+        if (cyclic_test_mode_ && !key_stop_ && !manula_control_ &&
+            clear_stable_count >= CLEAR_STABILITY_THRESHOLD) {
             planning_status_ = PlanningStatus::Planning;
             RCLCPP_INFO(this->get_logger(), "循环模式：自动恢复运行");
-        }
-        // 只有在连续检测到无障碍物时才切换到PLANNING
-        if (!key_stop_ && clear_stable_count >= CLEAR_STABILITY_THRESHOLD && !is_path_tail) {
-            planning_status_ = PlanningStatus::Planning;
-            RCLCPP_INFO(this->get_logger(), "Auto resume: Clear for %d frames", clear_stable_count);
         }
     } else if (planning_status_ == PlanningStatus::Planning ||
                planning_status_ == PlanningStatus::NearPathTail) {
         // 有障碍物立即停车，或手动停止
-        if (key_stop_) {
+        if (key_stop_ || manula_control_) {
             planning_status_ = PlanningStatus::Stop;
             RCLCPP_INFO(this->get_logger(), "Manual stop: Planning stopped");
         } else if (has_front_obstacle) {
