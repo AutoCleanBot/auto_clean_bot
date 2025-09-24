@@ -33,7 +33,7 @@ control_node:
     
     # 系统参数 - System Parameters
     zero_point_draft: -4.0       # 零点漂移
-    turning_radius_ratio: 0.75    # 转弯半径比例
+    turning_radius_ratio: 0.85    # 转弯半径比例
     max_speed_change_rate: 1.0   # 最大速度变化率
     smooth_window_size: 20       # 平滑窗口大小
     

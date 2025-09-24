@@ -4,6 +4,7 @@
 #include <filesystem>
 
 ssize_t g_debug_cnt = 0;
+int g_log_enable = 1;
 double NormalizeAngle(double angle) {
     while (angle > M_PI)
         angle -= 2 * M_PI;
@@ -332,7 +333,7 @@ void ControlNode::LateralController() {
                     target_yaw * 180.0 / M_PI, cur_yaw * 180.0 / M_PI, cur_north, cur_east, cur_spd,
                     closest_east, closest_north, closest_yaw * 180.0 / M_PI,path_curvature_);
     }
-    if (g_debug_cnt % 5 == 0 && debug_log_file_.is_open() ) {
+    if (g_debug_cnt % 5 == 0 && g_log_enable && debug_log_file_.is_open() ) {
         auto time_str = TimeToHumanReadable(this->now());
         auto feedback_steer_angle = chassis_info_msg_.steer_angle;
         double delta = lat_error >= 0 ? -0.05 : 0.05;
@@ -341,7 +342,7 @@ void ControlNode::LateralController() {
         }
         debug_log_file_ << time_str << "," << pursuit_control_rate_ << "," << stanley_control_rate_
                         << "," << sta_lat_rate_ << "," << heading_error * 180.0 / M_PI << ","
-                        << angular_error * 180.0 / M_PI << "," << lat_error << ","
+                        << angular_error * 180.0 / M_PI << "," << lat_error_s << ","
                         << pursuit_control * 180.0 / M_PI * adaptive_pursuit_rate << ","
                         << stanley_control * 180.0 / M_PI * adaptive_stanley_rate << ","
                         << curvature_deg* 180.0 / M_PI  << "," << steer_angle << "," << feedback_steer_angle << ","
@@ -412,7 +413,7 @@ void ControlNode::LongitudinalController() {
     } else {
         control_cmd_msg_.speed = step_target_speed;
     }
-    if (g_debug_cnt % 5 == 0 && debug_log_file_.is_open()) {
+    if (g_debug_cnt % 5 == 0 && g_log_enable && debug_log_file_.is_open()) {
         auto vehicle_feedback_spd = chassis_info_msg_.cur_speed;
         debug_log_file_ << "," << final_target_speed << "," << current_speed << ","
                         << final_target_speed - current_speed << "," << 0 << ","
