@@ -1,0 +1,1 @@
+colcon build --packages-select  lidar_imu_init --symlink-install --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON 

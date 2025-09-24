@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Site BuildName="(empty)"
+	BuildStamp="20250923-0753-Experimental"
+	Name="limer-Server-Pc"
+	Generator="ctest-4.0.3"
+	CompilerName="/usr/bin/clang++"
+	CompilerVersion="10.0.0"
+	OSName="Linux"
+	Hostname="limer-Server-Pc"
+	OSRelease="5.15.0-134-generic"
+	OSVersion="#145~20.04.1-Ubuntu SMP Mon Feb 17 13:27:16 UTC 2025"
+	OSPlatform="x86_64"
+	Is64Bits="1"
+	VendorString="GenuineIntel"
+	VendorID="Intel Corporation"
+	FamilyID="6"
+	ModelID="151"
+	ModelName="12th Gen Intel(R) Core(TM) i7-12700"
+	ProcessorCacheSize="25600"
+	NumberOfLogicalCPU="20"
+	NumberOfPhysicalCPU="12"
+	TotalVirtualMemory="2047"
+	TotalPhysicalMemory="63988"
+	LogicalProcessorsPerPhysical="1"
+	ProcessorClockFrequency="2100"
+	>
+	<Testing>
+		<StartDateTime>Sep 24 10:30 CST</StartDateTime>
+		<StartTestTime>1758681022</StartTestTime>
+		<TestList/>
+		<EndDateTime>Sep 24 10:30 CST</EndDateTime>
+		<EndTestTime>1758681022</EndTestTime>
+		<ElapsedMinutes>0</ElapsedMinutes>
+	</Testing>
+</Site>

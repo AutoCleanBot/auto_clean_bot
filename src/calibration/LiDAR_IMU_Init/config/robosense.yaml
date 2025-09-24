@@ -1,0 +1,33 @@
+laserMapping:
+  ros__parameters:
+    common.lid_topic: "/rslidar_sdk/drivers/front_lidar"
+    common.imu_topic: "/imu/pose"
+
+    preprocess.lidar_type: 6              # Robosense LiDAR
+    preprocess.scan_line: 32
+    preprocess.blind: 2.0
+    preprocess.feature_extract_en: false
+
+    initialization.cut_frame_num: 3       # must be positive integer
+    initialization.orig_odom_freq: 10
+    initialization.mean_acc_norm: 9.81    # 1: for Livox built-in IMU
+    initialization.online_refine_time: 15.0
+    initialization.data_accum_length: 500.0
+    initialization.Rot_LI_cov: [0.00005, 0.00005, 0.00005]
+    initialization.Trans_LI_cov: [0.0001, 0.0001, 0.0001]
+
+    mapping.filter_size_surf: 0.05
+    mapping.filter_size_map: 0.15
+    mapping.gyr_cov: 0.5
+    mapping.acc_cov: 0.5
+    mapping.b_acc_cov: 0.0001
+    mapping.b_gyr_cov: 0.0001
+    mapping.det_range: 100.0
+
+    publish.path_en: true
+    publish.scan_publish_en: true         # false: close all the point cloud output
+    publish.dense_publish_en: true        # false: reduce point count in global-frame scans
+    publish.scan_bodyframe_pub_en: true   # true: output scans in IMU-body-frame
+
+    pcd_save.pcd_save_en: false
+    pcd_save.interval: -1                 # -1: save all frames into one PCD file (may consume much memory)

@@ -1,0 +1,8 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/limer/third_party/LiDAR_IMU_Init/build/cmake_install.cmake",
+		"/home/limer/third_party/LiDAR_IMU_Init/build/lidar_imu_init__py/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

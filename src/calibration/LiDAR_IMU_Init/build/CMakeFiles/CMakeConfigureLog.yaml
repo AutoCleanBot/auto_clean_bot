@@ -1,0 +1,1067 @@
+
+---
+events:
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake-4.0/Modules/CMakeDetermineSystem.cmake:205 (message)"
+      - "CMakeLists.txt:2 (project)"
+    message: |
+      The system is: Linux - 5.15.0-134-generic - x86_64
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake-4.0/Modules/CMakeDetermineCompilerId.cmake:17 (message)"
+      - "/usr/share/cmake-4.0/Modules/CMakeDetermineCompilerId.cmake:64 (__determine_compiler_id_test)"
+      - "/usr/share/cmake-4.0/Modules/CMakeDetermineCCompiler.cmake:123 (CMAKE_DETERMINE_COMPILER_ID)"
+      - "CMakeLists.txt:2 (project)"
+    message: |
+      Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
+      Compiler: /usr/bin/clang 
+      Build flags: 
+      Id flags:  
+      
+      The output was:
+      0
+      
+      
+      Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "a.out"
+      
+      The C compiler identification is Clang, found in:
+        /home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/4.0.3/CompilerIdC/a.out
+      
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake-4.0/Modules/CMakeDetermineCompilerId.cmake:17 (message)"
+      - "/usr/share/cmake-4.0/Modules/CMakeDetermineCompilerId.cmake:64 (__determine_compiler_id_test)"
+      - "/usr/share/cmake-4.0/Modules/CMakeDetermineCXXCompiler.cmake:126 (CMAKE_DETERMINE_COMPILER_ID)"
+      - "CMakeLists.txt:2 (project)"
+    message: |
+      Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" succeeded.
+      Compiler: /usr/bin/clang++ 
+      Build flags: 
+      Id flags:  
+      
+      The output was:
+      0
+      
+      
+      Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "a.out"
+      
+      The CXX compiler identification is Clang, found in:
+        /home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/4.0.3/CompilerIdCXX/a.out
+      
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-4.0/Modules/CMakeDetermineCompilerABI.cmake:83 (try_compile)"
+      - "/usr/share/cmake-4.0/Modules/CMakeTestCCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:2 (project)"
+    checks:
+      - "Detecting C compiler ABI info"
+    directories:
+      source: "/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-xLw513"
+      binary: "/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-xLw513"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS-NOTFOUND"
+      CMAKE_C_FLAGS: ""
+      CMAKE_EXE_LINKER_FLAGS: ""
+    buildResult:
+      variable: "CMAKE_C_ABI_COMPILED"
+      cached: true
+      stdout: |
+        Change Dir: '/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-xLw513'
+        
+        Run Build Command(s): /usr/bin/ninja -v cmTC_db2ab
+        [1/2] /usr/bin/clang   -v -MD -MT CMakeFiles/cmTC_db2ab.dir/CMakeCCompilerABI.c.o -MF CMakeFiles/cmTC_db2ab.dir/CMakeCCompilerABI.c.o.d -o CMakeFiles/cmTC_db2ab.dir/CMakeCCompilerABI.c.o -c /usr/share/cmake-4.0/Modules/CMakeCCompilerABI.c
+        clang version 10.0.0-4ubuntu1 
+        Target: x86_64-pc-linux-gnu
+        Thread model: posix
+        InstalledDir: /usr/bin
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/10
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/7
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/7.5.0
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/8
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/9
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/10
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7.5.0
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/8
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/9
+        Selected GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/10
+        Candidate multilib: .;@m64
+        Selected multilib: .;@m64
+         (in-process)
+         "/usr/lib/llvm-10/bin/clang" -cc1 -triple x86_64-pc-linux-gnu -emit-obj -mrelax-all -disable-free -disable-llvm-verifier -discard-value-names -main-file-name CMakeCCompilerABI.c -mrelocation-model static -mthread-model posix -mframe-pointer=all -fmath-errno -fno-rounding-math -masm-verbose -mconstructor-aliases -munwind-tables -target-cpu x86-64 -dwarf-column-info -fno-split-dwarf-inlining -debugger-tuning=gdb -v -resource-dir /usr/lib/llvm-10/lib/clang/10.0.0 -dependency-file CMakeFiles/cmTC_db2ab.dir/CMakeCCompilerABI.c.o.d -MT CMakeFiles/cmTC_db2ab.dir/CMakeCCompilerABI.c.o -sys-header-deps -internal-isystem /usr/local/include -internal-isystem /usr/lib/llvm-10/lib/clang/10.0.0/include -internal-externc-isystem /usr/include/x86_64-linux-gnu -internal-externc-isystem /include -internal-externc-isystem /usr/include -fdebug-compilation-dir /home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-xLw513 -ferror-limit 19 -fmessage-length 0 -fgnuc-version=4.2.1 -fobjc-runtime=gcc -fdiagnostics-show-option -faddrsig -o CMakeFiles/cmTC_db2ab.dir/CMakeCCompilerABI.c.o -x c /usr/share/cmake-4.0/Modules/CMakeCCompilerABI.c
+        clang -cc1 version 10.0.0 based upon LLVM 10.0.0 default target x86_64-pc-linux-gnu
+        ignoring nonexistent directory "/include"
+        #include "..." search starts here:
+        #include <...> search starts here:
+         /usr/local/include
+         /usr/lib/llvm-10/lib/clang/10.0.0/include
+         /usr/include/x86_64-linux-gnu
+         /usr/include
+        End of search list.
+        [2/2] : && /usr/bin/clang  -v -Wl,-v CMakeFiles/cmTC_db2ab.dir/CMakeCCompilerABI.c.o -o cmTC_db2ab   && :
+        clang version 10.0.0-4ubuntu1 
+        Target: x86_64-pc-linux-gnu
+        Thread model: posix
+        InstalledDir: /usr/bin
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/10
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/7
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/7.5.0
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/8
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/9
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/10
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7.5.0
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/8
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/9
+        Selected GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/10
+        Candidate multilib: .;@m64
+        Selected multilib: .;@m64
+         "/usr/bin/ld" -z relro --hash-style=gnu --build-id --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_db2ab /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crt1.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crti.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtbegin.o -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10 -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../lib64 -L/lib/x86_64-linux-gnu -L/lib/../lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib64 -L/usr/lib/x86_64-linux-gnu/../../lib64 -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../.. -L/usr/lib/llvm-10/bin/../lib -L/lib -L/usr/lib -v CMakeFiles/cmTC_db2ab.dir/CMakeCCompilerABI.c.o -lgcc --as-needed -lgcc_s --no-as-needed -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtend.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crtn.o
+        GNU ld (GNU Binutils for Ubuntu) 2.34
+        
+      exitCode: 0
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake-4.0/Modules/CMakeDetermineCompilerABI.cmake:191 (message)"
+      - "/usr/share/cmake-4.0/Modules/CMakeTestCCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:2 (project)"
+    message: |
+      Parsed C implicit include dir info: rv=done
+        found start of include info
+        found start of implicit include info
+          add: [/usr/local/include]
+          add: [/usr/lib/llvm-10/lib/clang/10.0.0/include]
+          add: [/usr/include/x86_64-linux-gnu]
+          add: [/usr/include]
+        end of search list found
+        collapse include dir [/usr/local/include] ==> [/usr/local/include]
+        collapse include dir [/usr/lib/llvm-10/lib/clang/10.0.0/include] ==> [/usr/lib/llvm-10/lib/clang/10.0.0/include]
+        collapse include dir [/usr/include/x86_64-linux-gnu] ==> [/usr/include/x86_64-linux-gnu]
+        collapse include dir [/usr/include] ==> [/usr/include]
+        implicit include dirs: [/usr/local/include;/usr/lib/llvm-10/lib/clang/10.0.0/include;/usr/include/x86_64-linux-gnu;/usr/include]
+      
+      
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake-4.0/Modules/CMakeDetermineCompilerABI.cmake:227 (message)"
+      - "/usr/share/cmake-4.0/Modules/CMakeTestCCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:2 (project)"
+    message: |
+      Parsed C implicit link information:
+        link line regex: [^( *|.*[/\\])(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\\]+-)?ld|collect2)[^/\\]*( |$)]
+        linker tool regex: [^[ 	]*(->|")?[ 	]*(([^"]*[/\\])?(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)))("|,| |$)]
+        ignore line: [Change Dir: '/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-xLw513']
+        ignore line: []
+        ignore line: [Run Build Command(s): /usr/bin/ninja -v cmTC_db2ab]
+        ignore line: [[1/2] /usr/bin/clang   -v -MD -MT CMakeFiles/cmTC_db2ab.dir/CMakeCCompilerABI.c.o -MF CMakeFiles/cmTC_db2ab.dir/CMakeCCompilerABI.c.o.d -o CMakeFiles/cmTC_db2ab.dir/CMakeCCompilerABI.c.o -c /usr/share/cmake-4.0/Modules/CMakeCCompilerABI.c]
+        ignore line: [clang version 10.0.0-4ubuntu1 ]
+        ignore line: [Target: x86_64-pc-linux-gnu]
+        ignore line: [Thread model: posix]
+        ignore line: [InstalledDir: /usr/bin]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/10]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/7]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/7.5.0]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/8]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/9]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/10]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7.5.0]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/8]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/9]
+        ignore line: [Selected GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/10]
+        ignore line: [Candidate multilib: .]
+        ignore line: [@m64]
+        ignore line: [Selected multilib: .]
+        ignore line: [@m64]
+        ignore line: [ (in-process)]
+        ignore line: [ "/usr/lib/llvm-10/bin/clang" -cc1 -triple x86_64-pc-linux-gnu -emit-obj -mrelax-all -disable-free -disable-llvm-verifier -discard-value-names -main-file-name CMakeCCompilerABI.c -mrelocation-model static -mthread-model posix -mframe-pointer=all -fmath-errno -fno-rounding-math -masm-verbose -mconstructor-aliases -munwind-tables -target-cpu x86-64 -dwarf-column-info -fno-split-dwarf-inlining -debugger-tuning=gdb -v -resource-dir /usr/lib/llvm-10/lib/clang/10.0.0 -dependency-file CMakeFiles/cmTC_db2ab.dir/CMakeCCompilerABI.c.o.d -MT CMakeFiles/cmTC_db2ab.dir/CMakeCCompilerABI.c.o -sys-header-deps -internal-isystem /usr/local/include -internal-isystem /usr/lib/llvm-10/lib/clang/10.0.0/include -internal-externc-isystem /usr/include/x86_64-linux-gnu -internal-externc-isystem /include -internal-externc-isystem /usr/include -fdebug-compilation-dir /home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-xLw513 -ferror-limit 19 -fmessage-length 0 -fgnuc-version=4.2.1 -fobjc-runtime=gcc -fdiagnostics-show-option -faddrsig -o CMakeFiles/cmTC_db2ab.dir/CMakeCCompilerABI.c.o -x c /usr/share/cmake-4.0/Modules/CMakeCCompilerABI.c]
+        ignore line: [clang -cc1 version 10.0.0 based upon LLVM 10.0.0 default target x86_64-pc-linux-gnu]
+        ignore line: [ignoring nonexistent directory "/include"]
+        ignore line: [#include "..." search starts here:]
+        ignore line: [#include <...> search starts here:]
+        ignore line: [ /usr/local/include]
+        ignore line: [ /usr/lib/llvm-10/lib/clang/10.0.0/include]
+        ignore line: [ /usr/include/x86_64-linux-gnu]
+        ignore line: [ /usr/include]
+        ignore line: [End of search list.]
+        ignore line: [[2/2] : && /usr/bin/clang  -v -Wl -v CMakeFiles/cmTC_db2ab.dir/CMakeCCompilerABI.c.o -o cmTC_db2ab   && :]
+        ignore line: [clang version 10.0.0-4ubuntu1 ]
+        ignore line: [Target: x86_64-pc-linux-gnu]
+        ignore line: [Thread model: posix]
+        ignore line: [InstalledDir: /usr/bin]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/10]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/7]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/7.5.0]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/8]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/9]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/10]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7.5.0]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/8]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/9]
+        ignore line: [Selected GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/10]
+        ignore line: [Candidate multilib: .]
+        ignore line: [@m64]
+        ignore line: [Selected multilib: .]
+        ignore line: [@m64]
+        link line: [ "/usr/bin/ld" -z relro --hash-style=gnu --build-id --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_db2ab /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crt1.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crti.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtbegin.o -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10 -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../lib64 -L/lib/x86_64-linux-gnu -L/lib/../lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib64 -L/usr/lib/x86_64-linux-gnu/../../lib64 -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../.. -L/usr/lib/llvm-10/bin/../lib -L/lib -L/usr/lib -v CMakeFiles/cmTC_db2ab.dir/CMakeCCompilerABI.c.o -lgcc --as-needed -lgcc_s --no-as-needed -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtend.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crtn.o]
+          arg [/usr/bin/ld] ==> ignore
+          arg [-zrelro] ==> ignore
+          arg [--hash-style=gnu] ==> ignore
+          arg [--build-id] ==> ignore
+          arg [--eh-frame-hdr] ==> ignore
+          arg [-m] ==> ignore
+          arg [elf_x86_64] ==> ignore
+          arg [-dynamic-linker] ==> ignore
+          arg [/lib64/ld-linux-x86-64.so.2] ==> ignore
+          arg [-o] ==> ignore
+          arg [cmTC_db2ab] ==> ignore
+          arg [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crt1.o] ==> obj [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crt1.o]
+          arg [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crti.o] ==> obj [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crti.o]
+          arg [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtbegin.o] ==> obj [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtbegin.o]
+          arg [-L/usr/bin/../lib/gcc/x86_64-linux-gnu/10] ==> dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10]
+          arg [-L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu] ==> dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu]
+          arg [-L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../lib64] ==> dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../lib64]
+          arg [-L/lib/x86_64-linux-gnu] ==> dir [/lib/x86_64-linux-gnu]
+          arg [-L/lib/../lib64] ==> dir [/lib/../lib64]
+          arg [-L/usr/lib/x86_64-linux-gnu] ==> dir [/usr/lib/x86_64-linux-gnu]
+          arg [-L/usr/lib/../lib64] ==> dir [/usr/lib/../lib64]
+          arg [-L/usr/lib/x86_64-linux-gnu/../../lib64] ==> dir [/usr/lib/x86_64-linux-gnu/../../lib64]
+          arg [-L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../..] ==> dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../..]
+          arg [-L/usr/lib/llvm-10/bin/../lib] ==> dir [/usr/lib/llvm-10/bin/../lib]
+          arg [-L/lib] ==> dir [/lib]
+          arg [-L/usr/lib] ==> dir [/usr/lib]
+          arg [-v] ==> ignore
+          arg [CMakeFiles/cmTC_db2ab.dir/CMakeCCompilerABI.c.o] ==> ignore
+          arg [-lgcc] ==> lib [gcc]
+          arg [--as-needed] ==> ignore
+          arg [-lgcc_s] ==> lib [gcc_s]
+          arg [--no-as-needed] ==> ignore
+          arg [-lc] ==> lib [c]
+          arg [-lgcc] ==> lib [gcc]
+          arg [--as-needed] ==> ignore
+          arg [-lgcc_s] ==> lib [gcc_s]
+          arg [--no-as-needed] ==> ignore
+          arg [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtend.o] ==> obj [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtend.o]
+          arg [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crtn.o] ==> obj [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crtn.o]
+        linker tool for 'C': /usr/bin/ld
+        collapse obj [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crt1.o] ==> [/usr/lib/x86_64-linux-gnu/crt1.o]
+        collapse obj [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crti.o] ==> [/usr/lib/x86_64-linux-gnu/crti.o]
+        collapse obj [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtbegin.o] ==> [/usr/lib/gcc/x86_64-linux-gnu/10/crtbegin.o]
+        collapse obj [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtend.o] ==> [/usr/lib/gcc/x86_64-linux-gnu/10/crtend.o]
+        collapse obj [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crtn.o] ==> [/usr/lib/x86_64-linux-gnu/crtn.o]
+        collapse library dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10] ==> [/usr/lib/gcc/x86_64-linux-gnu/10]
+        collapse library dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu] ==> [/usr/lib/x86_64-linux-gnu]
+        collapse library dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../lib64] ==> [/usr/lib64]
+        collapse library dir [/lib/x86_64-linux-gnu] ==> [/lib/x86_64-linux-gnu]
+        collapse library dir [/lib/../lib64] ==> [/lib64]
+        collapse library dir [/usr/lib/x86_64-linux-gnu] ==> [/usr/lib/x86_64-linux-gnu]
+        collapse library dir [/usr/lib/../lib64] ==> [/usr/lib64]
+        collapse library dir [/usr/lib/x86_64-linux-gnu/../../lib64] ==> [/usr/lib64]
+        collapse library dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../..] ==> [/usr/lib]
+        collapse library dir [/usr/lib/llvm-10/bin/../lib] ==> [/usr/lib/llvm-10/lib]
+        collapse library dir [/lib] ==> [/lib]
+        collapse library dir [/usr/lib] ==> [/usr/lib]
+        implicit libs: [gcc;gcc_s;c;gcc;gcc_s]
+        implicit objs: [/usr/lib/x86_64-linux-gnu/crt1.o;/usr/lib/x86_64-linux-gnu/crti.o;/usr/lib/gcc/x86_64-linux-gnu/10/crtbegin.o;/usr/lib/gcc/x86_64-linux-gnu/10/crtend.o;/usr/lib/x86_64-linux-gnu/crtn.o]
+        implicit dirs: [/usr/lib/gcc/x86_64-linux-gnu/10;/usr/lib/x86_64-linux-gnu;/usr/lib64;/lib/x86_64-linux-gnu;/lib64;/usr/lib;/usr/lib/llvm-10/lib;/lib]
+        implicit fwks: []
+      
+      
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake-4.0/Modules/Internal/CMakeDetermineLinkerId.cmake:36 (message)"
+      - "/usr/share/cmake-4.0/Modules/CMakeDetermineCompilerABI.cmake:270 (cmake_determine_linker_id)"
+      - "/usr/share/cmake-4.0/Modules/CMakeTestCCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:2 (project)"
+    message: |
+      Running the C compiler's linker: "/usr/bin/ld" "-v"
+      GNU ld (GNU Binutils for Ubuntu) 2.34
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-4.0/Modules/CMakeDetermineCompilerABI.cmake:83 (try_compile)"
+      - "/usr/share/cmake-4.0/Modules/CMakeTestCXXCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:2 (project)"
+    checks:
+      - "Detecting CXX compiler ABI info"
+    directories:
+      source: "/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-QHYBn2"
+      binary: "/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-QHYBn2"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS-NOTFOUND"
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_SCAN_FOR_MODULES: "OFF"
+      CMAKE_EXE_LINKER_FLAGS: ""
+    buildResult:
+      variable: "CMAKE_CXX_ABI_COMPILED"
+      cached: true
+      stdout: |
+        Change Dir: '/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-QHYBn2'
+        
+        Run Build Command(s): /usr/bin/ninja -v cmTC_779b2
+        [1/2] /usr/bin/clang++   -v -MD -MT CMakeFiles/cmTC_779b2.dir/CMakeCXXCompilerABI.cpp.o -MF CMakeFiles/cmTC_779b2.dir/CMakeCXXCompilerABI.cpp.o.d -o CMakeFiles/cmTC_779b2.dir/CMakeCXXCompilerABI.cpp.o -c /usr/share/cmake-4.0/Modules/CMakeCXXCompilerABI.cpp
+        clang version 10.0.0-4ubuntu1 
+        Target: x86_64-pc-linux-gnu
+        Thread model: posix
+        InstalledDir: /usr/bin
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/10
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/7
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/7.5.0
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/8
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/9
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/10
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7.5.0
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/8
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/9
+        Selected GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/10
+        Candidate multilib: .;@m64
+        Selected multilib: .;@m64
+         (in-process)
+         "/usr/lib/llvm-10/bin/clang" -cc1 -triple x86_64-pc-linux-gnu -emit-obj -mrelax-all -disable-free -disable-llvm-verifier -discard-value-names -main-file-name CMakeCXXCompilerABI.cpp -mrelocation-model static -mthread-model posix -mframe-pointer=all -fmath-errno -fno-rounding-math -masm-verbose -mconstructor-aliases -munwind-tables -target-cpu x86-64 -dwarf-column-info -fno-split-dwarf-inlining -debugger-tuning=gdb -v -resource-dir /usr/lib/llvm-10/lib/clang/10.0.0 -dependency-file CMakeFiles/cmTC_779b2.dir/CMakeCXXCompilerABI.cpp.o.d -MT CMakeFiles/cmTC_779b2.dir/CMakeCXXCompilerABI.cpp.o -sys-header-deps -internal-isystem /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../include/c++/10 -internal-isystem /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../include/x86_64-linux-gnu/c++/10 -internal-isystem /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../include/x86_64-linux-gnu/c++/10 -internal-isystem /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../include/c++/10/backward -internal-isystem /usr/local/include -internal-isystem /usr/lib/llvm-10/lib/clang/10.0.0/include -internal-externc-isystem /usr/include/x86_64-linux-gnu -internal-externc-isystem /include -internal-externc-isystem /usr/include -fdeprecated-macro -fdebug-compilation-dir /home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-QHYBn2 -ferror-limit 19 -fmessage-length 0 -fgnuc-version=4.2.1 -fobjc-runtime=gcc -fcxx-exceptions -fexceptions -fdiagnostics-show-option -faddrsig -o CMakeFiles/cmTC_779b2.dir/CMakeCXXCompilerABI.cpp.o -x c++ /usr/share/cmake-4.0/Modules/CMakeCXXCompilerABI.cpp
+        clang -cc1 version 10.0.0 based upon LLVM 10.0.0 default target x86_64-pc-linux-gnu
+        ignoring nonexistent directory "/include"
+        ignoring duplicate directory "/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../include/x86_64-linux-gnu/c++/10"
+        #include "..." search starts here:
+        #include <...> search starts here:
+         /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../include/c++/10
+         /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../include/x86_64-linux-gnu/c++/10
+         /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../include/c++/10/backward
+         /usr/local/include
+         /usr/lib/llvm-10/lib/clang/10.0.0/include
+         /usr/include/x86_64-linux-gnu
+         /usr/include
+        End of search list.
+        [2/2] : && /usr/bin/clang++  -v -Wl,-v CMakeFiles/cmTC_779b2.dir/CMakeCXXCompilerABI.cpp.o -o cmTC_779b2   && :
+        clang version 10.0.0-4ubuntu1 
+        Target: x86_64-pc-linux-gnu
+        Thread model: posix
+        InstalledDir: /usr/bin
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/10
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/7
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/7.5.0
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/8
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/9
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/10
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7.5.0
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/8
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/9
+        Selected GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/10
+        Candidate multilib: .;@m64
+        Selected multilib: .;@m64
+         "/usr/bin/ld" -z relro --hash-style=gnu --build-id --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_779b2 /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crt1.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crti.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtbegin.o -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10 -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../lib64 -L/lib/x86_64-linux-gnu -L/lib/../lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib64 -L/usr/lib/x86_64-linux-gnu/../../lib64 -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../.. -L/usr/lib/llvm-10/bin/../lib -L/lib -L/usr/lib -v CMakeFiles/cmTC_779b2.dir/CMakeCXXCompilerABI.cpp.o -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtend.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crtn.o
+        GNU ld (GNU Binutils for Ubuntu) 2.34
+        
+      exitCode: 0
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake-4.0/Modules/CMakeDetermineCompilerABI.cmake:191 (message)"
+      - "/usr/share/cmake-4.0/Modules/CMakeTestCXXCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:2 (project)"
+    message: |
+      Parsed CXX implicit include dir info: rv=done
+        found start of include info
+        found start of implicit include info
+          add: [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../include/c++/10]
+          add: [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../include/x86_64-linux-gnu/c++/10]
+          add: [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../include/c++/10/backward]
+          add: [/usr/local/include]
+          add: [/usr/lib/llvm-10/lib/clang/10.0.0/include]
+          add: [/usr/include/x86_64-linux-gnu]
+          add: [/usr/include]
+        end of search list found
+        collapse include dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../include/c++/10] ==> [/usr/include/c++/10]
+        collapse include dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../include/x86_64-linux-gnu/c++/10] ==> [/usr/include/x86_64-linux-gnu/c++/10]
+        collapse include dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../include/c++/10/backward] ==> [/usr/include/c++/10/backward]
+        collapse include dir [/usr/local/include] ==> [/usr/local/include]
+        collapse include dir [/usr/lib/llvm-10/lib/clang/10.0.0/include] ==> [/usr/lib/llvm-10/lib/clang/10.0.0/include]
+        collapse include dir [/usr/include/x86_64-linux-gnu] ==> [/usr/include/x86_64-linux-gnu]
+        collapse include dir [/usr/include] ==> [/usr/include]
+        implicit include dirs: [/usr/include/c++/10;/usr/include/x86_64-linux-gnu/c++/10;/usr/include/c++/10/backward;/usr/local/include;/usr/lib/llvm-10/lib/clang/10.0.0/include;/usr/include/x86_64-linux-gnu;/usr/include]
+      
+      
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake-4.0/Modules/CMakeDetermineCompilerABI.cmake:227 (message)"
+      - "/usr/share/cmake-4.0/Modules/CMakeTestCXXCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:2 (project)"
+    message: |
+      Parsed CXX implicit link information:
+        link line regex: [^( *|.*[/\\])(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\\]+-)?ld|collect2)[^/\\]*( |$)]
+        linker tool regex: [^[ 	]*(->|")?[ 	]*(([^"]*[/\\])?(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)))("|,| |$)]
+        ignore line: [Change Dir: '/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-QHYBn2']
+        ignore line: []
+        ignore line: [Run Build Command(s): /usr/bin/ninja -v cmTC_779b2]
+        ignore line: [[1/2] /usr/bin/clang++   -v -MD -MT CMakeFiles/cmTC_779b2.dir/CMakeCXXCompilerABI.cpp.o -MF CMakeFiles/cmTC_779b2.dir/CMakeCXXCompilerABI.cpp.o.d -o CMakeFiles/cmTC_779b2.dir/CMakeCXXCompilerABI.cpp.o -c /usr/share/cmake-4.0/Modules/CMakeCXXCompilerABI.cpp]
+        ignore line: [clang version 10.0.0-4ubuntu1 ]
+        ignore line: [Target: x86_64-pc-linux-gnu]
+        ignore line: [Thread model: posix]
+        ignore line: [InstalledDir: /usr/bin]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/10]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/7]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/7.5.0]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/8]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/9]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/10]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7.5.0]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/8]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/9]
+        ignore line: [Selected GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/10]
+        ignore line: [Candidate multilib: .]
+        ignore line: [@m64]
+        ignore line: [Selected multilib: .]
+        ignore line: [@m64]
+        ignore line: [ (in-process)]
+        ignore line: [ "/usr/lib/llvm-10/bin/clang" -cc1 -triple x86_64-pc-linux-gnu -emit-obj -mrelax-all -disable-free -disable-llvm-verifier -discard-value-names -main-file-name CMakeCXXCompilerABI.cpp -mrelocation-model static -mthread-model posix -mframe-pointer=all -fmath-errno -fno-rounding-math -masm-verbose -mconstructor-aliases -munwind-tables -target-cpu x86-64 -dwarf-column-info -fno-split-dwarf-inlining -debugger-tuning=gdb -v -resource-dir /usr/lib/llvm-10/lib/clang/10.0.0 -dependency-file CMakeFiles/cmTC_779b2.dir/CMakeCXXCompilerABI.cpp.o.d -MT CMakeFiles/cmTC_779b2.dir/CMakeCXXCompilerABI.cpp.o -sys-header-deps -internal-isystem /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../include/c++/10 -internal-isystem /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../include/x86_64-linux-gnu/c++/10 -internal-isystem /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../include/x86_64-linux-gnu/c++/10 -internal-isystem /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../include/c++/10/backward -internal-isystem /usr/local/include -internal-isystem /usr/lib/llvm-10/lib/clang/10.0.0/include -internal-externc-isystem /usr/include/x86_64-linux-gnu -internal-externc-isystem /include -internal-externc-isystem /usr/include -fdeprecated-macro -fdebug-compilation-dir /home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-QHYBn2 -ferror-limit 19 -fmessage-length 0 -fgnuc-version=4.2.1 -fobjc-runtime=gcc -fcxx-exceptions -fexceptions -fdiagnostics-show-option -faddrsig -o CMakeFiles/cmTC_779b2.dir/CMakeCXXCompilerABI.cpp.o -x c++ /usr/share/cmake-4.0/Modules/CMakeCXXCompilerABI.cpp]
+        ignore line: [clang -cc1 version 10.0.0 based upon LLVM 10.0.0 default target x86_64-pc-linux-gnu]
+        ignore line: [ignoring nonexistent directory "/include"]
+        ignore line: [ignoring duplicate directory "/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../include/x86_64-linux-gnu/c++/10"]
+        ignore line: [#include "..." search starts here:]
+        ignore line: [#include <...> search starts here:]
+        ignore line: [ /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../include/c++/10]
+        ignore line: [ /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../include/x86_64-linux-gnu/c++/10]
+        ignore line: [ /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../include/c++/10/backward]
+        ignore line: [ /usr/local/include]
+        ignore line: [ /usr/lib/llvm-10/lib/clang/10.0.0/include]
+        ignore line: [ /usr/include/x86_64-linux-gnu]
+        ignore line: [ /usr/include]
+        ignore line: [End of search list.]
+        ignore line: [[2/2] : && /usr/bin/clang++  -v -Wl -v CMakeFiles/cmTC_779b2.dir/CMakeCXXCompilerABI.cpp.o -o cmTC_779b2   && :]
+        ignore line: [clang version 10.0.0-4ubuntu1 ]
+        ignore line: [Target: x86_64-pc-linux-gnu]
+        ignore line: [Thread model: posix]
+        ignore line: [InstalledDir: /usr/bin]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/10]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/7]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/7.5.0]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/8]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/9]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/10]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7.5.0]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/8]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/9]
+        ignore line: [Selected GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/10]
+        ignore line: [Candidate multilib: .]
+        ignore line: [@m64]
+        ignore line: [Selected multilib: .]
+        ignore line: [@m64]
+        link line: [ "/usr/bin/ld" -z relro --hash-style=gnu --build-id --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_779b2 /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crt1.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crti.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtbegin.o -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10 -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../lib64 -L/lib/x86_64-linux-gnu -L/lib/../lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib64 -L/usr/lib/x86_64-linux-gnu/../../lib64 -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../.. -L/usr/lib/llvm-10/bin/../lib -L/lib -L/usr/lib -v CMakeFiles/cmTC_779b2.dir/CMakeCXXCompilerABI.cpp.o -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtend.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crtn.o]
+          arg [/usr/bin/ld] ==> ignore
+          arg [-zrelro] ==> ignore
+          arg [--hash-style=gnu] ==> ignore
+          arg [--build-id] ==> ignore
+          arg [--eh-frame-hdr] ==> ignore
+          arg [-m] ==> ignore
+          arg [elf_x86_64] ==> ignore
+          arg [-dynamic-linker] ==> ignore
+          arg [/lib64/ld-linux-x86-64.so.2] ==> ignore
+          arg [-o] ==> ignore
+          arg [cmTC_779b2] ==> ignore
+          arg [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crt1.o] ==> obj [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crt1.o]
+          arg [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crti.o] ==> obj [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crti.o]
+          arg [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtbegin.o] ==> obj [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtbegin.o]
+          arg [-L/usr/bin/../lib/gcc/x86_64-linux-gnu/10] ==> dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10]
+          arg [-L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu] ==> dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu]
+          arg [-L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../lib64] ==> dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../lib64]
+          arg [-L/lib/x86_64-linux-gnu] ==> dir [/lib/x86_64-linux-gnu]
+          arg [-L/lib/../lib64] ==> dir [/lib/../lib64]
+          arg [-L/usr/lib/x86_64-linux-gnu] ==> dir [/usr/lib/x86_64-linux-gnu]
+          arg [-L/usr/lib/../lib64] ==> dir [/usr/lib/../lib64]
+          arg [-L/usr/lib/x86_64-linux-gnu/../../lib64] ==> dir [/usr/lib/x86_64-linux-gnu/../../lib64]
+          arg [-L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../..] ==> dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../..]
+          arg [-L/usr/lib/llvm-10/bin/../lib] ==> dir [/usr/lib/llvm-10/bin/../lib]
+          arg [-L/lib] ==> dir [/lib]
+          arg [-L/usr/lib] ==> dir [/usr/lib]
+          arg [-v] ==> ignore
+          arg [CMakeFiles/cmTC_779b2.dir/CMakeCXXCompilerABI.cpp.o] ==> ignore
+          arg [-lstdc++] ==> lib [stdc++]
+          arg [-lm] ==> lib [m]
+          arg [-lgcc_s] ==> lib [gcc_s]
+          arg [-lgcc] ==> lib [gcc]
+          arg [-lc] ==> lib [c]
+          arg [-lgcc_s] ==> lib [gcc_s]
+          arg [-lgcc] ==> lib [gcc]
+          arg [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtend.o] ==> obj [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtend.o]
+          arg [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crtn.o] ==> obj [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crtn.o]
+        linker tool for 'CXX': /usr/bin/ld
+        collapse obj [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crt1.o] ==> [/usr/lib/x86_64-linux-gnu/crt1.o]
+        collapse obj [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crti.o] ==> [/usr/lib/x86_64-linux-gnu/crti.o]
+        collapse obj [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtbegin.o] ==> [/usr/lib/gcc/x86_64-linux-gnu/10/crtbegin.o]
+        collapse obj [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtend.o] ==> [/usr/lib/gcc/x86_64-linux-gnu/10/crtend.o]
+        collapse obj [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crtn.o] ==> [/usr/lib/x86_64-linux-gnu/crtn.o]
+        collapse library dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10] ==> [/usr/lib/gcc/x86_64-linux-gnu/10]
+        collapse library dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu] ==> [/usr/lib/x86_64-linux-gnu]
+        collapse library dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../lib64] ==> [/usr/lib64]
+        collapse library dir [/lib/x86_64-linux-gnu] ==> [/lib/x86_64-linux-gnu]
+        collapse library dir [/lib/../lib64] ==> [/lib64]
+        collapse library dir [/usr/lib/x86_64-linux-gnu] ==> [/usr/lib/x86_64-linux-gnu]
+        collapse library dir [/usr/lib/../lib64] ==> [/usr/lib64]
+        collapse library dir [/usr/lib/x86_64-linux-gnu/../../lib64] ==> [/usr/lib64]
+        collapse library dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../..] ==> [/usr/lib]
+        collapse library dir [/usr/lib/llvm-10/bin/../lib] ==> [/usr/lib/llvm-10/lib]
+        collapse library dir [/lib] ==> [/lib]
+        collapse library dir [/usr/lib] ==> [/usr/lib]
+        implicit libs: [stdc++;m;gcc_s;gcc;c;gcc_s;gcc]
+        implicit objs: [/usr/lib/x86_64-linux-gnu/crt1.o;/usr/lib/x86_64-linux-gnu/crti.o;/usr/lib/gcc/x86_64-linux-gnu/10/crtbegin.o;/usr/lib/gcc/x86_64-linux-gnu/10/crtend.o;/usr/lib/x86_64-linux-gnu/crtn.o]
+        implicit dirs: [/usr/lib/gcc/x86_64-linux-gnu/10;/usr/lib/x86_64-linux-gnu;/usr/lib64;/lib/x86_64-linux-gnu;/lib64;/usr/lib;/usr/lib/llvm-10/lib;/lib]
+        implicit fwks: []
+      
+      
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake-4.0/Modules/Internal/CMakeDetermineLinkerId.cmake:36 (message)"
+      - "/usr/share/cmake-4.0/Modules/CMakeDetermineCompilerABI.cmake:270 (cmake_determine_linker_id)"
+      - "/usr/share/cmake-4.0/Modules/CMakeTestCXXCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:2 (project)"
+    message: |
+      Running the CXX compiler's linker: "/usr/bin/ld" "-v"
+      GNU ld (GNU Binutils for Ubuntu) 2.34
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-4.0/Modules/Internal/CheckSourceCompiles.cmake:104 (try_compile)"
+      - "/usr/share/cmake-4.0/Modules/CheckCSourceCompiles.cmake:58 (cmake_check_source_compiles)"
+      - "/usr/share/cmake-4.0/Modules/FindThreads.cmake:97 (check_c_source_compiles)"
+      - "/usr/share/cmake-4.0/Modules/FindThreads.cmake:163 (_threads_check_libc)"
+      - "/opt/ros/foxy/share/rmw_implementation/cmake/rmw_implementation-extras.cmake:67 (find_package)"
+      - "/opt/ros/foxy/share/rmw_implementation/cmake/rmw_implementationConfig.cmake:41 (include)"
+      - "/opt/ros/foxy/share/rcl/cmake/ament_cmake_export_dependencies-extras.cmake:21 (find_package)"
+      - "/opt/ros/foxy/share/rcl/cmake/rclConfig.cmake:41 (include)"
+      - "/opt/ros/foxy/share/libstatistics_collector/cmake/ament_cmake_export_dependencies-extras.cmake:21 (find_package)"
+      - "/opt/ros/foxy/share/libstatistics_collector/cmake/libstatistics_collectorConfig.cmake:41 (include)"
+      - "/opt/ros/foxy/share/rclcpp/cmake/ament_cmake_export_dependencies-extras.cmake:21 (find_package)"
+      - "/opt/ros/foxy/share/rclcpp/cmake/rclcppConfig.cmake:41 (include)"
+      - "CMakeLists.txt:32 (find_package)"
+    checks:
+      - "Performing Test CMAKE_HAVE_LIBC_PTHREAD"
+    directories:
+      source: "/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-1ZeSz3"
+      binary: "/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-1ZeSz3"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS-NOTFOUND"
+      CMAKE_C_FLAGS: ""
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: "/opt/ros/foxy/share/fastrtps_cmake_module/cmake/Modules"
+    buildResult:
+      variable: "CMAKE_HAVE_LIBC_PTHREAD"
+      cached: true
+      stdout: |
+        Change Dir: '/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-1ZeSz3'
+        
+        Run Build Command(s): /usr/bin/ninja -v cmTC_43c86
+        [1/2] /usr/bin/clang -DCMAKE_HAVE_LIBC_PTHREAD   -MD -MT CMakeFiles/cmTC_43c86.dir/src.c.o -MF CMakeFiles/cmTC_43c86.dir/src.c.o.d -o CMakeFiles/cmTC_43c86.dir/src.c.o -c /home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-1ZeSz3/src.c
+        [2/2] : && /usr/bin/clang   CMakeFiles/cmTC_43c86.dir/src.c.o -o cmTC_43c86   && :
+        FAILED: cmTC_43c86 
+        : && /usr/bin/clang   CMakeFiles/cmTC_43c86.dir/src.c.o -o cmTC_43c86   && :
+        /usr/bin/ld: CMakeFiles/cmTC_43c86.dir/src.c.o: in function `main':
+        src.c:(.text+0x25): undefined reference to `pthread_create'
+        /usr/bin/ld: src.c:(.text+0x31): undefined reference to `pthread_detach'
+        /usr/bin/ld: src.c:(.text+0x3d): undefined reference to `pthread_cancel'
+        /usr/bin/ld: src.c:(.text+0x4f): undefined reference to `pthread_join'
+        clang: error: linker command failed with exit code 1 (use -v to see invocation)
+        ninja: build stopped: subcommand failed.
+        
+      exitCode: 1
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-4.0/Modules/CheckLibraryExists.cmake:112 (try_compile)"
+      - "/usr/share/cmake-4.0/Modules/FindThreads.cmake:112 (check_library_exists)"
+      - "/usr/share/cmake-4.0/Modules/FindThreads.cmake:175 (_threads_check_lib)"
+      - "/opt/ros/foxy/share/rmw_implementation/cmake/rmw_implementation-extras.cmake:67 (find_package)"
+      - "/opt/ros/foxy/share/rmw_implementation/cmake/rmw_implementationConfig.cmake:41 (include)"
+      - "/opt/ros/foxy/share/rcl/cmake/ament_cmake_export_dependencies-extras.cmake:21 (find_package)"
+      - "/opt/ros/foxy/share/rcl/cmake/rclConfig.cmake:41 (include)"
+      - "/opt/ros/foxy/share/libstatistics_collector/cmake/ament_cmake_export_dependencies-extras.cmake:21 (find_package)"
+      - "/opt/ros/foxy/share/libstatistics_collector/cmake/libstatistics_collectorConfig.cmake:41 (include)"
+      - "/opt/ros/foxy/share/rclcpp/cmake/ament_cmake_export_dependencies-extras.cmake:21 (find_package)"
+      - "/opt/ros/foxy/share/rclcpp/cmake/rclcppConfig.cmake:41 (include)"
+      - "CMakeLists.txt:32 (find_package)"
+    checks:
+      - "Looking for pthread_create in pthreads"
+    directories:
+      source: "/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-M40Cg2"
+      binary: "/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-M40Cg2"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS-NOTFOUND"
+      CMAKE_C_FLAGS: ""
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: "/opt/ros/foxy/share/fastrtps_cmake_module/cmake/Modules"
+    buildResult:
+      variable: "CMAKE_HAVE_PTHREADS_CREATE"
+      cached: true
+      stdout: |
+        Change Dir: '/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-M40Cg2'
+        
+        Run Build Command(s): /usr/bin/ninja -v cmTC_5a43e
+        [1/2] /usr/bin/clang   -DCHECK_FUNCTION_EXISTS=pthread_create -MD -MT CMakeFiles/cmTC_5a43e.dir/CheckFunctionExists.c.o -MF CMakeFiles/cmTC_5a43e.dir/CheckFunctionExists.c.o.d -o CMakeFiles/cmTC_5a43e.dir/CheckFunctionExists.c.o -c /home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-M40Cg2/CheckFunctionExists.c
+        [2/2] : && /usr/bin/clang -DCHECK_FUNCTION_EXISTS=pthread_create  CMakeFiles/cmTC_5a43e.dir/CheckFunctionExists.c.o -o cmTC_5a43e  -lpthreads && :
+        FAILED: cmTC_5a43e 
+        : && /usr/bin/clang -DCHECK_FUNCTION_EXISTS=pthread_create  CMakeFiles/cmTC_5a43e.dir/CheckFunctionExists.c.o -o cmTC_5a43e  -lpthreads && :
+        /usr/bin/ld: 找不到 -lpthreads
+        clang: error: linker command failed with exit code 1 (use -v to see invocation)
+        ninja: build stopped: subcommand failed.
+        
+      exitCode: 1
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-4.0/Modules/CheckLibraryExists.cmake:112 (try_compile)"
+      - "/usr/share/cmake-4.0/Modules/FindThreads.cmake:112 (check_library_exists)"
+      - "/usr/share/cmake-4.0/Modules/FindThreads.cmake:176 (_threads_check_lib)"
+      - "/opt/ros/foxy/share/rmw_implementation/cmake/rmw_implementation-extras.cmake:67 (find_package)"
+      - "/opt/ros/foxy/share/rmw_implementation/cmake/rmw_implementationConfig.cmake:41 (include)"
+      - "/opt/ros/foxy/share/rcl/cmake/ament_cmake_export_dependencies-extras.cmake:21 (find_package)"
+      - "/opt/ros/foxy/share/rcl/cmake/rclConfig.cmake:41 (include)"
+      - "/opt/ros/foxy/share/libstatistics_collector/cmake/ament_cmake_export_dependencies-extras.cmake:21 (find_package)"
+      - "/opt/ros/foxy/share/libstatistics_collector/cmake/libstatistics_collectorConfig.cmake:41 (include)"
+      - "/opt/ros/foxy/share/rclcpp/cmake/ament_cmake_export_dependencies-extras.cmake:21 (find_package)"
+      - "/opt/ros/foxy/share/rclcpp/cmake/rclcppConfig.cmake:41 (include)"
+      - "CMakeLists.txt:32 (find_package)"
+    checks:
+      - "Looking for pthread_create in pthread"
+    directories:
+      source: "/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-qQZzb1"
+      binary: "/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-qQZzb1"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS-NOTFOUND"
+      CMAKE_C_FLAGS: ""
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: "/opt/ros/foxy/share/fastrtps_cmake_module/cmake/Modules"
+    buildResult:
+      variable: "CMAKE_HAVE_PTHREAD_CREATE"
+      cached: true
+      stdout: |
+        Change Dir: '/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-qQZzb1'
+        
+        Run Build Command(s): /usr/bin/ninja -v cmTC_7b2d7
+        [1/2] /usr/bin/clang   -DCHECK_FUNCTION_EXISTS=pthread_create -MD -MT CMakeFiles/cmTC_7b2d7.dir/CheckFunctionExists.c.o -MF CMakeFiles/cmTC_7b2d7.dir/CheckFunctionExists.c.o.d -o CMakeFiles/cmTC_7b2d7.dir/CheckFunctionExists.c.o -c /home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-qQZzb1/CheckFunctionExists.c
+        [2/2] : && /usr/bin/clang -DCHECK_FUNCTION_EXISTS=pthread_create  CMakeFiles/cmTC_7b2d7.dir/CheckFunctionExists.c.o -o cmTC_7b2d7  -lpthread && :
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-4.0/Modules/FindOpenMP.cmake:250 (try_compile)"
+      - "/usr/share/cmake-4.0/Modules/FindOpenMP.cmake:557 (_OPENMP_GET_FLAGS)"
+      - "CMakeLists.txt:45 (find_package)"
+    description: "Detecting C OpenMP compiler info"
+    directories:
+      source: "/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-OznZd2"
+      binary: "/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-OznZd2"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS-NOTFOUND"
+      CMAKE_C_FLAGS: " "
+      CMAKE_EXE_LINKER_FLAGS: " "
+      CMAKE_MODULE_PATH: "/opt/ros/foxy/share/eigen3_cmake_module/cmake/Modules;/opt/ros/foxy/share/fastrtps_cmake_module/cmake/Modules;/usr/lib/x86_64-linux-gnu/cmake/pcl/Modules;/usr/lib/cmake/vtk-7.1"
+    buildResult:
+      variable: "OpenMP_COMPILE_RESULT_C_fopenmplibomp"
+      cached: true
+      stdout: |
+        Change Dir: '/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-OznZd2'
+        
+        Run Build Command(s): /usr/bin/ninja -v cmTC_12ac7
+        [1/2] /usr/bin/clang   -fopenmp=libomp -MD -MT CMakeFiles/cmTC_12ac7.dir/OpenMPTryFlag.c.o -MF CMakeFiles/cmTC_12ac7.dir/OpenMPTryFlag.c.o.d -o CMakeFiles/cmTC_12ac7.dir/OpenMPTryFlag.c.o -c /home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-OznZd2/OpenMPTryFlag.c
+        [2/2] : && /usr/bin/clang -fopenmp=libomp -v CMakeFiles/cmTC_12ac7.dir/OpenMPTryFlag.c.o -o cmTC_12ac7   && :
+        FAILED: cmTC_12ac7 
+        : && /usr/bin/clang -fopenmp=libomp -v CMakeFiles/cmTC_12ac7.dir/OpenMPTryFlag.c.o -o cmTC_12ac7   && :
+        clang version 10.0.0-4ubuntu1 
+        Target: x86_64-pc-linux-gnu
+        Thread model: posix
+        InstalledDir: /usr/bin
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/10
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/7
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/7.5.0
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/8
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/9
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/10
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7.5.0
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/8
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/9
+        Selected GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/10
+        Candidate multilib: .;@m64
+        Selected multilib: .;@m64
+         "/usr/bin/ld" -z relro --hash-style=gnu --build-id --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_12ac7 /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crt1.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crti.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtbegin.o -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10 -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../lib64 -L/lib/x86_64-linux-gnu -L/lib/../lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib64 -L/usr/lib/x86_64-linux-gnu/../../lib64 -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../.. -L/usr/lib/llvm-10/bin/../lib -L/lib -L/usr/lib CMakeFiles/cmTC_12ac7.dir/OpenMPTryFlag.c.o -lomp -lgcc --as-needed -lgcc_s --no-as-needed -lpthread -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtend.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crtn.o
+        /usr/bin/ld: 找不到 -lomp
+        clang: error: linker command failed with exit code 1 (use -v to see invocation)
+        ninja: build stopped: subcommand failed.
+        
+      exitCode: 1
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-4.0/Modules/FindOpenMP.cmake:250 (try_compile)"
+      - "/usr/share/cmake-4.0/Modules/FindOpenMP.cmake:557 (_OPENMP_GET_FLAGS)"
+      - "CMakeLists.txt:45 (find_package)"
+    description: "Detecting C OpenMP compiler info"
+    directories:
+      source: "/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-t4f4c2"
+      binary: "/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-t4f4c2"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS-NOTFOUND"
+      CMAKE_C_FLAGS: " "
+      CMAKE_EXE_LINKER_FLAGS: " "
+      CMAKE_MODULE_PATH: "/opt/ros/foxy/share/eigen3_cmake_module/cmake/Modules;/opt/ros/foxy/share/fastrtps_cmake_module/cmake/Modules;/usr/lib/x86_64-linux-gnu/cmake/pcl/Modules;/usr/lib/cmake/vtk-7.1"
+    buildResult:
+      variable: "OpenMP_COMPILE_RESULT_C_fopenmplibiomp5"
+      cached: true
+      stdout: |
+        Change Dir: '/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-t4f4c2'
+        
+        Run Build Command(s): /usr/bin/ninja -v cmTC_739bf
+        [1/2] /usr/bin/clang   -fopenmp=libiomp5 -MD -MT CMakeFiles/cmTC_739bf.dir/OpenMPTryFlag.c.o -MF CMakeFiles/cmTC_739bf.dir/OpenMPTryFlag.c.o.d -o CMakeFiles/cmTC_739bf.dir/OpenMPTryFlag.c.o -c /home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-t4f4c2/OpenMPTryFlag.c
+        [2/2] : && /usr/bin/clang -fopenmp=libiomp5 -v CMakeFiles/cmTC_739bf.dir/OpenMPTryFlag.c.o -o cmTC_739bf   && :
+        clang version 10.0.0-4ubuntu1 
+        Target: x86_64-pc-linux-gnu
+        Thread model: posix
+        InstalledDir: /usr/bin
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/10
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/7
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/7.5.0
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/8
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/9
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/10
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7.5.0
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/8
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/9
+        Selected GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/10
+        Candidate multilib: .;@m64
+        Selected multilib: .;@m64
+         "/usr/bin/ld" -z relro --hash-style=gnu --build-id --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_739bf /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crt1.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crti.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtbegin.o -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10 -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../lib64 -L/lib/x86_64-linux-gnu -L/lib/../lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib64 -L/usr/lib/x86_64-linux-gnu/../../lib64 -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../.. -L/usr/lib/llvm-10/bin/../lib -L/lib -L/usr/lib CMakeFiles/cmTC_739bf.dir/OpenMPTryFlag.c.o -liomp5 -lgcc --as-needed -lgcc_s --no-as-needed -lpthread -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtend.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crtn.o
+        
+      exitCode: 0
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake-4.0/Modules/FindOpenMP.cmake:294 (message)"
+      - "/usr/share/cmake-4.0/Modules/FindOpenMP.cmake:557 (_OPENMP_GET_FLAGS)"
+      - "CMakeLists.txt:45 (find_package)"
+    message: |
+      Parsed C OpenMP implicit link information from above output:
+        link line regex: [^( *|.*[/\\])(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\\]+-)?ld|collect2)[^/\\]*( |$)]
+        ignore line: [Change Dir: '/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-t4f4c2']
+        ignore line: []
+        ignore line: [Run Build Command(s): /usr/bin/ninja -v cmTC_739bf]
+        ignore line: [[1/2] /usr/bin/clang   -fopenmp=libiomp5 -MD -MT CMakeFiles/cmTC_739bf.dir/OpenMPTryFlag.c.o -MF CMakeFiles/cmTC_739bf.dir/OpenMPTryFlag.c.o.d -o CMakeFiles/cmTC_739bf.dir/OpenMPTryFlag.c.o -c /home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-t4f4c2/OpenMPTryFlag.c]
+        ignore line: [[2/2] : && /usr/bin/clang -fopenmp=libiomp5 -v CMakeFiles/cmTC_739bf.dir/OpenMPTryFlag.c.o -o cmTC_739bf   && :]
+        ignore line: [clang version 10.0.0-4ubuntu1 ]
+        ignore line: [Target: x86_64-pc-linux-gnu]
+        ignore line: [Thread model: posix]
+        ignore line: [InstalledDir: /usr/bin]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/10]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/7]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/7.5.0]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/8]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/9]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/10]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7.5.0]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/8]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/9]
+        ignore line: [Selected GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/10]
+        ignore line: [Candidate multilib: .]
+        ignore line: [@m64]
+        ignore line: [Selected multilib: .]
+        ignore line: [@m64]
+        link line: [ "/usr/bin/ld" -z relro --hash-style=gnu --build-id --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_739bf /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crt1.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crti.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtbegin.o -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10 -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../lib64 -L/lib/x86_64-linux-gnu -L/lib/../lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib64 -L/usr/lib/x86_64-linux-gnu/../../lib64 -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../.. -L/usr/lib/llvm-10/bin/../lib -L/lib -L/usr/lib CMakeFiles/cmTC_739bf.dir/OpenMPTryFlag.c.o -liomp5 -lgcc --as-needed -lgcc_s --no-as-needed -lpthread -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtend.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crtn.o]
+          arg [/usr/bin/ld] ==> ignore
+          arg [-zrelro] ==> ignore
+          arg [--hash-style=gnu] ==> ignore
+          arg [--build-id] ==> ignore
+          arg [--eh-frame-hdr] ==> ignore
+          arg [-m] ==> ignore
+          arg [elf_x86_64] ==> ignore
+          arg [-dynamic-linker] ==> ignore
+          arg [/lib64/ld-linux-x86-64.so.2] ==> ignore
+          arg [-o] ==> ignore
+          arg [cmTC_739bf] ==> ignore
+          arg [-L/usr/bin/../lib/gcc/x86_64-linux-gnu/10] ==> dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10]
+          arg [-L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu] ==> dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu]
+          arg [-L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../lib64] ==> dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../lib64]
+          arg [-L/lib/x86_64-linux-gnu] ==> dir [/lib/x86_64-linux-gnu]
+          arg [-L/lib/../lib64] ==> dir [/lib/../lib64]
+          arg [-L/usr/lib/x86_64-linux-gnu] ==> dir [/usr/lib/x86_64-linux-gnu]
+          arg [-L/usr/lib/../lib64] ==> dir [/usr/lib/../lib64]
+          arg [-L/usr/lib/x86_64-linux-gnu/../../lib64] ==> dir [/usr/lib/x86_64-linux-gnu/../../lib64]
+          arg [-L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../..] ==> dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../..]
+          arg [-L/usr/lib/llvm-10/bin/../lib] ==> dir [/usr/lib/llvm-10/bin/../lib]
+          arg [-L/lib] ==> dir [/lib]
+          arg [-L/usr/lib] ==> dir [/usr/lib]
+          arg [CMakeFiles/cmTC_739bf.dir/OpenMPTryFlag.c.o] ==> ignore
+          arg [-liomp5] ==> lib [iomp5]
+          arg [-lgcc] ==> lib [gcc]
+          arg [--as-needed] ==> ignore
+          arg [-lgcc_s] ==> lib [gcc_s]
+          arg [--no-as-needed] ==> ignore
+          arg [-lpthread] ==> lib [pthread]
+          arg [-lc] ==> lib [c]
+          arg [-lgcc] ==> lib [gcc]
+          arg [--as-needed] ==> ignore
+          arg [-lgcc_s] ==> lib [gcc_s]
+          arg [--no-as-needed] ==> ignore
+        collapse library dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10] ==> [/usr/lib/gcc/x86_64-linux-gnu/10]
+        collapse library dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu] ==> [/usr/lib/x86_64-linux-gnu]
+        collapse library dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../lib64] ==> [/usr/lib64]
+        collapse library dir [/lib/x86_64-linux-gnu] ==> [/lib/x86_64-linux-gnu]
+        collapse library dir [/lib/../lib64] ==> [/lib64]
+        collapse library dir [/usr/lib/x86_64-linux-gnu] ==> [/usr/lib/x86_64-linux-gnu]
+        collapse library dir [/usr/lib/../lib64] ==> [/usr/lib64]
+        collapse library dir [/usr/lib/x86_64-linux-gnu/../../lib64] ==> [/usr/lib64]
+        collapse library dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../..] ==> [/usr/lib]
+        collapse library dir [/usr/lib/llvm-10/bin/../lib] ==> [/usr/lib/llvm-10/lib]
+        collapse library dir [/lib] ==> [/lib]
+        collapse library dir [/usr/lib] ==> [/usr/lib]
+        implicit libs: [iomp5;gcc;gcc_s;pthread;c;gcc;gcc_s]
+        implicit objs: []
+        implicit dirs: [/usr/lib/gcc/x86_64-linux-gnu/10;/usr/lib/x86_64-linux-gnu;/usr/lib64;/lib/x86_64-linux-gnu;/lib64;/usr/lib;/usr/lib/llvm-10/lib;/lib]
+        implicit fwks: []
+      
+      
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-4.0/Modules/FindOpenMP.cmake:250 (try_compile)"
+      - "/usr/share/cmake-4.0/Modules/FindOpenMP.cmake:557 (_OPENMP_GET_FLAGS)"
+      - "CMakeLists.txt:45 (find_package)"
+    description: "Detecting CXX OpenMP compiler info"
+    directories:
+      source: "/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-K3rjS4"
+      binary: "/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-K3rjS4"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS-NOTFOUND"
+      CMAKE_CXX_FLAGS: " "
+      CMAKE_EXE_LINKER_FLAGS: " "
+      CMAKE_MODULE_PATH: "/opt/ros/foxy/share/eigen3_cmake_module/cmake/Modules;/opt/ros/foxy/share/fastrtps_cmake_module/cmake/Modules;/usr/lib/x86_64-linux-gnu/cmake/pcl/Modules;/usr/lib/cmake/vtk-7.1"
+    buildResult:
+      variable: "OpenMP_COMPILE_RESULT_CXX_fopenmplibomp"
+      cached: true
+      stdout: |
+        Change Dir: '/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-K3rjS4'
+        
+        Run Build Command(s): /usr/bin/ninja -v cmTC_1c8b6
+        [1/2] /usr/bin/clang++   -fopenmp=libomp -MD -MT CMakeFiles/cmTC_1c8b6.dir/OpenMPTryFlag.cpp.o -MF CMakeFiles/cmTC_1c8b6.dir/OpenMPTryFlag.cpp.o.d -o CMakeFiles/cmTC_1c8b6.dir/OpenMPTryFlag.cpp.o -c /home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-K3rjS4/OpenMPTryFlag.cpp
+        [2/2] : && /usr/bin/clang++ -fopenmp=libomp -v CMakeFiles/cmTC_1c8b6.dir/OpenMPTryFlag.cpp.o -o cmTC_1c8b6   && :
+        FAILED: cmTC_1c8b6 
+        : && /usr/bin/clang++ -fopenmp=libomp -v CMakeFiles/cmTC_1c8b6.dir/OpenMPTryFlag.cpp.o -o cmTC_1c8b6   && :
+        clang version 10.0.0-4ubuntu1 
+        Target: x86_64-pc-linux-gnu
+        Thread model: posix
+        InstalledDir: /usr/bin
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/10
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/7
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/7.5.0
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/8
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/9
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/10
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7.5.0
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/8
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/9
+        Selected GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/10
+        Candidate multilib: .;@m64
+        Selected multilib: .;@m64
+         "/usr/bin/ld" -z relro --hash-style=gnu --build-id --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_1c8b6 /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crt1.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crti.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtbegin.o -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10 -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../lib64 -L/lib/x86_64-linux-gnu -L/lib/../lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib64 -L/usr/lib/x86_64-linux-gnu/../../lib64 -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../.. -L/usr/lib/llvm-10/bin/../lib -L/lib -L/usr/lib CMakeFiles/cmTC_1c8b6.dir/OpenMPTryFlag.cpp.o -lstdc++ -lm -lomp -lgcc_s -lgcc -lpthread -lc -lgcc_s -lgcc /usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtend.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crtn.o
+        /usr/bin/ld: 找不到 -lomp
+        clang: error: linker command failed with exit code 1 (use -v to see invocation)
+        ninja: build stopped: subcommand failed.
+        
+      exitCode: 1
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-4.0/Modules/FindOpenMP.cmake:250 (try_compile)"
+      - "/usr/share/cmake-4.0/Modules/FindOpenMP.cmake:557 (_OPENMP_GET_FLAGS)"
+      - "CMakeLists.txt:45 (find_package)"
+    description: "Detecting CXX OpenMP compiler info"
+    directories:
+      source: "/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-8chOY3"
+      binary: "/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-8chOY3"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS-NOTFOUND"
+      CMAKE_CXX_FLAGS: " "
+      CMAKE_EXE_LINKER_FLAGS: " "
+      CMAKE_MODULE_PATH: "/opt/ros/foxy/share/eigen3_cmake_module/cmake/Modules;/opt/ros/foxy/share/fastrtps_cmake_module/cmake/Modules;/usr/lib/x86_64-linux-gnu/cmake/pcl/Modules;/usr/lib/cmake/vtk-7.1"
+    buildResult:
+      variable: "OpenMP_COMPILE_RESULT_CXX_fopenmplibiomp5"
+      cached: true
+      stdout: |
+        Change Dir: '/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-8chOY3'
+        
+        Run Build Command(s): /usr/bin/ninja -v cmTC_4a967
+        [1/2] /usr/bin/clang++   -fopenmp=libiomp5 -MD -MT CMakeFiles/cmTC_4a967.dir/OpenMPTryFlag.cpp.o -MF CMakeFiles/cmTC_4a967.dir/OpenMPTryFlag.cpp.o.d -o CMakeFiles/cmTC_4a967.dir/OpenMPTryFlag.cpp.o -c /home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-8chOY3/OpenMPTryFlag.cpp
+        [2/2] : && /usr/bin/clang++ -fopenmp=libiomp5 -v CMakeFiles/cmTC_4a967.dir/OpenMPTryFlag.cpp.o -o cmTC_4a967   && :
+        clang version 10.0.0-4ubuntu1 
+        Target: x86_64-pc-linux-gnu
+        Thread model: posix
+        InstalledDir: /usr/bin
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/10
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/7
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/7.5.0
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/8
+        Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/9
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/10
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7.5.0
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/8
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/9
+        Selected GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/10
+        Candidate multilib: .;@m64
+        Selected multilib: .;@m64
+         "/usr/bin/ld" -z relro --hash-style=gnu --build-id --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_4a967 /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crt1.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crti.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtbegin.o -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10 -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../lib64 -L/lib/x86_64-linux-gnu -L/lib/../lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib64 -L/usr/lib/x86_64-linux-gnu/../../lib64 -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../.. -L/usr/lib/llvm-10/bin/../lib -L/lib -L/usr/lib CMakeFiles/cmTC_4a967.dir/OpenMPTryFlag.cpp.o -lstdc++ -lm -liomp5 -lgcc_s -lgcc -lpthread -lc -lgcc_s -lgcc /usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtend.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crtn.o
+        
+      exitCode: 0
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake-4.0/Modules/FindOpenMP.cmake:294 (message)"
+      - "/usr/share/cmake-4.0/Modules/FindOpenMP.cmake:557 (_OPENMP_GET_FLAGS)"
+      - "CMakeLists.txt:45 (find_package)"
+    message: |
+      Parsed CXX OpenMP implicit link information from above output:
+        link line regex: [^( *|.*[/\\])(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\\]+-)?ld|collect2)[^/\\]*( |$)]
+        ignore line: [Change Dir: '/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-8chOY3']
+        ignore line: []
+        ignore line: [Run Build Command(s): /usr/bin/ninja -v cmTC_4a967]
+        ignore line: [[1/2] /usr/bin/clang++   -fopenmp=libiomp5 -MD -MT CMakeFiles/cmTC_4a967.dir/OpenMPTryFlag.cpp.o -MF CMakeFiles/cmTC_4a967.dir/OpenMPTryFlag.cpp.o.d -o CMakeFiles/cmTC_4a967.dir/OpenMPTryFlag.cpp.o -c /home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-8chOY3/OpenMPTryFlag.cpp]
+        ignore line: [[2/2] : && /usr/bin/clang++ -fopenmp=libiomp5 -v CMakeFiles/cmTC_4a967.dir/OpenMPTryFlag.cpp.o -o cmTC_4a967   && :]
+        ignore line: [clang version 10.0.0-4ubuntu1 ]
+        ignore line: [Target: x86_64-pc-linux-gnu]
+        ignore line: [Thread model: posix]
+        ignore line: [InstalledDir: /usr/bin]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/10]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/7]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/7.5.0]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/8]
+        ignore line: [Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/9]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/10]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7.5.0]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/8]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/9]
+        ignore line: [Selected GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/10]
+        ignore line: [Candidate multilib: .]
+        ignore line: [@m64]
+        ignore line: [Selected multilib: .]
+        ignore line: [@m64]
+        link line: [ "/usr/bin/ld" -z relro --hash-style=gnu --build-id --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_4a967 /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crt1.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crti.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtbegin.o -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10 -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../lib64 -L/lib/x86_64-linux-gnu -L/lib/../lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib64 -L/usr/lib/x86_64-linux-gnu/../../lib64 -L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../.. -L/usr/lib/llvm-10/bin/../lib -L/lib -L/usr/lib CMakeFiles/cmTC_4a967.dir/OpenMPTryFlag.cpp.o -lstdc++ -lm -liomp5 -lgcc_s -lgcc -lpthread -lc -lgcc_s -lgcc /usr/bin/../lib/gcc/x86_64-linux-gnu/10/crtend.o /usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu/crtn.o]
+          arg [/usr/bin/ld] ==> ignore
+          arg [-zrelro] ==> ignore
+          arg [--hash-style=gnu] ==> ignore
+          arg [--build-id] ==> ignore
+          arg [--eh-frame-hdr] ==> ignore
+          arg [-m] ==> ignore
+          arg [elf_x86_64] ==> ignore
+          arg [-dynamic-linker] ==> ignore
+          arg [/lib64/ld-linux-x86-64.so.2] ==> ignore
+          arg [-o] ==> ignore
+          arg [cmTC_4a967] ==> ignore
+          arg [-L/usr/bin/../lib/gcc/x86_64-linux-gnu/10] ==> dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10]
+          arg [-L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu] ==> dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu]
+          arg [-L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../lib64] ==> dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../lib64]
+          arg [-L/lib/x86_64-linux-gnu] ==> dir [/lib/x86_64-linux-gnu]
+          arg [-L/lib/../lib64] ==> dir [/lib/../lib64]
+          arg [-L/usr/lib/x86_64-linux-gnu] ==> dir [/usr/lib/x86_64-linux-gnu]
+          arg [-L/usr/lib/../lib64] ==> dir [/usr/lib/../lib64]
+          arg [-L/usr/lib/x86_64-linux-gnu/../../lib64] ==> dir [/usr/lib/x86_64-linux-gnu/../../lib64]
+          arg [-L/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../..] ==> dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../..]
+          arg [-L/usr/lib/llvm-10/bin/../lib] ==> dir [/usr/lib/llvm-10/bin/../lib]
+          arg [-L/lib] ==> dir [/lib]
+          arg [-L/usr/lib] ==> dir [/usr/lib]
+          arg [CMakeFiles/cmTC_4a967.dir/OpenMPTryFlag.cpp.o] ==> ignore
+          arg [-lstdc++] ==> lib [stdc++]
+          arg [-lm] ==> lib [m]
+          arg [-liomp5] ==> lib [iomp5]
+          arg [-lgcc_s] ==> lib [gcc_s]
+          arg [-lgcc] ==> lib [gcc]
+          arg [-lpthread] ==> lib [pthread]
+          arg [-lc] ==> lib [c]
+          arg [-lgcc_s] ==> lib [gcc_s]
+          arg [-lgcc] ==> lib [gcc]
+        collapse library dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10] ==> [/usr/lib/gcc/x86_64-linux-gnu/10]
+        collapse library dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../x86_64-linux-gnu] ==> [/usr/lib/x86_64-linux-gnu]
+        collapse library dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../../../lib64] ==> [/usr/lib64]
+        collapse library dir [/lib/x86_64-linux-gnu] ==> [/lib/x86_64-linux-gnu]
+        collapse library dir [/lib/../lib64] ==> [/lib64]
+        collapse library dir [/usr/lib/x86_64-linux-gnu] ==> [/usr/lib/x86_64-linux-gnu]
+        collapse library dir [/usr/lib/../lib64] ==> [/usr/lib64]
+        collapse library dir [/usr/lib/x86_64-linux-gnu/../../lib64] ==> [/usr/lib64]
+        collapse library dir [/usr/bin/../lib/gcc/x86_64-linux-gnu/10/../../..] ==> [/usr/lib]
+        collapse library dir [/usr/lib/llvm-10/bin/../lib] ==> [/usr/lib/llvm-10/lib]
+        collapse library dir [/lib] ==> [/lib]
+        collapse library dir [/usr/lib] ==> [/usr/lib]
+        implicit libs: [stdc++;m;iomp5;gcc_s;gcc;pthread;c;gcc_s;gcc]
+        implicit objs: []
+        implicit dirs: [/usr/lib/gcc/x86_64-linux-gnu/10;/usr/lib/x86_64-linux-gnu;/usr/lib64;/lib/x86_64-linux-gnu;/lib64;/usr/lib;/usr/lib/llvm-10/lib;/lib]
+        implicit fwks: []
+      
+      
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-4.0/Modules/FindOpenMP.cmake:491 (try_compile)"
+      - "/usr/share/cmake-4.0/Modules/FindOpenMP.cmake:631 (_OPENMP_GET_SPEC_DATE)"
+      - "CMakeLists.txt:45 (find_package)"
+    description: "Detecting C OpenMP version"
+    directories:
+      source: "/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-PBeyy1"
+      binary: "/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-PBeyy1"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS-NOTFOUND"
+      CMAKE_C_FLAGS: " "
+      CMAKE_EXE_LINKER_FLAGS: " "
+      CMAKE_MODULE_PATH: "/opt/ros/foxy/share/eigen3_cmake_module/cmake/Modules;/opt/ros/foxy/share/fastrtps_cmake_module/cmake/Modules;/usr/lib/x86_64-linux-gnu/cmake/pcl/Modules;/usr/lib/cmake/vtk-7.1"
+    buildResult:
+      variable: "OpenMP_SPECTEST_C_"
+      cached: true
+      stdout: |
+        Change Dir: '/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-PBeyy1'
+        
+        Run Build Command(s): /usr/bin/ninja -v cmTC_72080
+        [1/2] /usr/bin/clang   -fopenmp=libiomp5 -MD -MT CMakeFiles/cmTC_72080.dir/OpenMPCheckVersion.c.o -MF CMakeFiles/cmTC_72080.dir/OpenMPCheckVersion.c.o.d -o CMakeFiles/cmTC_72080.dir/OpenMPCheckVersion.c.o -c /home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-PBeyy1/OpenMPCheckVersion.c
+        [2/2] : && /usr/bin/clang -fopenmp=libiomp5  CMakeFiles/cmTC_72080.dir/OpenMPCheckVersion.c.o -o cmTC_72080   && :
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-4.0/Modules/FindOpenMP.cmake:491 (try_compile)"
+      - "/usr/share/cmake-4.0/Modules/FindOpenMP.cmake:631 (_OPENMP_GET_SPEC_DATE)"
+      - "CMakeLists.txt:45 (find_package)"
+    description: "Detecting CXX OpenMP version"
+    directories:
+      source: "/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-1wvpt3"
+      binary: "/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-1wvpt3"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS-NOTFOUND"
+      CMAKE_CXX_FLAGS: " "
+      CMAKE_EXE_LINKER_FLAGS: " "
+      CMAKE_MODULE_PATH: "/opt/ros/foxy/share/eigen3_cmake_module/cmake/Modules;/opt/ros/foxy/share/fastrtps_cmake_module/cmake/Modules;/usr/lib/x86_64-linux-gnu/cmake/pcl/Modules;/usr/lib/cmake/vtk-7.1"
+    buildResult:
+      variable: "OpenMP_SPECTEST_CXX_"
+      cached: true
+      stdout: |
+        Change Dir: '/home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-1wvpt3'
+        
+        Run Build Command(s): /usr/bin/ninja -v cmTC_c42db
+        [1/2] /usr/bin/clang++   -fopenmp=libiomp5 -MD -MT CMakeFiles/cmTC_c42db.dir/OpenMPCheckVersion.cpp.o -MF CMakeFiles/cmTC_c42db.dir/OpenMPCheckVersion.cpp.o.d -o CMakeFiles/cmTC_c42db.dir/OpenMPCheckVersion.cpp.o -c /home/limer/third_party/LiDAR_IMU_Init/build/CMakeFiles/CMakeScratch/TryCompile-1wvpt3/OpenMPCheckVersion.cpp
+        [2/2] : && /usr/bin/clang++ -fopenmp=libiomp5  CMakeFiles/cmTC_c42db.dir/OpenMPCheckVersion.cpp.o -o cmTC_c42db   && :
+        
+      exitCode: 0
+...

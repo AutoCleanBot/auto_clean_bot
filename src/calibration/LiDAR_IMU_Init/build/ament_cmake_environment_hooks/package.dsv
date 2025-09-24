@@ -1,0 +1,4 @@
+source;share/lidar_imu_init/local_setup.bash
+source;share/lidar_imu_init/local_setup.dsv
+source;share/lidar_imu_init/local_setup.sh
+source;share/lidar_imu_init/local_setup.zsh

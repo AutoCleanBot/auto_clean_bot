@@ -1,0 +1,7 @@
+{
+  "package_name": "lidar_imu_init",
+  "non_idl_tuples": [
+    "/home/limer/third_party/LiDAR_IMU_Init:msg/Pose6D.msg",
+    "/home/limer/third_party/LiDAR_IMU_Init:msg/States.msg"
+  ]
+}

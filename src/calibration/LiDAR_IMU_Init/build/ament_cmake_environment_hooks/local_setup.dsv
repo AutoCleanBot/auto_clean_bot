@@ -1,0 +1,4 @@
+source;share/lidar_imu_init/environment/ament_prefix_path.sh
+source;share/lidar_imu_init/environment/library_path.sh
+source;share/lidar_imu_init/environment/path.sh
+source;share/lidar_imu_init/environment/pythonpath.sh

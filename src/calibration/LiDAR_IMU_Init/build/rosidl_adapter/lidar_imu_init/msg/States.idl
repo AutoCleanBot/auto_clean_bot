@@ -1,0 +1,43 @@
+// generated from rosidl_adapter/resource/msg.idl.em
+// with input from lidar_imu_init/msg/States.msg
+// generated code does not contain a copyright notice
+
+#include "std_msgs/msg/Header.idl"
+
+module lidar_imu_init {
+  module msg {
+    struct States {
+      @verbatim (language="comment", text=
+        " timestamp of the first lidar in a frame")
+      std_msgs::msg::Header header;
+
+      @verbatim (language="comment", text=
+        " the estimated attitude (rotation matrix) at the end lidar point")
+      sequence<double> rot_end;
+
+      @verbatim (language="comment", text=
+        " the estimated position at the end lidar point (world frame)")
+      sequence<double> pos_end;
+
+      @verbatim (language="comment", text=
+        " the estimated velocity at the end lidar point (world frame)")
+      sequence<double> vel_end;
+
+      @verbatim (language="comment", text=
+        " gyroscope bias")
+      sequence<double> bias_gyr;
+
+      @verbatim (language="comment", text=
+        " accelerator bias")
+      sequence<double> bias_acc;
+
+      @verbatim (language="comment", text=
+        " the estimated gravity acceleration")
+      sequence<double> gravity;
+
+      @verbatim (language="comment", text=
+        " states covariance")
+      sequence<double> cov;
+    };
+  };
+};
