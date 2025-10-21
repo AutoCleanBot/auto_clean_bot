@@ -44,3 +44,6 @@ ref_project/
 *.engine
 *.pcd
 *.bag
+*.doc
+*.docx
+
