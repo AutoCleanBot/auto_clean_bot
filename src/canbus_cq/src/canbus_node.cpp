@@ -130,12 +130,14 @@ void CanbusNode::InitParams() {
     this->declare_parameter<std::string>("control_cmd_topic", "/control_cmd");
     this->declare_parameter<std::string>("chassis_info_topic", "/chassis_info_topic");
     this->declare_parameter<std::string>("remote_controller_topic", "/remote_controller");
+    this->declare_parameter<std::string>("radio_link_topic", "/radio/radio_info");
 
     this->get_parameter("can_device", can_device_name_);
     this->get_parameter("can_baud", can_baudrate_);
     this->get_parameter("control_cmd_topic", control_cmd_topic_);
     this->get_parameter("chassis_info_topic", chassis_info_topic_);
     this->get_parameter("remote_controller_topic", remote_controller_topic_);
+    this->get_parameter("radio_link_topic", radio_link_topic_);
 
     RCLCPP_INFO(this->get_logger(), "can_device_name: %s", can_device_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "can_baud: %d", can_baudrate_);
@@ -143,6 +145,8 @@ void CanbusNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "chassis_info_topic: %s", chassis_info_topic_.c_str());
     RCLCPP_INFO(this->get_logger(), "remote_controller_topic: %s",
                 remote_controller_topic_.c_str());
+    RCLCPP_INFO(this->get_logger(), "radio_link_topic: %s",
+                radio_link_topic_.c_str());
 }
 
 /**
