@@ -4,6 +4,7 @@ from launch_ros.actions import Node
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 
+
 def generate_launch_description():
     # 声明日志级别参数
     log_level = LaunchConfiguration('log_level')
@@ -12,7 +13,7 @@ def generate_launch_description():
         default_value='info',
         description='Logging level'
     )
-    
+
     # 将所有参数放在一个字典中
     canbus_params = {
         'can_device': 'can0',
@@ -20,8 +21,9 @@ def generate_launch_description():
         'control_cmd_topic': '/control/control_cmd',
         'chassis_info_topic': '/chassis_info_topic',
         'remote_controller_topic': '/remote_controller/cmd',
+        'radio_link_topic': '/remote_controller/radiolink'
     }
-    
+
     # 配置节点，并将参数字典直接传递给参数字段
     canbus_node = Node(
         package='canbus_cq',

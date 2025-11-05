@@ -381,6 +381,8 @@ void ControlNode::LongitudinalController() {
         return;
     }
 
+
+
     // 获取当前速度和目标速度
     double current_speed = localization_info_msg_->vel_speed;
     double final_target_speed = adc_trajectory_msg_->points[closest_idx_].vel_speed;
@@ -412,6 +414,11 @@ void ControlNode::LongitudinalController() {
         control_cmd_msg_.speed = step_target_speed + koffset;
     } else {
         control_cmd_msg_.speed = step_target_speed;
+    }
+    if(adc_trajectory_msg_->emergency_stop){
+        control_cmd_msg_.speed = 0.0;
+        RCLCPP_WARN(this->get_logger(), "LongitudinalController: Emergency stop activated!");
+        step_target_speed = 0.0; 
     }
     if (g_debug_cnt % 5 == 0 && g_log_enable && debug_log_file_.is_open()) {
         auto vehicle_feedback_spd = chassis_info_msg_.cur_speed;

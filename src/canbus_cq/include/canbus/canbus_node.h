@@ -3,6 +3,8 @@
 #include "bot_msg/msg/chassis_info.hpp"
 #include "bot_msg/msg/control_cmd.hpp"
 #include "bot_msg/msg/remote_controller.hpp"
+#include "bot_msg/msg/radio_link.hpp"
+#include <bot_msg/msg/detail/radio_link__struct.hpp>
 #include <std_msgs/msg/detail/int32__struct.hpp>
 #include <std_msgs/msg/int32.hpp>
 #include "canbus/can_protocol.h"
@@ -50,6 +52,7 @@ class CanbusNode : public rclcpp::Node {
     // 订阅者
     rclcpp::Subscription<bot_msg::msg::ControlCmd>::SharedPtr sub_control_cmd_;
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr sub_remote_controller_;
+    rclcpp::Subscription<bot_msg::msg::RadioLink>::SharedPtr sub_radiolink_;
     // 发布者
     rclcpp::Publisher<bot_msg::msg::ChassisInfo>::SharedPtr pub_chassis_info_;
     // 变量
@@ -58,6 +61,7 @@ class CanbusNode : public rclcpp::Node {
     std::string control_cmd_topic_;  // 控制指令主题名称
     std::string chassis_info_topic_; // 底盘信息主题名称
     std::string remote_controller_topic_; // 遥控器主题名称
+    std::string radio_link_topic_;        // 运动遥控器
     int can_fd_ = 0;
     std::atomic<bool> running_; // 控制线程运行的标志位
     std::thread can_thread_;
@@ -71,6 +75,7 @@ class CanbusNode : public rclcpp::Node {
     void TimerCallback();
     void ControlCmdCallback(const bot_msg::msg::ControlCmd::SharedPtr msg);
     void RemoteControllerCallback(const std_msgs::msg::Int32::SharedPtr msg);
+    void RadioLinkCallback(const bot_msg::msg::RadioLink::SharedPtr msg);
 
     // 功能函数
     void InitParams();

@@ -1,5 +1,6 @@
 #include "planning/planning.h"
 
+#include <bot_msg/msg/detail/radio_link__struct.hpp>
 #include <chrono>
 #include <iomanip>
 #include <rclcpp/executors/multi_threaded_executor.hpp>
@@ -86,6 +87,9 @@ PlanningNode::PlanningNode() : Node("planning_node"), timer_cnt_(0) {
     sub_remote_control_ = this->create_subscription<std_msgs::msg::Int32>(
         remote_control_topic_name_, 10,
         std::bind(&PlanningNode::RemoteControlCallback, this, std::placeholders::_1));
+    sub_radiolink_ = this->create_subscription<bot_msg::msg::RadioLink>(
+        radiolink_topic_name_, 10,
+        std::bind(&PlanningNode::RadioLinkCallback, this, std::placeholders::_1));
     if (!remote_control_enabled_) {
         planning_status_ = PlanningStatus::Planning;
         key_stop_ = false;
@@ -118,6 +122,7 @@ void PlanningNode::InitParams() {
     this->declare_parameter("test_mode", false);
     this->declare_parameter("visualization_topic_name", "/planning/visualization");
     this->declare_parameter("remote_control_topic_name", "/remote_control/cmd");
+    this->declare_parameter("remote_control_topic_name", "/remote_controller/radiolink");
     this->declare_parameter("remote_control_enabled", false);
 
     // 占用栅格地图障碍物检测参数
@@ -168,6 +173,7 @@ void PlanningNode::InitParams() {
     right_boundary_topic_name_ = this->get_parameter("right_boundary_topic_name").as_string();
     occupancy_grid_topic_name_ = this->get_parameter("occupancy_grid_topic_name").as_string();
     remote_control_topic_name_ = this->get_parameter("remote_control_topic_name").as_string();
+    radiolink_topic_name_ = this->get_parameter("radiolink_topic_name").as_string();
     use_occupancy_grid_ = this->get_parameter("use_occupancy_grid").as_bool();
     test_mode_ = this->get_parameter("test_mode").as_bool();
     visualization_topic_name_ = this->get_parameter("visualization_topic_name").as_string();
@@ -217,6 +223,7 @@ void PlanningNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "perc_topic_name: %s", perc_topic_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "remote_control_topic_name: %s",
                 remote_control_topic_name_.c_str());
+    RCLCPP_INFO(this->get_logger(), "radiolink_topic_name: %s", radiolink_topic_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "remote_control_enabled: %d", remote_control_enabled_);
     RCLCPP_INFO(this->get_logger(), "process_frq: %f", process_frq_);
     RCLCPP_INFO(this->get_logger(), "path_type: %d", path_type_);
@@ -384,6 +391,22 @@ void PlanningNode::CheckRoutingResult() {
 void PlanningNode::ObstaclesCallback(const bot_msg::msg::Obstacles::SharedPtr msg) {
     RCLCPP_INFO(this->get_logger(), "ObstaclesCallback, size: %d", msg->obstacles.size());
     obstacles_ = *msg;
+}
+
+//
+void PlanningNode::RadioLinkCallback(const bot_msg::msg::RadioLink::SharedPtr msg) {
+    if (msg->control_mode == -1 || msg->control_mode == 0) {
+        manula_control_ = true;
+        key_stop_ = true;
+    } else if (msg->control_mode == 1) {
+        manula_control_ = false;
+        key_stop_ = false;
+    }
+    if (!manula_control_ && msg->stop_mode == -1) {
+        key_stop_ = true;
+    } else if (!manula_control_ && msg->stop_mode == 1) {
+        key_stop_ = false;
+    }
 }
 
 void PlanningNode::RemoteControlCallback(const std_msgs::msg::Int32::SharedPtr msg) {
@@ -804,6 +827,7 @@ void PlanningNode::TimerCallback() {
     pub_traj_path.header.stamp = this->now();
     pub_traj_path.header.frame_id = "map";
     pub_traj_path.direction = reverse_moving_ ? 1 : 0;
+    pub_traj_path.emergency_stop = manula_control_ ? 1 : 0;
     this->pub_traj_->publish(pub_traj_path);
     double trajectory_end_time = getCurrentTimeMs();
     total_trajectory_planning_time_ += (trajectory_end_time - trajectory_start_time);

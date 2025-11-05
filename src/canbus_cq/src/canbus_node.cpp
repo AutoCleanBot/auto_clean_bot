@@ -1,11 +1,14 @@
 #include "canbus/canbus_node.h"
-#include <chrono>
+
 #include <fcntl.h>
+#include <stdint.h>
+#include <sys/select.h>
+
+#include <bot_msg/msg/detail/radio_link__struct.hpp>
+#include <chrono>
 #include <iomanip>
 #include <rclcpp/logging.hpp>
 #include <std_msgs/msg/detail/int32__struct.hpp>
-#include <stdint.h>
-#include <sys/select.h>
 
 namespace canbus {
 CanbusNode::CanbusNode() : Node("canbus_node") {
@@ -22,22 +25,26 @@ CanbusNode::CanbusNode() : Node("canbus_node") {
 
     // 初始化订阅者和发布者
     sub_control_cmd_ = this->create_subscription<bot_msg::msg::ControlCmd>(
-        control_cmd_topic_, 10, std::bind(&CanbusNode::ControlCmdCallback, this, std::placeholders::_1));
+        control_cmd_topic_, 10,
+        std::bind(&CanbusNode::ControlCmdCallback, this, std::placeholders::_1));
     sub_remote_controller_ = this->create_subscription<std_msgs::msg::Int32>(
-        remote_controller_topic_, 10, std::bind(&CanbusNode::RemoteControllerCallback, this, std::placeholders::_1));
+        remote_controller_topic_, 10,
+        std::bind(&CanbusNode::RemoteControllerCallback, this, std::placeholders::_1));
+    sub_radiolink_ = this->create_subscription<bot_msg::msg::RadioLink>(
+        radio_link_topic_, 10,
+        std::bind(&CanbusNode::RadioLinkCallback, this, std::placeholders::_1));
     pub_chassis_info_ = this->create_publisher<bot_msg::msg::ChassisInfo>(chassis_info_topic_, 10);
     // 初始化定时器
-    timer_ = this->create_wall_timer(std::chrono::milliseconds(20), std::bind(&CanbusNode::TimerCallback, this));
+    timer_ = this->create_wall_timer(std::chrono::milliseconds(20),
+                                     std::bind(&CanbusNode::TimerCallback, this));
     // 创建一个线程循环读取CAN数据
     can_thread_ = std::thread(&CanbusNode::CanThreadFunc, this);
 }
 
-
-
 CanbusNode::~CanbusNode() {
-    running_ = false; // 设置标志位通知线程退出
+    running_ = false;  // 设置标志位通知线程退出
     if (can_thread_.joinable()) {
-        can_thread_.join(); // 等待线程结束
+        can_thread_.join();  // 等待线程结束
     }
     if (can_fd_ > 0) {
         close(can_fd_);
@@ -84,7 +91,7 @@ void CanbusNode::TimerCallback() {
     FillChassisInfo(msg);
     pub_chassis_info_->publish(*msg);
 
-    if (control_cmd_cnt_ > 10 && !mannula_control_flag_) { // 保持无人驾驶的控制连接
+    if (control_cmd_cnt_ > 10 && !mannula_control_flag_) {  // 保持无人驾驶的控制连接
         SendCtrlMsg(0.0, 0.0, 0, 0.0);
     }
 
@@ -99,7 +106,7 @@ void CanbusNode::TimerCallback() {
  */
 void CanbusNode::FillChassisInfo(bot_msg::msg::ChassisInfo::SharedPtr msg) {
     msg->steer_angle = chassis_info_local_.steering_wheel_angle;
-    msg->brk_press = chassis_info_local_.service_brake_percentage_feedback; // 压力百分比
+    msg->brk_press = chassis_info_local_.service_brake_percentage_feedback;  // 压力百分比
     msg->cur_speed = chassis_info_local_.speed_feedback;
     msg->soc = chassis_info_local_.soc;
     if (chassis_info_local_.forward_gear_feedback == 1) {
@@ -134,7 +141,8 @@ void CanbusNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "can_baud: %d", can_baudrate_);
     RCLCPP_INFO(this->get_logger(), "control_cmd_topic: %s", control_cmd_topic_.c_str());
     RCLCPP_INFO(this->get_logger(), "chassis_info_topic: %s", chassis_info_topic_.c_str());
-    RCLCPP_INFO(this->get_logger(), "remote_controller_topic: %s", remote_controller_topic_.c_str());
+    RCLCPP_INFO(this->get_logger(), "remote_controller_topic: %s",
+                remote_controller_topic_.c_str());
 }
 
 /**
@@ -163,8 +171,8 @@ bool CanbusNode::InitCanSocket(std::string can_device_name, int can_baudrate) {
     // 指定CAN设备名称
     strcpy(ifr.ifr_name, can_device_name.c_str());
     if (ioctl(can_fd_, SIOCGIFINDEX, &ifr) < 0) {
-        RCLCPP_ERROR(this->get_logger(), "Error getting interface index for %s: %s", can_device_name.c_str(),
-                     strerror(errno));
+        RCLCPP_ERROR(this->get_logger(), "Error getting interface index for %s: %s",
+                     can_device_name.c_str(), strerror(errno));
         close(can_fd_);
         return false;
     }
@@ -185,7 +193,8 @@ bool CanbusNode::InitCanSocket(std::string can_device_name, int can_baudrate) {
         if (!(ifr.ifr_flags & IFF_UP)) {
             RCLCPP_WARN(this->get_logger(), "CAN interface %s is NOT UP!", can_device_name.c_str());
         } else {
-            RCLCPP_INFO(this->get_logger(), "CAN interface %s is UP and running", can_device_name.c_str());
+            RCLCPP_INFO(this->get_logger(), "CAN interface %s is UP and running",
+                        can_device_name.c_str());
         }
     }
 
@@ -225,7 +234,7 @@ void CanbusNode::CanThreadFunc() {
         if (activity == 0) {
             // 超时，没有数据
             empty_reads_count++;
-            if (empty_reads_count % 100 == 0) { // 每10秒左右记录一次
+            if (empty_reads_count % 100 == 0) {  // 每10秒左右记录一次
                 RCLCPP_WARN(this->get_logger(), "No CAN data received for ~10 seconds");
             }
             continue;
@@ -245,7 +254,8 @@ void CanbusNode::CanThreadFunc() {
                 continue;
             }
             if (nbytes < sizeof(struct can_frame)) {
-                RCLCPP_WARN(this->get_logger(), "Incomplete CAN frame received, got %d bytes", nbytes);
+                RCLCPP_WARN(this->get_logger(), "Incomplete CAN frame received, got %d bytes",
+                            nbytes);
                 continue;
             }
             // 重置空读计数器
@@ -268,8 +278,9 @@ void CanbusNode::CanThreadFunc() {
                     static_cast<double>(ctrl_info.service_brake_percentage_feedback) * 0.4 / 100.0;
 
                 chassis_info_local_.speed_feedback =
-                    ctrl_info.travel_motor_speed_feedback / 24.2 / 60 * 0.71 * M_PI; // 轮上转速m/s
-                chassis_info_local_.steering_wheel_angle = static_cast<double>(ctrl_info.steering_wheel_angle) * 0.01;
+                    ctrl_info.travel_motor_speed_feedback / 24.2 / 60 * 0.71 * M_PI;  // 轮上转速m/s
+                chassis_info_local_.steering_wheel_angle =
+                    static_cast<double>(ctrl_info.steering_wheel_angle) * 0.01;
                 PrintCanDataFrame(frame);
             } else if (frame.can_id == CONTROL_PHY_INFO) {
                 // 解析VCU_INFO_2
@@ -304,18 +315,45 @@ void CanbusNode::ControlCmdCallback(const bot_msg::msg::ControlCmd::SharedPtr ms
     double spd = msg->speed;
 
     // 发送控制指令
-    if(!mannula_control_flag_)
+    if (!mannula_control_flag_)
         SendCtrlMsg(steer_angle, brk, gear, spd);
     control_cmd_cnt_ = 0;
 }
 
 void CanbusNode::RemoteControllerCallback(const std_msgs::msg::Int32::SharedPtr msg) {
-    if(msg->data == 3){
+    if (msg->data == 3) {
         mannula_control_flag_ = false;
-    }else if(msg->data == 4){
+    } else if (msg->data == 4) {
         mannula_control_flag_ = true;
     }
     RCLCPP_INFO(this->get_logger(), "remote controller key value: %d", msg->data);
+}
+
+void CanbusNode::RadioLinkCallback(const bot_msg::msg::RadioLink::SharedPtr msg) {
+    // -1 为手动模式, 0为远程遥控模式
+    if (msg->control_mode == -1 || msg->control_mode == 0) {
+        mannula_control_flag_ = true;
+    } else if (msg->control_mode == 1) {
+        mannula_control_flag_ = false;
+    }
+    uint8_t gear = 0;
+    double brake = 0;
+    double spd = 0;
+    if (msg->gear == -1)
+        gear = 2;
+    else if (msg->gear == 1)
+        gear = 1;
+    if (msg->brake_pct > 0.0)
+        brake = msg->brake_pct;
+    if (msg->linear_pct > 0.0)
+        spd = msg->linear_pct * 3.0;
+    if (mannula_control_flag_)
+        SendCtrlMsg(msg->steering_pct * 3000.0, brake, gear, spd);
+    RCLCPP_INFO(this->get_logger(),
+                "Received RadioLink Data | Mode: %d | Manual Ctrl: %s | Gear: %d -> %u | Steering: "
+                "%.2f | Speed: %.2f -> %.2f m/s | Brake: %.2f",
+                msg->control_mode, mannula_control_flag_ ? "ON" : "OFF", msg->gear, gear,
+                msg->steering_pct, msg->linear_pct, spd, brake);
 }
 
 /**
@@ -327,15 +365,16 @@ void CanbusNode::RemoteControllerCallback(const std_msgs::msg::Int32::SharedPtr 
  * @param gear         档位, 0-N, 1-F, 2-R
  * @param spd          速度, m/s
  */
-void CanbusNode::FillCanCtrlCmd(uint8_t data[8], double steer_angle, double brk, uint8_t gear, double spd) {
+void CanbusNode::FillCanCtrlCmd(uint8_t data[8], double steer_angle, double brk, uint8_t gear,
+                                double spd) {
     // printf("steer_angle: %f, current gear: %d, speed: %f\n", steer_angle, gear, spd);
     // byte0
     memset(data, 0, 8);
-    data[0] |= 0x03; // bit0:1 自动模式使能; bit1:1行走使能
+    data[0] |= 0x03;  // bit0:1 自动模式使能; bit1:1行走使能
     // data[0] &= 0xFB;      // bit2:0 行车制动无效
-    data[0] |= 0x01 << 3; // bit3:1 转向使能
+    data[0] |= 0x01 << 3;  // bit3:1 转向使能
     // data[0] &= 0xEF;        // bit4:0 充电使能无效
-    if (gear == 1) { // 档位控制
+    if (gear == 1) {  // 档位控制
         data[0] |= 1 << 5;
     } else if (gear == 2) {
         data[0] |= 1 << 6;
@@ -343,7 +382,7 @@ void CanbusNode::FillCanCtrlCmd(uint8_t data[8], double steer_angle, double brk,
 
     // byte1, 刹车百分比控制
     uint8_t target_brk_press = static_cast<uint8_t>(brk * 250);
-    data[1] |= target_brk_press; // target_brk_press = target_brk_press; // 目标刹车压力, 0~250
+    data[1] |= target_brk_press;  // target_brk_press = target_brk_press; // 目标刹车压力, 0~250
 
     // byte2~byte3, 方向盘转角控制
     uint16_t target_steer_angle = static_cast<int16_t>(steer_angle);
@@ -367,15 +406,16 @@ void CanbusNode::FillCanCtrlCmd(uint8_t data[8], double steer_angle, double brk,
  */
 void CanbusNode::PrintCanDataFrame(const struct can_frame &frame) {
     std::stringstream ss;
-    ss << "CAN frame, ID: 0x" << std::hex << frame.can_id << ", Length: " << std::dec << static_cast<int>(frame.can_dlc)
-       << ", Data: ";
+    ss << "CAN frame, ID: 0x" << std::hex << frame.can_id << ", Length: " << std::dec
+       << static_cast<int>(frame.can_dlc) << ", Data: ";
     for (int i = 0; i < frame.can_dlc; i++) {
-        ss << std::hex << std::uppercase << std::setw(2) << std::setfill('0') << static_cast<int>(frame.data[i]) << " ";
+        ss << std::hex << std::uppercase << std::setw(2) << std::setfill('0')
+           << static_cast<int>(frame.data[i]) << " ";
     }
     RCLCPP_INFO(this->get_logger(), "%s", ss.str().c_str());
 }
 
-} // namespace canbus
+}  // namespace canbus
 
 int main(int argc, char **argv) {
     rclcpp::init(argc, argv);

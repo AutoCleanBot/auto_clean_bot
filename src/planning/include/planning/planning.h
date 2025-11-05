@@ -6,6 +6,8 @@
 #include "bot_msg/msg/localization_info.hpp"
 #include "bot_msg/msg/obstacles.hpp"
 #include "bot_msg/srv/routing.hpp"
+#include "bot_msg/msg/radio_link.hpp"
+#include <bot_msg/msg/detail/radio_link__struct.hpp>
 #include <chrono>
 #include <geometry_msgs/msg/point.hpp>
 #include <limits>
@@ -49,6 +51,7 @@ class PlanningNode : public rclcpp::Node {
     void ObstaclesCallback(const bot_msg::msg::Obstacles::SharedPtr msg);
     void OccupancyGridCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
     void RemoteControlCallback(const std_msgs::msg::Int32::SharedPtr msg);
+    void RadioLinkCallback(const bot_msg::msg::RadioLink::SharedPtr msg);
     void UpdatePlanningStatus();
     void UpdateObstacleInfo();
     void UpdateObstacleInfoFromOccupancyGrid();
@@ -88,6 +91,7 @@ class PlanningNode : public rclcpp::Node {
     rclcpp::Subscription<bot_msg::msg::Boundary>::SharedPtr sub_right_boundary_;            // 订阅右边界信息
     rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr sub_occupancy_grid_;      // 订阅占用栅格地图
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr sub_remote_control_;              // 订阅远程控制信息
+    rclcpp::Subscription<bot_msg::msg::RadioLink>::SharedPtr sub_radiolink_;                // 订阅运动遥控控制器
 
     std::string local_topic_name_;          // 定位话题名
     std::string service_name_;              // 服务名称
@@ -98,6 +102,7 @@ class PlanningNode : public rclcpp::Node {
     std::string occupancy_grid_topic_name_; // 占用栅格地图话题名
     std::string visualization_topic_name_;  // 可视化话题名
     std::string remote_control_topic_name_; // 远程控制话题名
+    std::string radiolink_topic_name_;      // 运动遥控器话题名
 
     double process_frq_;                          // 处理频率
     int path_type_;                               // 路径类型
