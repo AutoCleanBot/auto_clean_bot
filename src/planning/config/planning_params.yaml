@@ -13,7 +13,7 @@ planning_node:
     occupancy_grid_topic_name: "/occupancy_grid"
     visualization_topic_name: "/planning/visualization"
     remote_control_topic_name: "/remote_controller/cmd"
-    radiolink_topic_name: "/remote_controller/radiolink"
+    radiolink_topic_name: "/radio/radio_info"
     
     # Basic Planning Parameters - 基础规划参数
     path_type: 7                    # 路径标号

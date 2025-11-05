@@ -21,7 +21,7 @@ def generate_launch_description():
         'control_cmd_topic': '/control/control_cmd',
         'chassis_info_topic': '/chassis_info_topic',
         'remote_controller_topic': '/remote_controller/cmd',
-        'radio_link_topic': '/remote_controller/radiolink'
+        'radio_link_topic': '/radio/radio_info'
     }
 
     # 配置节点，并将参数字典直接传递给参数字段
