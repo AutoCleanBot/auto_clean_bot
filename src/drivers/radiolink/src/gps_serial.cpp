@@ -1,4 +1,38 @@
+// 优先包含Linux特定的头文件
 #include "gps_serial.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <termios.h>
+#include <sys/ioctl.h>
+
+// --- 手动添加缺失的定义 ---
+#ifndef BOTHER
+#define BOTHER 0010000
+#endif
+
+#ifndef TCGETS2
+#define TCGETS2  _IOR('T', 0x2A, struct termios2)
+#endif
+
+#ifndef TCSETS2
+#define TCSETS2  _IOW('T', 0x2B, struct termios2)
+#endif
+
+struct termios2 {
+    tcflag_t c_iflag;
+    tcflag_t c_oflag;
+    tcflag_t c_cflag;
+    tcflag_t c_lflag;
+    cc_t c_line;
+    cc_t c_cc[19];
+    speed_t c_ispeed;
+    speed_t c_ospeed;
+};
+// --- 手动定义结束 ---
+
 //stty -F /dev/ttyUSB0 查看串口输出波特率
 int speed_arr[] = {B460800, B230400, B115200, B57600, B38400, B19200, B9600, B4800, B2400, B1200, B300};
 int name_arr[] = {460800, 230400, 115200, 57600, 38400, 19200, 9600, 4800, 2400, 1200, 300};
@@ -28,13 +62,67 @@ int Serial::TTYSetOpt(int fd, int speed, int databits, int stopbits, char parity
     newtio.c_cflag |= CLOCAL | CREAD;
     newtio.c_cflag &= ~CSIZE;
 
-    /* set tty speed 设置波特率*/
-    for (i = 0; i < sizeof(speed_arr) / sizeof(int); i++) {
-        if (speed == name_arr[i]) {
-            cfsetispeed(&newtio, speed_arr[i]); //用 cfsetispeed / cfsetospeed 把输入/输出波特率写入 newtio。
-            cfsetospeed(&newtio, speed_arr[i]);
+    if(speed == 100000){
+        struct termios2 tio2;
+        // 使用 ioctl 和 TCGETS2 获取 termios2 属性
+        if (ioctl(fd, TCGETS2, &tio2) != 0) {
+            perror("ioctl TCGETS2 failed");
+            return -1;
+        }
+
+        // 启用 BOTHER 标志，允许设置自定义波特率
+        tio2.c_cflag &= ~CBAUD;
+        tio2.c_cflag |= BOTHER;
+        // 设置输入和输出速度为 100000
+        tio2.c_ispeed = 100000;
+        tio2.c_ospeed = 100000;
+
+        // 设置数据位、校验位和停止位 (逻辑和原来一样，但作用于 tio2)
+        tio2.c_cflag |= CLOCAL | CREAD;
+        tio2.c_cflag &= ~CSIZE;
+        switch (databits) {
+            case 5: tio2.c_cflag |= CS5; break;
+            case 6: tio2.c_cflag |= CS6; break;
+            case 7: tio2.c_cflag |= CS7; break;
+            case 8: tio2.c_cflag |= CS8; break;
+            default: fprintf(stderr, "unsupported data size\n"); return -1;
+        }
+
+        switch (parity) {
+            case 'n': case 'N': tio2.c_cflag &= ~PARENB; tio2.c_iflag &= ~INPCK; break;
+            case 'o': case 'O': tio2.c_cflag |= (PARODD | PARENB); tio2.c_iflag |= INPCK; break;
+            case 'e': case 'E': tio2.c_cflag |= PARENB; tio2.c_cflag &= ~PARODD; tio2.c_iflag |= INPCK; break;
+            default: fprintf(stderr, "unsupported parity\n"); return -1;
+        }
+
+        switch (stopbits) {
+            case 1: tio2.c_cflag &= ~CSTOPB; break;
+            case 2: tio2.c_cflag |= CSTOPB; break;
+            default: perror("unsupported stop bits\n"); return -1;
+        }
+        
+        tio2.c_cc[VTIME] = 0;
+        tio2.c_cc[VMIN] = 1;
+
+        tcflush(fd, TCIOFLUSH);
+
+        // 使用 ioctl 和 TCSETS2 应用设置
+        if (ioctl(fd, TCSETS2, &tio2) != 0) {
+            perror("ioctl TCSETS2 failed");
+            return -1;
+        }
+
+        return 0; // 设置成功，返回
+    }else{
+        /* set tty speed 设置波特率*/
+        for (i = 0; i < sizeof(speed_arr) / sizeof(int); i++) {
+            if (speed == name_arr[i]) {
+                cfsetispeed(&newtio, speed_arr[i]); //用 cfsetispeed / cfsetospeed 把输入/输出波特率写入 newtio。
+                cfsetospeed(&newtio, speed_arr[i]);
+            }
         }
     }
+    
 
     /* set data bits 设置数据位*/
     switch (databits) {
@@ -92,7 +180,7 @@ int Serial::TTYSetOpt(int fd, int speed, int databits, int stopbits, char parity
     }
 
     newtio.c_cc[VTIME] = 0; /* Time-out value (tenths of a second) [!ICANON]. */
-    newtio.c_cc[VMIN] = 0;  /* Minimum number of bytes read at once [!ICANON]. */
+    newtio.c_cc[VMIN] = 1;  /* Minimum number of bytes read at once [!ICANON]. */
 
     tcflush(fd, TCIOFLUSH);
 

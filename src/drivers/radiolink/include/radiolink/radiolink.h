@@ -1,7 +1,6 @@
 #pragma once
 
-#include <bot_msg/msg/localization_info.hpp>
-#include <bot_msg/msg/radio_link.hpp>
+
 #include <chrono>
 #include <fstream>
 #include <geometry_msgs/msg/pose_stamped.hpp>
@@ -14,41 +13,16 @@
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <thread>
-namespace radio {
-struct Giavp {
-    int week;
-    double time_sec;
-    double heading_deg;
-    double pitch_deg;
-    double roll_deg;
-    double latitude_deg;
-    double longitude_deg;
-    double altitude_m;
-    double ve_m_s;
-    double vn_m_s;
-    double vu_m_s;
-    double baseline;
-    int nvsv1;
-    int nvsv2;
-    int status;
-    double speed_status;
-    double vehicle_speed_m_s;
-    double acc_x_m_s2;
-    double acc_y_m_s2;
-    double acc_z_m_s2;
-    double gyro_x_deg_s;
-    double gyro_y_deg_s;
-    double gyro_z_deg_s;
-};
+namespace radiolink {
 
-class RadioNode : public rclcpp::Node {
+class RadioLinkNode : public rclcpp::Node {
   public:
-    RadioNode();
-    ~RadioNode();
+    RadioLinkNode();
+    ~RadioLinkNode();
 
   private:
-    rclcpp::TimerBase::SharedPtr imu_timer_, radio_timer_, gnss_timer_;
-    void RadioTimerCallback();
+    rclcpp::TimerBase::SharedPtr imu_timer_, local_timer_, gnss_timer_;
+    void LocalTimerCallback();
     void ImuTimerCallback();
     void GNSSTimerCallback();
     void InitParams();
@@ -62,13 +36,11 @@ class RadioNode : public rclcpp::Node {
     std::string GenerateTimestampFilename();
 
     // ROS2 publishers and subscribers
-    rclcpp::Publisher<bot_msg::msg::RadioLink>::SharedPtr pub_radio_info_;
     rclcpp::Publisher<bot_msg::msg::LocalizationInfo>::SharedPtr pub_localization_info_;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pub_gnss_pose_enu_;
     rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr pub_imu_;
 
-    bot_msg::msg::RadioLink radio_msg_; // radioization info message
-    bot_msg::msg::LocalizationInfo rtk_msg_; // radioization info message
+    bot_msg::msg::LocalizationInfo rtk_msg_; // localization info message
     sensor_msgs::msg::Imu imu_msg_;
     geometry_msgs::msg::PoseStamped gnss_pose_enu_msg_;
     // ROS2 parameters
@@ -76,9 +48,9 @@ class RadioNode : public rclcpp::Node {
     int baud_rate_;  // baud rate for serial communication
     int timeout_ms_; // timeout for serial communication
 
-    std::string radio_frame_id_;   // frame id for radioization info
-    std::string radio_topic_name_; // topic name for publishing radioization info
-    double radio_publish_rate_;    // publish rate for radioization info
+    std::string local_frame_id_;   // frame id for localization info
+    std::string local_topic_name_; // topic name for publishing localization info
+    double local_publish_rate_;    // publish rate for localization info
 
     std::string imu_frame_id_;   // frame id for imu
     std::string imu_topic_name_; // topic name for publishing imu
@@ -114,4 +86,4 @@ class RadioNode : public rclcpp::Node {
     mutable std::string current_log_filename_;                   // 当前日志文件名
     mutable std::ofstream info_str_file_;                        // 文件输出流
 };
-} // namespace rtk
+} // namespace radiolink

@@ -1,9 +1,9 @@
 std_msgs/Header header          # 时间戳和坐标系
 
 # 基本控制信号
-float32 linear_pct          # 前进速度 (m/s)比率 0~1
-float32 steering_pct        # 方向盘角度 (度)比率 0~1
-float32 brake_pct           # 刹车比率 0~1
+float32 linear_pct          # 前进速度 (m/s)
+float32 steering_pct           # 方向盘角度 (度)
+float32 brake_pct               
 # 档位控制
 int8 gear                        # 当前档位：-1=倒车，0=空挡，1=前进
 
