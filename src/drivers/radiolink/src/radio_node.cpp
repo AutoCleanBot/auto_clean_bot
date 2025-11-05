@@ -428,17 +428,17 @@ void RadioNode::DecodeFrame(const std::array<uint8_t, kSbusFrameLength>& frame) 
         return;
     }
 
-    // 打印完整的35字节232数据
-    std::stringstream data_ss;
-    data_ss << "232 Data (35 bytes): ";
-    for (std::size_t i = 0; i < frame.size(); ++i) {
-        data_ss << std::hex << std::uppercase << std::setw(2) << std::setfill('0')
-                << static_cast<int>(frame[i]);
-        if (i + 1 != frame.size()) {
-            data_ss << " ";
-        }
-    }
-    RCLCPP_INFO(this->get_logger(), "%s", data_ss.str().c_str());
+    // // 打印完整的35字节232数据
+    // std::stringstream data_ss;
+    // data_ss << "232 Data (35 bytes): ";
+    // for (std::size_t i = 0; i < frame.size(); ++i) {
+    //     data_ss << std::hex << std::uppercase << std::setw(2) << std::setfill('0')
+    //             << static_cast<int>(frame[i]);
+    //     if (i + 1 != frame.size()) {
+    //         data_ss << " ";
+    //     }
+    // }
+    // RCLCPP_INFO(this->get_logger(), "%s", data_ss.str().c_str());
 
     std::lock_guard<std::mutex> lock(channels_mutex_);
 
