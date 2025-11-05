@@ -18,7 +18,7 @@ namespace radio {
 
 /**
  * @brief 计算校验码（不包含帧头的33字节异或校验）
- * 
+ *
  * @param frame 完整的35字节帧
  * @return uint8_t 计算得到的校验码
  */
@@ -75,7 +75,7 @@ void RadioNode::InitValues() {
     radio_msg_.linear_pct = 0.0F;
     radio_msg_.brake_pct = 0.0F;
     radio_msg_.steering_pct = 0.0F;
-    
+
     radio_msg_.gear = 0;
     radio_msg_.control_mode = 0;
     radio_msg_.stop_mode = 0;
@@ -182,54 +182,54 @@ void RadioNode::InitParams() {
         std::string param_min = "channel_" + std::to_string(ch) + "_min_raw";
         std::string param_center = "channel_" + std::to_string(ch) + "_center_raw";
         std::string param_max = "channel_" + std::to_string(ch) + "_max_raw";
-        
+
         int min_raw = this->get_parameter(param_min).as_int();
         int center_raw = this->get_parameter(param_center).as_int();
         int max_raw = this->get_parameter(param_max).as_int();
-        
         // 验证范围
-        if (min_raw < 0) min_raw = 0;
-        if (max_raw > 2047) max_raw = 2047;
-        if (center_raw < 0) center_raw = 0;
-        if (center_raw > 2047) center_raw = 2047;
-        
+        if (min_raw < 0)
+            min_raw = 0;
+        if (max_raw > 2047)
+            max_raw = 2047;
+        if (center_raw < 0)
+            center_raw = 0;
+        if (center_raw > 2047)
+            center_raw = 2047;
         // 验证逻辑：min_raw <= center_raw <= max_raw
         if (min_raw >= center_raw) {
-            RCLCPP_WARN(this->get_logger(), 
-                       "Channel %d: min_raw (%d) >= center_raw (%d), adjusting center_raw", 
-                       ch, min_raw, center_raw);
+            RCLCPP_WARN(this->get_logger(),
+                        "Channel %d: min_raw (%d) >= center_raw (%d), adjusting center_raw", ch,
+                        min_raw, center_raw);
             center_raw = min_raw + 1;
-            if (center_raw > 2047) center_raw = 2047;
+            if (center_raw > 2047)
+                center_raw = 2047;
         }
-        
+
         if (center_raw >= max_raw) {
-            RCLCPP_WARN(this->get_logger(), 
-                       "Channel %d: center_raw (%d) >= max_raw (%d), adjusting center_raw", 
-                       ch, center_raw, max_raw);
+            RCLCPP_WARN(this->get_logger(),
+                        "Channel %d: center_raw (%d) >= max_raw (%d), adjusting center_raw", ch,
+                        center_raw, max_raw);
             center_raw = max_raw - 1;
-            if (center_raw < 0) center_raw = 0;
+            if (center_raw < 0)
+                center_raw = 0;
         }
-        
+
         if (min_raw >= max_raw) {
-            RCLCPP_WARN(this->get_logger(), 
-                       "Channel %d: min_raw (%d) >= max_raw (%d), using defaults (0, 1024, 2047)", 
-                       ch, min_raw, max_raw);
+            RCLCPP_WARN(this->get_logger(),
+                        "Channel %d: min_raw (%d) >= max_raw (%d), using defaults (0, 1024, 2047)",
+                        ch, min_raw, max_raw);
             min_raw = 0;
             center_raw = 1024;
             max_raw = 2047;
         }
-        
+
         channel_ranges_[ch].min_raw = static_cast<uint16_t>(min_raw);
         channel_ranges_[ch].center_raw = static_cast<uint16_t>(center_raw);
         channel_ranges_[ch].max_raw = static_cast<uint16_t>(max_raw);
-        
-        RCLCPP_INFO(this->get_logger(), "Channel %d: min_raw=%d, center_raw=%d, max_raw=%d", 
-                   ch, channel_ranges_[ch].min_raw, channel_ranges_[ch].center_raw, 
-                   channel_ranges_[ch].max_raw);
-    }
 
-    if (enable_info_str_save_) {
-        InitInfoStrSaving();
+        RCLCPP_INFO(this->get_logger(), "Channel %d: min_raw=%d, center_raw=%d, max_raw=%d", ch,
+                    channel_ranges_[ch].min_raw, channel_ranges_[ch].center_raw,
+                    channel_ranges_[ch].max_raw);
     }
 
     RCLCPP_INFO(this->get_logger(), "device: %s", device_name_.c_str());
@@ -271,15 +271,20 @@ void RadioNode::InfoReadLoop() {
             break;
         }
         int ret = ::read(sockfd_, buffer.data(), buffer.size());
+        if (ret == 0 || ret < 0) {
+            ++link_count_;
+        } else {
+            link_count_ = 0;
+        }
 
         // // 无论 ret 是什么值，我们都打印出来
         // RCLCPP_INFO(this->get_logger(), "read() returned: %d", ret);
-        if(enable_debug_log_){
+        if (enable_debug_log_) {
             std::stringstream ss;
             ss << "Read " << ret << " bytes:";
             for (int i = 0; i < ret; ++i) {
                 ss << " " << std::hex << std::uppercase << std::setw(2) << std::setfill('0')
-                    << static_cast<int>(buffer[i]);
+                   << static_cast<int>(buffer[i]);
             }
             RCLCPP_INFO(this->get_logger(), "%s", ss.str().c_str());
         }
@@ -336,7 +341,8 @@ void RadioNode::ParseByte(uint8_t byte) {
     packet_.data[packet_.index++] = byte;
 
     // [新增日志] 打印正在收集的数据帧进度
-    // RCLCPP_INFO(this->get_logger(), "Collecting frame, index: %zu, byte: %02X", packet_.index, byte);
+    // RCLCPP_INFO(this->get_logger(), "Collecting frame, index: %zu, byte: %02X", packet_.index,
+byte);
 
     if (packet_.index == kSbusFrameLength) {
         // [新增日志] 确认收集完成，即将解码
@@ -355,7 +361,6 @@ void RadioNode::ParseByte(uint8_t byte) {
     }
 }
 */
-
 
 void RadioNode::ParseByte(uint8_t byte) {
     if (!packet_.collecting) {
@@ -382,7 +387,8 @@ void RadioNode::ParseByte(uint8_t byte) {
     packet_.data[packet_.index++] = byte;
 
     // // 打印当前收集的字节信息
-    // RCLCPP_INFO(this->get_logger(), "Received byte: 0x%02X at position: %zu", byte, packet_.index);
+    // RCLCPP_INFO(this->get_logger(), "Received byte: 0x%02X at position: %zu", byte,
+    // packet_.index);
 
     if (packet_.index == kSbusFrameLength) {
         packet_.collecting = false;
@@ -399,12 +405,11 @@ void RadioNode::ParseByte(uint8_t byte) {
     }
 }
 
-
 void RadioNode::DecodeFrame(const std::array<uint8_t, kSbusFrameLength>& frame) {
     // 帧头校验
     if (frame[0] != kSbusFrameHeader) {
         if (enable_debug_log_) {
-            RCLCPP_WARN(this->get_logger(), "Invalid frame header: 0x%02X, expected 0x%02X", 
+            RCLCPP_WARN(this->get_logger(), "Invalid frame header: 0x%02X, expected 0x%02X",
                         frame[0], kSbusFrameHeader);
         }
         return;
@@ -413,60 +418,59 @@ void RadioNode::DecodeFrame(const std::array<uint8_t, kSbusFrameLength>& frame) 
     // 校验码验证（不包含帧头的33字节异或）
     uint8_t calculated_checksum = CalculateChecksum(frame);
     uint8_t received_checksum = frame[34];
-    
+
     if (calculated_checksum != received_checksum) {
         if (enable_debug_log_) {
-            RCLCPP_WARN(this->get_logger(), 
-                        "Checksum mismatch: calculated=0x%02X, received=0x%02X", 
+            RCLCPP_WARN(this->get_logger(), "Checksum mismatch: calculated=0x%02X, received=0x%02X",
                         calculated_checksum, received_checksum);
         }
         ++error_count_;
         return;
     }
 
-    // // 打印完整的35字节232数据
-    // std::stringstream data_ss;
-    // data_ss << "232 Data (35 bytes): ";
-    // for (std::size_t i = 0; i < frame.size(); ++i) {
-    //     data_ss << std::hex << std::uppercase << std::setw(2) << std::setfill('0')
-    //             << static_cast<int>(frame[i]);
-    //     if (i + 1 != frame.size()) {
-    //         data_ss << " ";
-    //     }
-    // }
-    // RCLCPP_INFO(this->get_logger(), "%s", data_ss.str().c_str());
+    // 打印完整的35字节232数据
+    std::stringstream data_ss;
+    data_ss << "232 Data (35 bytes): ";
+    for (std::size_t i = 0; i < frame.size(); ++i) {
+        data_ss << std::hex << std::uppercase << std::setw(2) << std::setfill('0')
+                << static_cast<int>(frame[i]);
+        if (i + 1 != frame.size()) {
+            data_ss << " ";
+        }
+    }
+    RCLCPP_INFO(this->get_logger(), "%s", data_ss.str().c_str());
 
     std::lock_guard<std::mutex> lock(channels_mutex_);
 
     /**
      * @brief 解码通道值
-     * 
+     *
      * @param channel_index 通道索引 (0-15)
      * @param raw_value 原始16位整数值
-     * 
+     *
      * 新格式：每个通道用2字节表示，高字节在前，低字节在后
      * 根据每个通道配置的min_raw、center_raw、max_raw，将原始值映射到[-1.0, 1.0]范围
-     * 
+     *
      * 映射规则：
      * - min_raw -> -1.0
      * - center_raw -> 0.0（中值点，可配置，不一定在中间）
      * - max_raw -> 1.0
-     * 
+     *
      * 分段线性映射：
      * - 当 raw_value < center_raw: 映射到 [-1.0, 0.0]
      * - 当 raw_value >= center_raw: 映射到 [0.0, 1.0]
      */
-    auto decode_channel = [&](int channel_index, uint16_t raw_value, 
-                              uint16_t& out_clamped_value, float& out_mapped_value) {
+    auto decode_channel = [&](int channel_index, uint16_t raw_value, uint16_t& out_clamped_value,
+                              float& out_mapped_value) {
         if (channel_index >= 0 && channel_index < static_cast<int>(kSbusChannelCount)) {
             const auto& range = channel_ranges_[channel_index];
-            
+
             // 限制原始值在配置的范围内
             raw_value = std::max(std::min(raw_value, range.max_raw), range.min_raw);
             out_clamped_value = raw_value;
-            
+
             float value = 0.0f;
-            
+
             if (raw_value < range.center_raw) {
                 // 映射到 [-1.0, 0.0] 范围
                 // raw_value在[min_raw, center_raw)之间
@@ -475,9 +479,9 @@ void RadioNode::DecodeFrame(const std::array<uint8_t, kSbusFrameLength>& frame) 
                     // 线性映射：min_raw -> -1.0, center_raw -> 0.0
                     // normalized从0变化到1，value从-1.0变化到0.0
                     float normalized = static_cast<float>(raw_value - range.min_raw) / lower_range;
-                    value = normalized - 1.0f; // value = -1.0 + normalized * 1.0
+                    value = normalized - 1.0f;  // value = -1.0 + normalized * 1.0
                 } else {
-                    value = -1.0f; // 如果lower_range无效，设为-1.0
+                    value = -1.0f;  // 如果lower_range无效，设为-1.0
                 }
             } else {
                 // 映射到 [0.0, 1.0] 范围
@@ -486,13 +490,14 @@ void RadioNode::DecodeFrame(const std::array<uint8_t, kSbusFrameLength>& frame) 
                 if (upper_range > 0.0f) {
                     // 线性映射：center_raw -> 0.0, max_raw -> 1.0
                     // normalized从0变化到1，value从0.0变化到1.0
-                    float normalized = static_cast<float>(raw_value - range.center_raw) / upper_range;
-                    value = normalized * 1.0f; // value = 0.0 + normalized * 1.0
+                    float normalized =
+                        static_cast<float>(raw_value - range.center_raw) / upper_range;
+                    value = normalized * 1.0f;  // value = 0.0 + normalized * 1.0
                 } else {
-                    value = 1.0f; // 如果upper_range无效，设为1.0
+                    value = 1.0f;  // 如果upper_range无效，设为1.0
                 }
             }
-            
+
             out_mapped_value = value;
             channels_[static_cast<std::size_t>(channel_index)] = FloatLimit(value);
         } else {
@@ -506,17 +511,17 @@ void RadioNode::DecodeFrame(const std::array<uint8_t, kSbusFrameLength>& frame) 
     std::array<uint16_t, 16> raw_values{};
     std::array<uint16_t, 16> clamped_values{};
     std::array<float, 16> mapped_values{};
-    
+
     for (int ch = 0; ch < 16; ++ch) {
         // 每个通道占2字节，高字节在前
         std::size_t byte_offset = 1 + ch * 2;
-        uint16_t raw_value = (static_cast<uint16_t>(frame[byte_offset]) << 8) | 
+        uint16_t raw_value = (static_cast<uint16_t>(frame[byte_offset]) << 8) |
                              static_cast<uint16_t>(frame[byte_offset + 1]);
         raw_values[ch] = raw_value;
-        
+
         decode_channel(ch, raw_value, clamped_values[ch], mapped_values[ch]);
     }
-    
+
     // // 打印所有16个通道的原始十进制值
     // std::ostringstream raw_oss;
     // raw_oss << "所有通道原始十进制值: ";
@@ -525,7 +530,7 @@ void RadioNode::DecodeFrame(const std::array<uint8_t, kSbusFrameLength>& frame) 
     //     if (ch < 15) raw_oss << ", ";
     // }
     // RCLCPP_INFO(this->get_logger(), "%s", raw_oss.str().c_str());
-    
+
     // // 打印所有16个通道的映射前值（限制后）
     // std::ostringstream clamped_oss;
     // clamped_oss << "所有通道映射前值(限制后): ";
@@ -534,7 +539,7 @@ void RadioNode::DecodeFrame(const std::array<uint8_t, kSbusFrameLength>& frame) 
     //     if (ch < 15) clamped_oss << ", ";
     // }
     // RCLCPP_INFO(this->get_logger(), "%s", clamped_oss.str().c_str());
-    
+
     // // 打印所有16个通道的映射后值（[-1,1]区间）
     // std::ostringstream mapped_oss;
     // mapped_oss << std::fixed << std::setprecision(6);
@@ -579,17 +584,10 @@ void RadioNode::DecodeFrame(const std::array<uint8_t, kSbusFrameLength>& frame) 
 }
 
 void RadioNode::UpdateMessageFromChannels() {
-    // auto map_channel = [&](int index, double scale, double offset) {
-    //     if (!IsChannelIndexValid(index)) {
-    //         return 0.0;
-    //     }
-    //     return static_cast<double>(channels_[static_cast<std::size_t>(index)]) * scale + offset;
-    // };
-
     // 处理线速度通道（通道2）：根据映射值设置linear_pct和brake_pct
     if (IsChannelIndexValid(channel_mapping_.linear_channel)) {
         double linear_value = channels_[static_cast<std::size_t>(channel_mapping_.linear_channel)];
-        
+
         // 在(-0.1, 0.1)区间内不响应，保持为0
         if (linear_value > -0.1 && linear_value < 0.1) {
             radio_msg_.linear_pct = 0.0F;
@@ -610,8 +608,9 @@ void RadioNode::UpdateMessageFromChannels() {
 
     // 处理转向通道（通道3）：根据映射值设置steering_pct
     if (IsChannelIndexValid(channel_mapping_.steering_channel)) {
-        double steering_value = channels_[static_cast<std::size_t>(channel_mapping_.steering_channel)];
-        
+        double steering_value =
+            channels_[static_cast<std::size_t>(channel_mapping_.steering_channel)];
+
         // 在(-0.1, 0.1)区间内不响应，保持为0
         if (steering_value > -0.1 && steering_value < 0.1) {
             radio_msg_.steering_pct = 0.0F;
@@ -623,7 +622,7 @@ void RadioNode::UpdateMessageFromChannels() {
         radio_msg_.steering_pct = 0.0F;
     }
 
-     // 处理模式档位通道（通道6）：根据映射值设置gear
+    // 处理模式档位通道（通道6）：根据映射值设置gear
     if (IsChannelIndexValid(channel_mapping_.gear_channel)) {
         double value = channels_[static_cast<std::size_t>(channel_mapping_.gear_channel)];
         if (value > channel_mapping_.gear_forward_threshold) {
@@ -640,15 +639,15 @@ void RadioNode::UpdateMessageFromChannels() {
     // 处理模式控制通道（通道5）：根据映射值设置control_mode
     if (IsChannelIndexValid(channel_mapping_.mode_channel)) {
         double mode_value = channels_[static_cast<std::size_t>(channel_mapping_.mode_channel)];
-            
+
         // 在(-0.1, 0.1)区间内，control_mode为0
         if (mode_value > -0.1 && mode_value < 0.1) {
             radio_msg_.control_mode = 0;
         } else if (mode_value >= 0.1) {
             // 大于等于0.1时，control_mode为1
-             radio_msg_.control_mode = 1;
+            radio_msg_.control_mode = 1;
         } else if (mode_value <= -0.1) {
-             // 小于等于-0.1时，control_mode为-1
+            // 小于等于-0.1时，control_mode为-1
             radio_msg_.control_mode = -1;
         }
     } else {
@@ -658,7 +657,7 @@ void RadioNode::UpdateMessageFromChannels() {
     // 处理急停控制通道（通道4）：根据映射值设置stop_mode
     if (IsChannelIndexValid(channel_mapping_.stop_channel)) {
         double stop_value = channels_[static_cast<std::size_t>(channel_mapping_.stop_channel)];
-        
+
         if (stop_value > 0.0) {
             // 大于0时，stop_mode为1
             radio_msg_.stop_mode = 1;
@@ -672,24 +671,25 @@ void RadioNode::UpdateMessageFromChannels() {
     } else {
         radio_msg_.stop_mode = 0;
     }
-
 }
 
 void RadioNode::RadioTimerCallback() {
-    bot_msg::msg::RadioLink msg_copy;
+    bot_msg::msg::RadioLink msg_copy{};
+
     {
         std::lock_guard<std::mutex> lock(channels_mutex_);
         radio_msg_.header.stamp = this->now();
         radio_msg_.header.frame_id = radio_frame_id_;
-        msg_copy = radio_msg_;
+        if (link_count_ < 50)
+            msg_copy = radio_msg_;
     }
 
     // 打印处理后的所有值，方便检查是否正确反映
-    RCLCPP_INFO(this->get_logger(), 
+    RCLCPP_INFO(this->get_logger(),
                 "Radio Control Values - linear_pct: %.3f, brake_pct: %.3f, steering_pct: %.3f, "
                 "gear: %d, control_mode: %d, stop_mode: %d",
-                msg_copy.linear_pct, msg_copy.brake_pct, msg_copy.steering_pct,
-                msg_copy.gear, msg_copy.control_mode, msg_copy.stop_mode);
+                msg_copy.linear_pct, msg_copy.brake_pct, msg_copy.steering_pct, msg_copy.gear,
+                msg_copy.control_mode, msg_copy.stop_mode);
 
     pub_radio_info_->publish(msg_copy);
 }

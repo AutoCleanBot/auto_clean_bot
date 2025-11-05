@@ -1,8 +1,0 @@
-rtk_node:
-  ros__parameters:
-    # 设备配置
-    device_name: '/dev/ttyUART_232_A'
-    baud_rate: 115200
-    timeout_ms: 10
-    
-

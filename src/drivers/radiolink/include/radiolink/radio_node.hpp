@@ -1,5 +1,7 @@
 #pragma once
 
+#include <sys/types.h>
+
 #include <array>
 #include <atomic>
 #include <chrono>
@@ -40,18 +42,18 @@ struct SbusPacket {
 };
 
 struct ChannelMapping {
-    int linear_channel{2}; // 线速度通道索引+油门-为刹车 左杆
-    int steering_channel{3}; // 转向角通道索引 右杆
-    int gear_channel{6}; // 档位通道索引 E
-    int mode_channel{5}; // 控制模式通道索引 G   
-    int stop_channel{4}; // 停止通道索引 F
-    double linear_scale{1.0}; // 线速度缩放系数
-    double steering_scale{1.0}; // 转向角缩放系数
-    double linear_offset{0.0}; // 线速度偏移
-    double steering_offset{0.0}; // 转向角偏移
-    double gear_forward_threshold{0.2}; // 档位前进阈值
-    double gear_reverse_threshold{-0.2}; // 档位倒退阈值
-    double mode_switch_threshold{0.4}; // 控制模式阈值
+    int linear_channel{2};                // 线速度通道索引+油门-为刹车 左杆
+    int steering_channel{3};              // 转向角通道索引 右杆
+    int gear_channel{6};                  // 档位通道索引 E
+    int mode_channel{5};                  // 控制模式通道索引 G
+    int stop_channel{4};                  // 停止通道索引 F
+    double linear_scale{1.0};             // 线速度缩放系数
+    double steering_scale{1.0};           // 转向角缩放系数
+    double linear_offset{0.0};            // 线速度偏移
+    double steering_offset{0.0};          // 转向角偏移
+    double gear_forward_threshold{0.2};   // 档位前进阈值
+    double gear_reverse_threshold{-0.2};  // 档位倒退阈值
+    double mode_switch_threshold{0.4};    // 控制模式阈值
 };
 
 class RadioNode : public rclcpp::Node {
@@ -112,11 +114,13 @@ private:
 
     // 每个通道的原始值范围配置（用于映射到[-1.0, 1.0]）
     struct ChannelRange {
-        uint16_t min_raw{0};       // 通道原始值最小值，映射到-1.0
-        uint16_t center_raw{1024}; // 通道原始值中值（中心点），映射到0.0
-        uint16_t max_raw{2047};    // 通道原始值最大值，映射到1.0
+        uint16_t min_raw{0};        // 通道原始值最小值，映射到-1.0
+        uint16_t center_raw{1024};  // 通道原始值中值（中心点），映射到0.0
+        uint16_t max_raw{2047};     // 通道原始值最大值，映射到1.0
     };
     std::array<ChannelRange, kSbusChannelCount> channel_ranges_{};
+
+    ssize_t link_count_{};
 };
 
 }  // namespace radio
