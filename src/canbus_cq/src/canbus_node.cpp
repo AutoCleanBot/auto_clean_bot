@@ -343,6 +343,7 @@ void CanbusNode::RadioLinkCallback(const bot_msg::msg::RadioLink::SharedPtr msg)
     uint8_t gear = 0;
     double brake = 0;
     double spd = 0;
+    double steer = 0;
     if (msg->gear == -1)
         gear = 2;
     else if (msg->gear == 1)
@@ -350,9 +351,13 @@ void CanbusNode::RadioLinkCallback(const bot_msg::msg::RadioLink::SharedPtr msg)
     if (msg->brake_pct > 0.0)
         brake = msg->brake_pct;
     if (msg->linear_pct > 0.0)
-        spd = msg->linear_pct * 3.0;
+        spd = msg->linear_pct * 2.5;
+    if(msg->steering_pct >= 0)
+        steer = -msg->steering_pct *4000;
+    else if(msg->steering_pct <= 0)
+        steer = -msg->steering_pct *3000;
     if (msg->control_mode == 0)  // 仅在远程驾驶情况下发送控制值
-        SendCtrlMsg(msg->steering_pct * 3000.0, brake, gear, spd);
+        SendCtrlMsg(steer, brake, gear, spd);
     RCLCPP_INFO(this->get_logger(),
                 "Received RadioLink Data | Mode: %d | Manual Ctrl: %s | Gear: %d -> %u | Steering: "
                 "%.2f | Speed: %.2f -> %.2f m/s | Brake: %.2f",

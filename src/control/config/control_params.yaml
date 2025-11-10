@@ -20,8 +20,8 @@ control_node:
     inc_step_size: 0.008          # 加速步长
     
     # 控制算法参数 - Control Algorithm Parameters
-    pursuit_control_rate: 0.6     # 纯追踪控制权重
-    stanley_control_rate: 0.4     # Stanley控制权重
+    pursuit_control_rate: 0.8     # 纯追踪控制权重
+    stanley_control_rate: 0.1     # Stanley控制权重
     sta_lat_rate: 0.4            # stanley控制中的横向偏差系数
     stanley_min_eff_spd: 0.5     # stanley控制中的最小有效速度
     feedforward_rate: 0.01         # 曲率前馈控制权重

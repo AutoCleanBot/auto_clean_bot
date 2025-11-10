@@ -122,7 +122,7 @@ void PlanningNode::InitParams() {
     this->declare_parameter("test_mode", false);
     this->declare_parameter("visualization_topic_name", "/planning/visualization");
     this->declare_parameter("remote_control_topic_name", "/remote_control/cmd");
-    this->declare_parameter("remote_control_topic_name", "/remote_controller/radiolink");
+    this->declare_parameter("radiolink_topic_name", "/remote_controller/radiolink");
     this->declare_parameter("remote_control_enabled", false);
 
     // 占用栅格地图障碍物检测参数
@@ -395,6 +395,8 @@ void PlanningNode::ObstaclesCallback(const bot_msg::msg::Obstacles::SharedPtr ms
 
 //
 void PlanningNode::RadioLinkCallback(const bot_msg::msg::RadioLink::SharedPtr msg) {
+    RCLCPP_INFO(this->get_logger(), "RadioLinkCallback, control_mode: %d, stop_mode: %d"
+        ,msg->control_mode, msg->stop_mode);
     if (msg->control_mode == -1 || msg->control_mode == 0) {
         manula_control_ = true;
         key_stop_ = true;

@@ -31,7 +31,7 @@ def generate_launch_description():
         'gnss_topic_name' : 'gnss/pose',
         'gnss_frame_id' : 'map',
         'gnss_publish_rate' : 50.0,  # 频率为50Hz
-        'enable_debug_log': False,
+        'enable_debug_log': True,
         'log_interval': 30,            # 日志输出间隔（每25次解析输出一次，适合50Hz频率）
         'heading_offset':90.0,         # 航向偏移量,°
         
