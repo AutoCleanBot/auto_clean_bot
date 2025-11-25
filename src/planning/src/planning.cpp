@@ -235,6 +235,7 @@ void PlanningNode::InitParams() {
     RCLCPP_INFO(this->get_logger(), "path_end_dist: %f", path_end_dist_);
     RCLCPP_INFO(this->get_logger(), "left_boundary_topic_name: %s",
                 left_boundary_topic_name_.c_str());
+    RCLCPP_INFO(this->get_logger(), "min_obstacle_distance_ : %f", min_obstacle_distance_);
     RCLCPP_INFO(this->get_logger(), "right_boundary_topic_name: %s",
                 right_boundary_topic_name_.c_str());
     RCLCPP_INFO(this->get_logger(), "direction_stability_weight: %f", direction_stability_weight_);
